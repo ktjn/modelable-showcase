@@ -1,0 +1,11 @@
+// Proves: an array-typed field may itself be optional (SPEC.md Sec 12
+// "optional arrays").
+domain optionalarrays {
+  owner: "conformance-fixtures"
+
+  value OptionalArrayHolder {
+    requiredTags: array<string>
+    optionalTags?: array<string>
+    optionalNumbers?: array<int>
+  }
+}

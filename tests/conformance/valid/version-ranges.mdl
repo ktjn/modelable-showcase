@@ -1,0 +1,32 @@
+// Proves: a ref<> version range resolves to the highest matching version
+// (SPEC.md Sec 12 "version ranges"), and a pinned content-signature
+// reference resolves when the hash matches exactly (SPEC.md Sec 12
+// "pinned/content-signature references where locally testable"). The
+// pinned hash below is the real SHA-256 computed by the compiler for
+// Widget@1 in this file - extracted from
+// `modelable compile --target rust`'s generated
+// `Widget@1::SCHEMA_CONTENT_SIGNATURE` constant, not invented. It will
+// only keep resolving as long as Widget@1's declaration here doesn't
+// change; that fragility is the point of content-signature pinning, not
+// a bug in this fixture.
+domain versionranges {
+  owner: "conformance-fixtures"
+
+  entity Widget @ 1 (additive) {
+    @key
+    widgetId: uuid
+    name: string
+  }
+
+  entity Widget @ 2 (additive) {
+    @key
+    widgetId: uuid
+    name: string
+    description?: string
+  }
+
+  value RangeHolder {
+    rangedWidget: ref<versionranges.Widget @ >=1 <3>
+    pinnedWidgetV1: ref<versionranges.Widget @ 1#c7d292fddb4d8ed89b73652b9399089ea9d3081bc74014baea3c94c2432af0fc>
+  }
+}

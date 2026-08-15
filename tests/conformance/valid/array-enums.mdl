@@ -1,0 +1,10 @@
+// Proves: an array element type may be an inline enum (SPEC.md Sec 12
+// "arrays of inline enums").
+domain arrayenums {
+  owner: "conformance-fixtures"
+
+  value ArrayEnumHolder {
+    statuses: array<enum(pending, active, closed)>
+    optionalPriorities?: array<enum(low, medium, high, critical)>
+  }
+}

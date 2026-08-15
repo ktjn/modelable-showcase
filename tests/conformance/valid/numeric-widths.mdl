@@ -1,0 +1,22 @@
+// Proves: every numeric width the type system supports, including the
+// 128-bit forms, is legal on a field (SPEC.md Sec 12 "numeric width
+// boundaries including 128-bit forms").
+domain numericwidths {
+  owner: "conformance-fixtures"
+
+  value AllWidths {
+    plainInt: int
+    plainFloat: float
+    isFlag: bool
+    u8Field: u8
+    u16Field: u16
+    u32Field: u32
+    u64Field: u64
+    u128Field: u128
+    i8Field: i8
+    i16Field: i16
+    i32Field: i32
+    i64Field: i64
+    i128Field: i128
+  }
+}

@@ -70,3 +70,12 @@ capabilities:
   target:fhir-profile:
     coverage: probe
     test: tests/integration/test_model_cli.py::test_fhir_profiles_use_intended_resource_bases
+  target:rust:
+    coverage: probe
+    test: tests/conformance/test_valid_fixtures.py::test_u128_i128_representable_in_rust
+  target:typescript:
+    coverage: probe
+    test: tests/conformance/test_valid_fixtures.py::test_arrays_of_inline_enums_compile_in_typescript
+  target:protobuf:
+    coverage: probe
+    test: tests/conformance/test_valid_fixtures.py::test_legal_maps_compile_in_protobuf

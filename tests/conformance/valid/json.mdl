@@ -1,0 +1,10 @@
+// Proves: the json type (SPEC.md Sec 12 "json") as both a required and
+// optional field.
+domain jsonfixture {
+  owner: "conformance-fixtures"
+
+  value JsonHolder {
+    requiredPayload: json
+    optionalPayload?: json
+  }
+}

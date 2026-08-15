@@ -1,0 +1,13 @@
+// Proves: several legal map<K,V> shapes (SPEC.md Sec 12 "legal map
+// shapes"), chosen to also be representable as native Protobuf maps
+// (compiler-reference.md Sec 10: scalar key/value shapes only).
+domain maps {
+  owner: "conformance-fixtures"
+
+  value MapHolder {
+    stringToString: map<string, string>
+    stringToInt: map<string, int>
+    stringToDecimal: map<string, decimal(10, 2)>
+    optionalMap?: map<string, bool>
+  }
+}

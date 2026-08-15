@@ -1,0 +1,29 @@
+// Proves: CEL operator precedence in a computed projection field -
+// multiplicative before additive before comparison before logical, with
+// parentheses and unary negation overriding the default order (SPEC.md
+// Sec 12 "difficult CEL precedence").
+domain celprecedence {
+  owner: "conformance-fixtures"
+
+  entity Reading @ 1 (additive) {
+    @key
+    readingId: uuid
+    a: int
+    b: int
+    c: int
+    d: int
+    flagOne: bool
+    flagTwo: bool
+  }
+
+  projection ReadingPrecedenceCheck @ 1
+    from celprecedence.Reading @ 1 as r
+  {
+    readingId <- r.readingId
+    // Without parens: * binds tighter than +, + binds tighter than >,
+    // comparisons bind tighter than &&, && binds tighter than ||.
+    result = r.a + r.b * r.c > r.d && r.flagOne || !r.flagTwo
+    // Explicit parens and unary negation overriding default precedence.
+    negatedGrouping = -(r.a + r.b) < r.c
+  }
+}

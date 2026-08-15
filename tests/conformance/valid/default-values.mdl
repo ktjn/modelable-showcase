@@ -1,0 +1,12 @@
+// Proves: field defaults across several literal types (SPEC.md Sec 12
+// "defaults").
+domain defaultvalues {
+  owner: "conformance-fixtures"
+
+  value DefaultsHolder {
+    languageCode: string = "en"
+    retryCount: int = 3
+    isEnabled: bool = true
+    priority: enum(low, medium, high) = medium
+  }
+}
