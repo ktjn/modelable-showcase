@@ -44,7 +44,7 @@ modelable-version:
 	@if [ -n "$$MODELABLE_REF" ]; then echo "MODELABLE_REF: $$MODELABLE_REF"; fi
 
 generate:
-	$(call not_implemented,generate,"Task 5.1 - Unified generation script")
+	@. ./scripts/modelable-env.sh; uv run scripts/generate-all.py
 
 validate:
 	$(call not_implemented,validate,"Task 17.1 - Finalize command facade")
