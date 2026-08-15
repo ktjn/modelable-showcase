@@ -1,0 +1,17 @@
+// Deferred capability: workspace-peers. `peers: [...]` parses and
+// produces an explicit "WARNING DEFERRED" diagnostic but has no effect on
+// compilation - declared peer entries are not validated or synced.
+domain deferredworkspacepeers {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+  }
+}
+
+workspace "deferred-peers-probe" {
+  peers: [
+    { id: "example-peer-registry", git: "git@example.com:org/example-peer.git", branch: "main" }
+  ]
+}

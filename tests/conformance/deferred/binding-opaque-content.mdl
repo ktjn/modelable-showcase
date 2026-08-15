@@ -1,0 +1,24 @@
+// Deferred capability: binding-opaque-content. Only `adapter`, `model`,
+// and `table` are honored inside `binding {}`; any other key parses and
+// produces an explicit "WARNING DEFERRED" diagnostic but is otherwise
+// ignored. Verified against the real CLI that two unrecognized keys
+// (poolSize, timeout) still produce exactly one rendered warning line,
+// not one per key - the underlying diagnostic count may differ (the
+// upstream unit test name suggests one per key), but this fixture and its
+// test only assert what the CLI's plain-text output actually shows.
+domain deferredbindingopaque {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+  }
+}
+
+binding thingPostgres {
+  adapter: postgres
+  model: deferredbindingopaque.Thing @ 1
+  table: "things"
+  poolSize: 10
+  timeout: 30
+}

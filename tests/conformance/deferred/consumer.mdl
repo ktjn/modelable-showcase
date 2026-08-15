@@ -1,0 +1,17 @@
+// Deferred capability: consumer-declarations. A top-level `consumer {}`
+// declaration parses and produces an explicit "WARNING DEFERRED"
+// diagnostic but has no effect on compilation - consumer registration and
+// downstream-impact analysis are not implemented.
+domain deferredconsumer {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+  }
+}
+
+consumer exampleConsumer {
+  registry: "example-peer-registry"
+  uses: ["deferredconsumer.Thing@1"]
+}
