@@ -4,6 +4,8 @@
 **Repository:** `ktjn/modelable-showcase`  
 **Upstream:** `ktjn/modelable`
 
+This document is the single source of truth for *what* is required and *what "done" means* — every requirement, acceptance criterion, and the Definition of Done (§25) live here and only here. [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) sequences the *how* and *in what order*; it cross-references section numbers here rather than restating requirements, and it must not be treated as adding to or relaxing anything stated in this document. [`UPSTREAM_POLICY.md`](UPSTREAM_POLICY.md) governs process for upstream gaps and points back to §25 for the OpenAPI-specific acceptance items it once duplicated. If any of the three ever disagree, this document governs.
+
 ## 1. Purpose
 
 `modelable-showcase` is a downstream acceptance application for Modelable.

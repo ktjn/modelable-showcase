@@ -20,6 +20,7 @@ For every task:
 8. Do not add a second handwritten domain model alongside generated Modelable contracts.
 9. Do not implement deferred Modelable runtime features in this repository.
 10. When Modelable behavior differs from this plan, verify upstream `main`, then update this plan/spec deliberately rather than adding compatibility hacks silently.
+11. `SPEC.md` is the only place acceptance criteria/requirements are stated. This plan sequences work toward them — it does not restate, add to, or relax them. When a task needs to reference what "done" means for a domain, target, or fixture set, cross-reference the relevant `SPEC.md` section number instead of copying its bullet list. If a task section here and `SPEC.md` ever disagree, `SPEC.md` governs; fix this plan to match rather than treating the disagreement as a new requirement.
 
 ### Required source of truth checks
 
@@ -346,29 +347,9 @@ If this creates an actual package dependency cycle, change the grouping and docu
 
 ### `patient.mdl`
 
-Create realistic definitions:
+Implement the `patient` domain exactly as required by `SPEC.md` §6.1 — semantic types, `value` objects, the `Patient @1`/`@2 (additive)`/`@3 (breaking)` evolution story, indexes, auto projections, and the full governance/annotation coverage list. This task does not add or relax any requirement beyond §6.1; the only decision left to this task is tactical:
 
-- `semantic PatientId: uuid(7)` or the current legal equivalent;
-- at least one `registry: true` semantic;
-- `value Address`;
-- `value ContactDetails`;
-- `entity Patient @1`;
-- `entity Patient @2 (additive)`;
-- compatibility-only breaking `Patient @3` only if keeping all three versions in one canonical file does not make the live product awkward; otherwise keep v3 under `compat/` later;
-- index for current patient version;
-- auto projections `db`, `request`, `reply`, `event` for live version.
-
-Use meaningful governance:
-
-- patient ID: internal classification;
-- legal name: PII;
-- email/phone/address: PII;
-- optional notes should not contain fake secrets;
-- at least one field-level owner override;
-- at least one deprecated field in v2;
-- server-generated `createdAt`/`updatedAt`.
-
-Include access metadata using currently supported syntax.
+- Keep `Patient @3` (breaking) in this canonical file only if that does not make the live product awkward; otherwise keep it under `compat/` per Task 4.1 instead. Either placement satisfies SPEC.md §6.1.
 
 ### Registry IDs
 
@@ -414,13 +395,7 @@ model/scheduling.mdl
 
 ### Required definitions
 
-- semantic `AppointmentId`;
-- semantic `PractitionerId` if needed;
-- value `TimeRange` if current model rules make it useful;
-- `Appointment` entity/aggregate;
-- appointment status event;
-- current-version index declaration;
-- auto projections.
+Implement the `scheduling` domain per `SPEC.md` §6.2 — semantic types, `Appointment`, status event, indexes, auto projections, and the `timestamp`/`date`/`time`/`duration`/enum/ref type coverage. This task does not add requirements beyond §6.2; the field shape below is the tactical detail §6.2 leaves to the implementer.
 
 ### Product fields
 
@@ -443,13 +418,7 @@ Prefer a representation that exercises `date`, `time`, `duration`, and `timestam
 
 ### Indexes
 
-Create indexes for:
-
-- patient + chronological lookup;
-- practitioner + chronological lookup;
-- status lookup.
-
-Use `sort` and one descending sort somewhere if current syntax supports it.
+Index coverage requirements are in `SPEC.md` §6.2. Tactically, use `sort` and one descending sort somewhere if current syntax supports it.
 
 ### Tests
 
@@ -481,29 +450,11 @@ model/clinical.mdl
 
 ### Required definitions
 
-- `EncounterId` semantic;
-- at least one chained semantic type;
-- `Encounter`;
-- `Observation`;
-- `Diagnosis` value;
-- one nested object/value used by observations;
-- FHIR-oriented projections sourced from models named `Patient`, `Observation`, and `Encounter` as required by the current emitter.
+Implement the `clinical` domain per `SPEC.md` §6.3 — semantic types (including a chained one), `Encounter`, `Observation`, `Diagnosis`, and the broad type-surface list. FHIR-oriented projections sourced from `Patient`/`Observation`/`Encounter` are required by §6.3.
 
 ### Type coverage
 
-Use natural fields such as:
-
-- temperature: decimal or float;
-- weight: decimal;
-- blood pressure systolic/diastolic: fixed-width unsigned ints;
-- pulse: fixed-width unsigned int;
-- device payload digest: `binary(32)` if legal/current;
-- measurement metadata: map/json;
-- recorded time: timestamp;
-- diagnosis codes: array;
-- structured measurement object.
-
-Do not force every Modelable primitive into the product domain. Leave pathological cases for Task 3.1.
+`SPEC.md` §6.3 lists the required type surface; represent it with fields that read naturally for a clinical encounter (temperature, weight, blood pressure, pulse, a device payload digest, measurement metadata, recorded time, diagnosis codes, a structured measurement object) rather than forcing every primitive artificially. Do not force every Modelable primitive into the product domain — pathological/unnatural combinations belong in Task 3.1's fixtures, not here.
 
 ### Semantic ambiguity
 
@@ -540,59 +491,15 @@ model/reporting.mdl
 
 ### Billing
 
-Add:
-
-- `InvoiceId` semantic;
-- `InvoiceLine` value;
-- `Invoice` aggregate/entity;
-- `PaymentReceived` event;
-- indexes;
-- auto projections;
-- money as `decimal(p,s)`;
-- arrays of lines;
-- invoice/payment status enums;
-- references to patient/appointment where appropriate.
-
-Do not add compatibility-only reservation complexity to live product yet unless it is naturally valid. Task 4 handles historical fixtures.
+Implement per `SPEC.md` §6.4: `InvoiceId`, `InvoiceLine`, `Invoice`, `PaymentReceived`, indexes, auto projections, and the required type/reference coverage. Do not add compatibility-only reservation complexity to the live product yet unless it is naturally valid — Task 4 handles historical fixtures.
 
 ### Audit
 
-Add `AuditEntry` event with:
-
-- timestamp;
-- actor identifier;
-- subject reference/identifier;
-- action enum;
-- binary digest/signature representation;
-- JSON metadata;
-- internal/restricted classification as appropriate.
+Implement `AuditEntry` per `SPEC.md` §6.5.
 
 ### Reporting
 
-Implement at least:
-
-- `PatientSummary`;
-- `DailySchedule`;
-- `PatientClinicalSummary`;
-- `OutstandingInvoices`;
-- `PractitionerRevenue`;
-- `MonthlyClinicStats`.
-
-Collectively use current valid syntax for:
-
-- joins;
-- left joins;
-- where;
-- group by;
-- direct mappings;
-- computed fields;
-- `pick`;
-- `omit`;
-- classification/PII selectors;
-- aggregate functions;
-- deterministic CEL string/arithmetic/logical/ternary functions.
-
-If a desired function is not in the current capability/language reference, replace it with one that is. Do not add unsupported syntax simply because this plan names the concept.
+Implement the six projections and CEL/join/selection coverage required by `SPEC.md` §6.6. If a desired function is not in the current capability/language reference, replace it with one that is — do not add unsupported syntax simply because SPEC.md or this plan names the concept.
 
 ### Tests
 
@@ -623,7 +530,7 @@ At end of Phase 2, all canonical `.mdl` must validate strictly.
 
 ### Goal
 
-Cover legal edge cases without damaging product readability.
+Cover legal edge cases without damaging product readability. Required case coverage is `SPEC.md` §12's list; the filenames below are this task's concrete mapping of that list to fixtures, not an independent requirement.
 
 ### Create focused files
 
@@ -677,6 +584,8 @@ pytest -q tests/conformance/test_valid_fixtures.py
 
 ## Task 3.2 — Negative fixtures
 
+Required case coverage is `SPEC.md` §13's list; the filenames below are this task's concrete mapping of that list to fixtures, not an independent requirement.
+
 ### Create
 
 ```text
@@ -728,7 +637,7 @@ Create:
 tests/conformance/test_invalid_fixtures.py
 ```
 
-The test MUST prove each fixture fails for its intended reason. A generic parse failure is not acceptable for a fixture intended to test semantic validation.
+Enforce `SPEC.md` §13's rule that each fixture MUST fail for its intended reason, not an unrelated earlier parse error.
 
 ### Acceptance
 
@@ -742,7 +651,7 @@ pytest -q tests/conformance/test_invalid_fixtures.py
 
 ### Goal
 
-Lock in explicit behavior for upstream-deferred capabilities without relying on them.
+Lock in explicit behavior for upstream-deferred capabilities without relying on them, per `SPEC.md` §14 (including its note on the deferred federated-registry CLI entry points).
 
 ### Create fixtures for currently reported deferred capabilities
 
@@ -799,22 +708,7 @@ compat/breaking-v3/
 
 Each directory must be a minimal standalone workspace, not a copy of the entire product if unnecessary.
 
-Use one or two representative models, ideally Patient and Invoice.
-
-### Required cases
-
-`baseline-v1` -> `additive-v2`:
-
-- add optional field;
-- add deprecation metadata if compatible;
-- preserve existing required fields.
-
-`additive-v2` -> `breaking-v3`:
-
-- remove/rename field;
-- change type or nullability;
-- add required field;
-- change enum incompatibly.
+Use one or two representative models, ideally Patient and Invoice. Case coverage requirements (additive and breaking, both directions) are `SPEC.md` §11's list — this task does not add cases beyond it.
 
 ### Tests
 
@@ -849,19 +743,7 @@ compat/protobuf-breaking/
 compat/grpc-read-index-change/
 ```
 
-Each scenario should contain `old/` and `new/` workspaces if that matches the current CLI shape.
-
-### Protobuf-safe case
-
-Demonstrate deletion/evolution with correct `reserved protobuf` declarations where supported.
-
-### Protobuf-breaking case
-
-Demonstrate a target-wire incompatibility such as illegal number/name reuse or incompatible target type change according to current upstream rules.
-
-### gRPC case
-
-Change read index metadata so `validate-compat --target grpc` returns the current upstream classification for required read rebuild.
+Each scenario should contain `old/` and `new/` workspaces if that matches the current CLI shape. Case coverage requirements (protobuf reservation-safe evolution, protobuf field-number/name reuse rejection, gRPC read-index rebuild classification) are `SPEC.md` §11's list — this task does not add cases beyond it.
 
 ### Tests
 
@@ -949,58 +831,7 @@ Prefer pytest for assertions and a script wrapper for Makefile/CI.
 
 ### Validate by target
 
-#### JSON Schema
-
-- every JSON file parses;
-- schemas validate under Draft 2020-12 meta-schema where applicable;
-- representative Patient request/reply schemas accept valid synthetic JSON and reject an invalid required-field case;
-- expected Modelable metadata extensions are present on representative artifacts.
-
-#### Markdown
-
-- files exist for representative model/projection;
-- Patient/Reporting docs contain version/field metadata;
-- reporting projection contains lineage section/table.
-
-#### SQL Postgres
-
-Structural parsing may be minimal here; real application is Task 8.1.
-
-#### SQL ClickHouse
-
-Structural parsing may be minimal here; real application is Task 8.2.
-
-#### dbt YAML
-
-- parse every YAML file;
-- assert top-level structure expected by current emitter;
-- optionally add dbt parse later if generated output can be embedded cleanly.
-
-#### FHIR
-
-- parse JSON;
-- `resourceType == StructureDefinition` for profiles;
-- assert Patient/Observation/Encounter representative profile identity/base fields;
-- verify at least one Modelable classification/lineage extension if current emitter promises it.
-
-#### OpenMetadata
-
-- parse;
-- representative output contains domain/owner/classification/lineage metadata.
-
-#### OpenLineage
-
-- parse;
-- representative projection has schema and column-lineage facets according to current emitter contract.
-
-#### ODCS
-
-- parse emitted YAML/JSON;
-- assert contract identity/version/schema fields.
-
-#### Protobuf/gRPC
-
-File parsing and `protoc` happen in Task 7.5.
+Per-target validation requirements are `SPEC.md` §9.3's list, one target at a time. This task's only addition is sequencing: SQL Postgres/ClickHouse structural parsing here may stay minimal since real application against a live database happens in Task 8.1/8.2, and Protobuf/gRPC file parsing plus `protoc` happen in Task 7.5, not here.
 
 ### Acceptance
 
@@ -2051,7 +1882,7 @@ make clean
 make acceptance
 ```
 
-This is the final local definition of done.
+`make acceptance` passing locally is necessary but not sufficient — it is item 17 of `SPEC.md` §25's Definition of Done, not a substitute for it. Items covering CI in pinned-release mode, the `MODELABLE_REF` canary path, and the OpenAPI/CLI-surface additions still apply; see the Final verification checklist at the end of this document.
 
 ---
 
@@ -2240,15 +2071,7 @@ docker compose down -v
 docker compose up --build -d
 ```
 
-Then manually verify:
-
-- web page loads;
-- create patient works;
-- booking works;
-- encounter + observation works;
-- invoice + payment works;
-- patient summary works;
-- analytics page shows data.
+Then manually click through the user-visible flows required by `SPEC.md` §3 end to end (web page loads; create patient; booking; encounter + observation; invoice + payment; patient summary; analytics page shows data) — this is a manual walkthrough of that list, not an independent requirement.
 
 Then verify upstream canary:
 
