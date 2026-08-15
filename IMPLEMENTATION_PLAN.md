@@ -238,13 +238,23 @@ capabilities:
   target:json-schema:
     coverage: probe
     test: tests/integration/test_generated_artifacts.py::test_json_schema
+  sql_dialect:postgres:
+    coverage: product
+    test: model/patient.mdl
   model_kind:entity:
+    coverage: product
+    test: model/patient.mdl
+  annotation:pii:
     coverage: product
     test: model/patient.mdl
   deferred_feature:composite-keys:
     coverage: deferred
     test: tests/conformance/deferred/composite-key.mdl
 ```
+
+`modelable capabilities --format json` reports exactly five capability categories: `target`, `sql_dialect`, `model_kind`, `annotation`, `deferred_feature`. The checker MUST flatten and require coverage for all five, not just the ones illustrated above — `sql_dialect` is easy to miss since it currently has only two entries (`postgres`, `clickhouse`), both already exercised by the product.
+
+Targets that are only accepted in `.mdl` `generate {}` block vocabulary but have no `compile --target` implementation (for example `openapi`, `avro`, `asyncapi` at the time this plan was last verified against upstream) do **not** appear in `capabilities --format json` at all and therefore need no manifest entry. Do not invent placeholder capability keys for grammar-level vocabulary that the compiler does not yet expose as a real target — confirm absence with `modelable compile --help` before assuming a gap here.
 
 Allowed `coverage` values:
 
@@ -1036,6 +1046,41 @@ make determinism
 
 ---
 
+## Task 5.4 — Deterministic import/interchange and non-AI CLI surface
+
+### Goal
+
+The Modelable CLI has real, deterministic command surface beyond `validate`/`resolve`/`lineage`/`diff`/`compile` that this plan has not previously exercised: schema import/interchange, external-source drift tracking, and graph export. None of these are reported by `modelable capabilities --format json` (that manifest only covers `target`/`sql_dialect`/`model_kind`/`annotation`/`deferred_feature`), so the capability-coverage gate in Task 1.3 cannot catch drift here on its own — this task exists specifically to close that blind spot.
+
+Do not confuse these with the AI-assisted commands (`update`, `chat` mutation turns, `suggest-projection`) that SPEC.md §2 excludes as a required deterministic gate. `generate --from` has both an AI path (freeform natural-language prompt) and a fully deterministic import path (`--format json-schema|sql|dbt|fhir|odcs`, no provider required) — only the deterministic import path belongs in this task.
+
+### Create
+
+```text
+tests/conformance/import/
+tests/integration/test_cli_surface.py
+```
+
+### Required coverage
+
+1. **`generate --from` deterministic import**: round-trip at least two formats already produced by this repo's own `make generate` output — for example import a generated `json-schema` artifact and a generated `odcs` document back into a fresh `.mdl` file with `--output`, and assert the result parses/validates and preserves `x-modelable`/`customProperties` metadata (PII, classification, owner, key) per the current CLI contract. Do not import third-party schemas found online; use this repository's own generated artifacts as fixtures so the test has no external network dependency.
+2. **`attach`**: attach an existing canonical model version to one external source format (dbt `schema.yml` is the natural fit given Task 2.x already produces one) and assert the command reports no drift when the source matches, and reports the expected additive/breaking `change_kind` when the source is deliberately mutated in a copied fixture.
+3. **`spec add` / `spec status` / `spec diff`**: track one external source under `.modelable/specs.yml` in a disposable test workspace and assert `spec status --json` reports `clean` and, after mutating the copied fixture, `drifted`.
+4. **`graph export`**: export the canonical workspace graph and assert the output is valid JSON containing the expected domain/model/projection identities; exercise `--focus` on one reference.
+5. **`codegen formats` / `codegen types --format <x>`**: assert the reported format list matches the targets reported as implemented by `capabilities --format json`, and that `codegen types` returns a non-empty type mapping for at least one representative target.
+6. **`transform <ref> --to <target> --explain`**: run once against a representative model version and assert the explanation output is non-empty; this is a thin smoke test, not a duplicate of Task 5.1/5.2's real compile-target coverage.
+
+Use copied/temp fixtures for anything that writes files (`attach`, `spec sync --write`, `generate --output`). Never mutate canonical `model/` files from this test suite.
+
+### Acceptance
+
+```bash
+make generate
+pytest -q tests/integration/test_cli_surface.py
+```
+
+---
+
 # Phase 6 — Product-consumed generated TypeScript
 
 ## Task 6.1 — Bootstrap React application
@@ -1353,6 +1398,25 @@ pytest -q tests/integration/test_clickhouse_generated_schema.py
 
 # Phase 9 — Rust API product
 
+## Task 9.0 — Verify upstream OpenAPI Phase A/B status (required checkpoint)
+
+### Goal
+
+`UPSTREAM_POLICY.md` §10 mandates this check before any HTTP API contract work begins, but earlier phases of this plan do not need it. Do not skip straight to Task 9.1 without running this task — the API's request/reply contract is meant to come from generated OpenAPI, not from hand-written Axum route structs, and that is only possible once upstream Modelable exposes it.
+
+### Steps
+
+1. Run `modelable capabilities --format json` and `modelable compile --help`; confirm whether `openapi` now appears as an implemented target.
+2. If implemented, run `modelable compile ./model --target openapi --out generated/openapi` and confirm the output contains non-empty `paths` (Phase B), not only `components.schemas` with `paths: {}` (Phase A only).
+3. If either layer is still missing, stop showcase API work. Follow `UPSTREAM_POLICY.md` §1 and §9: reproduce the need upstream, verify against `ktjn/modelable@main`, and track status against `ktjn/modelable#352` (or its successor if renumbered) until Phase B lands. Use `MODELABLE_REF=<branch-or-sha> make acceptance` against a candidate upstream branch to verify a fix before it merges.
+4. Record the verified state (implemented / Phase A only / missing) in the PR or commit description for Task 9.1 so later agents do not re-verify from scratch unnecessarily.
+
+### Acceptance
+
+Task 9.1 may not begin until this task confirms full Phase A + Phase B OpenAPI generation is available on the pinned or canary Modelable ref being used for implementation.
+
+---
+
 ## Task 9.1 — Bootstrap Axum API and generated Rust dependency
 
 ### Create under `apps/api/`
@@ -1492,6 +1556,32 @@ The endpoint returns at least:
 The analytics table schema MUST come from generated ClickHouse output.
 
 Do not implement Modelable subscriptions/materialisation. Application code owns synchronization explicitly.
+
+---
+
+## Task 9.6 — OpenAPI contract generation and consumption
+
+### Goal
+
+Task 9.0 confirmed upstream OpenAPI Phase A + Phase B are available. This task makes the showcase actually consume the generated contract, per `UPSTREAM_POLICY.md` §5 (read that section for full detail; this task tracks it in the dependency graph and file-ownership table rather than restating it).
+
+### Required
+
+1. Add `openapi` to `scripts/generate-all.py`'s target loop (Task 5.1) so it is generated by `make generate` into disposable `generated/openapi/`.
+2. Independently validate the generated document with a standard OpenAPI 3.1 parser/validator, separate from whatever validation Modelable's own test suite performs.
+3. Expose the generated contract to developers — a static docs route or a local Swagger UI/Scalar viewer is sufficient; do not hand-write the document it serves.
+4. Add HTTP contract tests asserting the running Axum API's actual request/response shapes conform to the generated OpenAPI paths/operations for the endpoints built in Tasks 9.2-9.5.
+5. Add `openapi` to the Task 5.3 determinism gate.
+6. Add `target:openapi` (or its final capability key) to `tests/conformance/capability-coverage.yaml` classified as `product`.
+
+### Acceptance
+
+```bash
+make generate
+python -m json.tool generated/openapi/*.json >/dev/null
+pytest -q tests/integration -k openapi
+cargo test --manifest-path apps/api/Cargo.toml
+```
 
 ### Acceptance Phase 9
 
@@ -2023,14 +2113,14 @@ Use this order:
                      |
                      +--> 4.1 -> 4.2
                      |
-                     +--> 5.1 -> 5.2 -> 5.3
+                     +--> 5.1 -> 5.2 -> 5.3 -> 5.4
                                   |
                                   +--> 6.1
                                   +--> 7.1..7.6
                                   +--> 8.1 -> 8.2
                                            |
                                            v
-                                      9.1 -> 9.2 -> 9.3 -> 9.4 -> 9.5
+                                      9.0 -> 9.1 -> 9.2 -> 9.3 -> 9.4 -> 9.5 -> 9.6
                                                                |
                                                                v
                                                         10.1 -> 10.2 -> 10.3
@@ -2060,8 +2150,9 @@ If multiple agents implement in parallel, assign ownership:
 | Model language | `model/**`, `tests/conformance/**` |
 | Generator | `scripts/generate-all.py`, `scripts/check-determinism.py` |
 | Capability coverage | `tests/conformance/capability-coverage.yaml`, `scripts/check-capability-coverage.py` |
+| Import/interchange & CLI surface | `tests/conformance/import/**`, `tests/integration/test_cli_surface.py` |
 | Web | `apps/web/**` |
-| API | `apps/api/**` |
+| API | `apps/api/**` (includes OpenAPI consumption per Task 9.6) |
 | Language probes | `probes/**`, relevant integration tests |
 | Databases | `docker-compose.yml`, DB scripts/tests |
 | E2E | `tests/e2e/**` |
