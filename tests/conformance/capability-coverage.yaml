@@ -85,6 +85,24 @@ capabilities:
   sql_dialect:clickhouse:
     coverage: probe
     test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
+  target:markdown:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_markdown_entity_doc_has_expected_metadata_and_fields
+  target:dbt-yaml:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_dbt_yaml_files_all_parse_and_have_expected_shape
+  target:openmetadata:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_openmetadata_domain_files_have_domain_owner_and_field_governance
+  target:openlineage:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_openlineage_projection_event_has_schema_and_column_lineage_facets
+  target:odcs:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_odcs_contracts_have_identity_and_schema_fields
+  target:grpc:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_grpc_service_manifest_has_services_and_read_indexes
   deferred_feature:composite-keys:
     coverage: deferred
     test: tests/conformance/deferred/composite-keys.mdl

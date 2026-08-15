@@ -1,0 +1,328 @@
+"""Artifact structural validation (IMPLEMENTATION_PLAN.md Task 5.2,
+SPEC.md Sec 9.3): every generated artifact target gets validated beyond
+"the file exists" - parsed with a real, standards-appropriate reader and
+checked for the specific structural content SPEC.md Sec 9.3 requires.
+
+Per this task's own sequencing note, three targets stay deliberately
+minimal here because their full validation is a later task's job:
+- sql-postgres / sql-clickhouse: structural parse only; applying to a
+  live database is Task 8.1/8.2.
+- protobuf / grpc: schema/service-manifest JSON inspection only; running
+  `protoc` against the generated .proto files is Task 7.5.
+
+typescript/csharp/java/python/rust/go are intentionally not covered here
+- SPEC.md Sec 9.1/9.2 validates those by actually compiling/importing them
+  (Phase 6, 7, 9), which is a stronger check than structural inspection
+  would be.
+
+Requires `make generate` to have already populated generated/ - this
+suite does not regenerate it (see conftest-less skip below), matching
+the task's own acceptance section, which runs `make generate` and this
+test file as two separate steps.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+import yaml
+from jsonschema import Draft202012Validator, ValidationError
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+GENERATED_DIR = REPO_ROOT / "generated"
+
+pytestmark = pytest.mark.skipif(
+    not (GENERATED_DIR / "manifest.json").exists(),
+    reason="generated/ is not populated - run 'make generate' first",
+)
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+def load_yaml(path: Path) -> dict:
+    return yaml.safe_load(path.read_text())
+
+
+# --- JSON Schema -------------------------------------------------------------
+
+
+def test_json_schema_is_draft_2020_12_and_self_checks():
+    schema_path = GENERATED_DIR / "json-schema" / "patient.Patient.v2.json"
+    schema = load_json(schema_path)
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    Draft202012Validator.check_schema(schema)
+
+
+def test_json_schema_validates_a_representative_valid_instance():
+    schema = load_json(GENERATED_DIR / "json-schema" / "patient.Patient.v2.json")
+    validator = Draft202012Validator(schema)
+    valid_instance = {
+        "patientId": {},
+        "legalName": "Ada Lovelace",
+        "dateOfBirth": "1985-03-14",
+        "contact": {},
+        "preferredLanguage": "en",
+        "createdAt": "2026-01-01T00:00:00Z",
+    }
+    validator.validate(valid_instance)  # raises on failure
+
+
+def test_json_schema_rejects_an_instance_missing_a_required_field():
+    schema = load_json(GENERATED_DIR / "json-schema" / "patient.Patient.v2.json")
+    validator = Draft202012Validator(schema)
+    missing_legal_name = {
+        "patientId": {},
+        "dateOfBirth": "1985-03-14",
+        "contact": {},
+        "preferredLanguage": "en",
+        "createdAt": "2026-01-01T00:00:00Z",
+    }
+    with pytest.raises(ValidationError):
+        validator.validate(missing_legal_name)
+
+
+def test_json_schema_rejects_an_instance_with_wrong_field_type():
+    schema = load_json(GENERATED_DIR / "json-schema" / "patient.Patient.v2.json")
+    validator = Draft202012Validator(schema)
+    wrong_type = {
+        "patientId": {},
+        "legalName": 12345,  # must be string
+        "dateOfBirth": "1985-03-14",
+        "contact": {},
+        "preferredLanguage": "en",
+        "createdAt": "2026-01-01T00:00:00Z",
+    }
+    with pytest.raises(ValidationError):
+        validator.validate(wrong_type)
+
+
+# --- Markdown -----------------------------------------------------------------
+
+
+def test_markdown_entity_doc_has_expected_metadata_and_fields():
+    text = (GENERATED_DIR / "markdown" / "patient.Patient.v2.md").read_text()
+    assert "# Patient v2" in text
+    for line_prefix in ["**Domain:**", "**Name:**", "**Version:**", "**Owner:**", "**Kind:**"]:
+        assert line_prefix in text, f"missing {line_prefix!r} in entity markdown doc"
+    assert "## Fields" in text
+    assert "| patientId | PatientId |" in text
+
+
+def test_markdown_projection_doc_has_lineage_and_sources_sections():
+    text = (GENERATED_DIR / "markdown" / "reporting.PatientSummary.v1.md").read_text()
+    assert "## Sources" in text
+    assert "## Fields" in text
+    assert "| Field | Lineage |" in text
+    assert "direct: p.patientId (patient.Patient)" in text
+    assert "computed: `count(e.encounterId)`" in text
+
+
+# --- SQL Postgres / SQL ClickHouse (minimal structural parse) ----------------
+
+
+def _assert_single_well_formed_create_table(sql_dir_name: str):
+    sql_dir = GENERATED_DIR / sql_dir_name
+    sql_files = sorted(sql_dir.glob("*.sql"))
+    assert sql_files, f"no .sql files found under generated/{sql_dir_name}"
+    for sql_file in sql_files:
+        text = sql_file.read_text()
+        assert text.startswith("-- @generated by Modelable"), sql_file
+        assert text.count("CREATE TABLE") == 1, f"{sql_file}: expected exactly one CREATE TABLE"
+
+        def strip_leading_comment_lines(chunk: str) -> str:
+            lines = chunk.strip("\n").splitlines()
+            while lines and lines[0].strip().startswith("--"):
+                lines.pop(0)
+            return "\n".join(lines).strip()
+
+        statements = [
+            stripped
+            for raw in text.split(";")
+            if (stripped := strip_leading_comment_lines(raw))
+        ]
+        assert statements, f"{sql_file}: no SQL statements found"
+        for statement in statements:
+            assert statement.upper().startswith(("CREATE TABLE", "CREATE INDEX")), (
+                f"{sql_file}: unexpected statement start: {statement[:60]!r}"
+            )
+        assert text.count("(") == text.count(")"), f"{sql_file}: unbalanced parentheses"
+
+
+def test_sql_postgres_files_are_single_well_formed_create_table_statements():
+    _assert_single_well_formed_create_table("sql-postgres")
+
+
+def test_sql_clickhouse_files_are_single_well_formed_create_table_statements():
+    _assert_single_well_formed_create_table("sql-clickhouse")
+
+
+# --- dbt YAML -----------------------------------------------------------------
+
+
+def test_dbt_yaml_files_all_parse_and_have_expected_shape():
+    # A full `dbt parse` project is deliberately not attempted here: dbt
+    # requires a .sql model file (a real transformation body) alongside
+    # each schema.yml entry, and these generated files describe existing
+    # warehouse tables the SQL targets create directly - there is no real
+    # dbt transformation for these models to run. Writing placeholder SQL
+    # bodies just to satisfy `dbt parse` would fabricate semantics that
+    # don't exist, which IMPLEMENTATION_PLAN.md Task 5.2 explicitly says
+    # not to do. Structural YAML validation is the honest check here.
+    dbt_dir = GENERATED_DIR / "dbt-yaml"
+    yaml_files = sorted(dbt_dir.glob("*.yml"))
+    assert yaml_files, "no .yml files found under generated/dbt-yaml"
+    for yaml_file in yaml_files:
+        doc = load_yaml(yaml_file)
+        assert doc["version"] == 2, yaml_file
+        assert isinstance(doc["models"], list) and doc["models"], yaml_file
+        for model in doc["models"]:
+            assert model["name"], yaml_file
+            assert model["meta"]["modelable_domain"], yaml_file
+            versions = model["versions"]
+            assert versions, yaml_file
+            for version in versions:
+                assert version["columns"], yaml_file
+
+
+def test_dbt_yaml_records_lineage_in_column_meta():
+    doc = load_yaml(GENERATED_DIR / "dbt-yaml" / "patient.PatientDb.v2.yml")
+    columns = {c["name"]: c for c in doc["models"][0]["versions"][0]["columns"]}
+    assert columns["patientId"]["meta"]["modelable_lineage"] == ["patient.Patient@2.patientId"]
+
+
+# --- FHIR profile ---------------------------------------------------------
+
+
+FHIR_KNOWN_KINDS = {"resource", "complex-type", "primitive-type", "logical"}
+
+
+def test_fhir_profiles_are_valid_structuredefinition_json():
+    fhir_dir = GENERATED_DIR / "fhir-profile"
+    fhir_files = sorted(fhir_dir.glob("*.fhir.json"))
+    assert fhir_files, "no .fhir.json files found under generated/fhir-profile"
+    for fhir_file in fhir_files:
+        doc = load_json(fhir_file)
+        assert doc["resourceType"] == "StructureDefinition", fhir_file
+        assert doc["url"].startswith("http://modelable.io/fhir/StructureDefinition/"), fhir_file
+        assert doc["fhirVersion"] == "4.0.1", fhir_file
+        assert doc["kind"] in FHIR_KNOWN_KINDS, fhir_file
+        assert doc["derivation"] in {"constraint", "specialization"}, fhir_file
+        assert doc["snapshot"]["element"], f"{fhir_file}: snapshot.element must be non-empty"
+
+
+def test_fhir_base_profile_constrains_a_real_hl7_resource():
+    doc = load_json(GENERATED_DIR / "fhir-profile" / "clinical.PatientFhirView.v1.fhir.json")
+    assert doc["type"] == "Patient"
+    assert doc["baseDefinition"] == "http://hl7.org/fhir/StructureDefinition/Patient"
+    assert doc["derivation"] == "constraint"
+
+
+@pytest.mark.skip(
+    reason="opt-in HL7 FHIR Validator gate - see IMPLEMENTATION_PLAN.md Task 15.4 "
+    "(Phase 15, optional integration profiles), not this task"
+)
+def test_fhir_profiles_pass_the_hl7_validator():
+    ...
+
+
+# --- OpenMetadata ---------------------------------------------------------
+
+
+def test_openmetadata_domain_files_have_domain_owner_and_field_governance():
+    om_dir = GENERATED_DIR / "openmetadata"
+    om_files = sorted(om_dir.glob("*.openmetadata.json"))
+    assert om_files, "no .openmetadata.json files found"
+    for om_file in om_files:
+        doc = load_json(om_file)
+        assert doc["name"], om_file
+        assert doc["owner"], om_file
+        assert doc["assets"], om_file
+        for asset in doc["assets"]:
+            if asset["kind"] in {"entity", "aggregate", "event", "value"}:
+                for field in asset["fields"]:
+                    assert "pii" in field and "classification" in field, (om_file, asset["name"], field["name"])
+
+
+def test_openmetadata_projection_asset_records_lineage():
+    doc = load_json(GENERATED_DIR / "openmetadata" / "reporting.openmetadata.json")
+    asset = next(a for a in doc["assets"] if a["name"] == "PatientSummary")
+    assert asset["source"]["model"] == "patient.Patient"
+    direct_fields = [f for f in asset["fields"] if f["mapping"] == "direct"]
+    assert direct_fields
+    assert direct_fields[0]["source"].startswith("patient.Patient@")
+    computed_fields = [f for f in asset["fields"] if f["mapping"] == "computed"]
+    assert computed_fields
+    assert computed_fields[0]["expression"]
+
+
+# --- OpenLineage -----------------------------------------------------------
+
+
+def test_openlineage_projection_event_has_schema_and_column_lineage_facets():
+    doc = load_json(GENERATED_DIR / "openlineage" / "reporting.PatientSummary.v1.openlineage.json")
+    assert doc["eventType"] == "COMPLETE"
+    assert doc["inputs"], doc
+    assert doc["inputs"][0]["facets"]["schema"]["fields"], "input dataset missing schema facet"
+
+    output = doc["outputs"][0]
+    assert output["facets"]["schema"]["fields"], "output dataset missing schema facet"
+    column_lineage = output["facets"]["columnLineage"]["fields"]
+    assert column_lineage["patientId"]["inputFields"][0]["field"] == "patientId"
+    assert column_lineage["encounterCount"]["transformationDescription"] == "count(e.encounterId)"
+
+
+def test_openlineage_events_all_parse_and_have_a_producer():
+    ol_dir = GENERATED_DIR / "openlineage"
+    ol_files = sorted(ol_dir.glob("*.openlineage.json"))
+    assert ol_files, "no .openlineage.json files found"
+    for ol_file in ol_files:
+        doc = load_json(ol_file)
+        assert doc["producer"] == "https://github.com/ktjn/modelable", ol_file
+        assert doc["schemaURL"], ol_file
+
+
+# --- ODCS --------------------------------------------------------------------
+
+
+def test_odcs_contracts_have_identity_and_schema_fields():
+    odcs_dir = GENERATED_DIR / "odcs"
+    odcs_files = sorted(odcs_dir.glob("*.odcs.yaml"))
+    assert odcs_files, "no .odcs.yaml files found"
+    for odcs_file in odcs_files:
+        doc = load_yaml(odcs_file)
+        assert doc["kind"] == "DataContract", odcs_file
+        assert doc["id"].startswith("modelable://"), odcs_file
+        assert doc["name"], odcs_file
+        assert doc["domain"], odcs_file
+        assert doc["schema"], odcs_file
+        for schema_object in doc["schema"]:
+            assert schema_object["properties"], odcs_file
+
+
+# --- Protobuf / gRPC (schema/service manifest inspection only) --------------
+
+
+def test_protobuf_schema_manifest_has_fields_and_semantic_types():
+    manifest = load_json(GENERATED_DIR / "protobuf" / "patient" / "Patient.v2" / "schema-manifest.json")
+    assert manifest["target"] == "protobuf"
+    schema = manifest["schemas"][0]
+    assert schema["ref"] == "patient.Patient@2"
+    assert schema["fields"], manifest
+    key_field = next(f for f in schema["fields"] if f["key"])
+    assert key_field["name"] == "patientId"
+    assert schema["semantic_types"], "expected patient.PatientId to appear as a semantic type"
+
+
+def test_grpc_service_manifest_has_services_and_read_indexes():
+    manifest = load_json(GENERATED_DIR / "grpc" / "patient" / "Patient.v2" / "service-manifest.json")
+    assert manifest["target"] == "grpc"
+    assert set(manifest["services"]) >= {"CommandService", "EntityReadService"}
+    assert manifest["read_indexes"], manifest
+    primary = next(i for i in manifest["read_indexes"] if i["index_name"] == "primary")
+    assert primary["unique"] is True
+    assert primary["key_fields"] == ["patientId"]
