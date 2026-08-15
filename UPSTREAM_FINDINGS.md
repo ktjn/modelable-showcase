@@ -12,25 +12,28 @@
 
 ## Status summary
 
-| # | Finding | Category | Case |
-|---|---|---|---|
-| 1 | [`@wire(json: {...})` crashes instead of diagnosing an unsupported key](#1-wirejson--crashes-instead-of-diagnosing-an-unsupported-key) | Crash | A |
-| 2 | [`ref<Model@N#hash>` cannot pin most real SHA-256 signatures](#2-refmodelnhash-cannot-pin-most-real-sha-256-signatures) | Grammar gap | A |
-| 3 | [`group by` cannot take a function-call expression](#3-group-by-cannot-take-a-function-call-expression) | Grammar gap | A |
-| 4 | [`where` followed by `pick`/`omit` on the next line fails to parse](#4-where-followed-by-pickomit-on-the-next-line-fails-to-parse) | Grammar gap | A |
-| 5 | [Unresolvable/ambiguous bare semantic-type field references silently degrade instead of erroring](#5-unresolvableambiguous-bare-semantic-type-field-references-silently-degrade-instead-of-erroring) | Missing diagnostic | A |
-| 6 | [`compile --target protobuf` crashes on reservation reuse instead of diagnosing it](#6-compile---target-protobuf-crashes-on-reservation-reuse-instead-of-diagnosing-it) | Crash | A |
-| 7 | [CEL type-mismatch checking is not implemented](#7-cel-type-mismatch-checking-is-not-implemented) | Missing feature | A |
-| 8 | [`ref<Model @ >=N <M>>` version-range notation is easy to double-bracket](#8-refmodel--n-m-version-range-notation-is-easy-to-double-bracket) | Docs clarity | C |
-| 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A |
-| 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A |
-| 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A |
-| 12 | [`compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error](#12-compile---target-typescript-never-imports-a-fields-semantic-type---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A |
-| 13 | [`compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)](#13-compile---target-typescript-never-emits-any-imports-at-all-for-auto-generated-projections-dbrequestreplyevent) | Crash (broken generated code) | A |
+| # | Finding | Category | Case | Status |
+|---|---|---|---|---|
+| 1 | [`@wire(json: {...})` crashes instead of diagnosing an unsupported key](#1-wirejson--crashes-instead-of-diagnosing-an-unsupported-key) | Crash | A | Fixed in [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) (open, not yet merged/released) |
+| 2 | [`ref<Model@N#hash>` cannot pin most real SHA-256 signatures](#2-refmodelnhash-cannot-pin-most-real-sha-256-signatures) | Grammar gap | A | Fixed in #354 |
+| 3 | [`group by` cannot take a function-call expression](#3-group-by-cannot-take-a-function-call-expression) | Grammar gap | A | Fixed in #354 |
+| 4 | [`where` followed by `pick`/`omit` on the next line fails to parse](#4-where-followed-by-pickomit-on-the-next-line-fails-to-parse) | Grammar gap | A | Fixed in #354 |
+| 5 | [Unresolvable/ambiguous bare semantic-type field references silently degrade instead of erroring](#5-unresolvableambiguous-bare-semantic-type-field-references-silently-degrade-instead-of-erroring) | Missing diagnostic | A | Fixed in #354 |
+| 6 | [`compile --target protobuf` crashes on reservation reuse instead of diagnosing it](#6-compile---target-protobuf-crashes-on-reservation-reuse-instead-of-diagnosing-it) | Crash | A | Fixed in #354 |
+| 7 | [CEL type-mismatch checking is not implemented](#7-cel-type-mismatch-checking-is-not-implemented) | Missing feature | A | Fixed in #354 |
+| 8 | [`ref<Model @ >=N <M>>` version-range notation is easy to double-bracket](#8-refmodel--n-m-version-range-notation-is-easy-to-double-bracket) | Docs clarity | C | N/A — no code fix needed |
+| 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A | Fixed in #354 |
+| 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A | Fixed in #354 |
+| 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A | Fixed in #354 |
+| 12 | [`compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error](#12-compile---target-typescript-never-imports-a-fields-semantic-type---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in #354 |
+| 13 | [`compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)](#13-compile---target-typescript-never-emits-any-imports-at-all-for-auto-generated-projections-dbrequestreplyevent) | Crash (broken generated code) | A | Fixed in #354 |
+| 14 | [`compile --target rust` loses named-type resolution for optional array fields specifically](#14-compile---target-rust-loses-named-type-resolution-for-optional-array-fields-specifically) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
-None of these have been taken upstream yet (no upstream issue filed, no upstream PR opened). Per `UPSTREAM_POLICY.md` §1 that is the required next step for each Case A entry; this log is the "reproduce the gap" step, not a substitute for the rest of the sequence.
+**#1–#7, #9–#13** were all independently reproduced and confirmed fixed by re-running each finding's exact reproduction against a local build of [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) at commit `81f2288ac08d7ba006a78aee4a9e07b51cdd57c7` (`agent/fix-upstream-findings`, merged with upstream `main` at the time of verification). That PR's own gates were verified too: `ruff check`/`ruff format --check` clean, the mypy baseline ratchet reports 0 new errors, and the upstream `pytest tests/` suite passes (2095 passed, 49 skipped). This showcase's own full suite passes 125/125 against that build once `generated/` is refreshed. Per `UPSTREAM_POLICY.md` §1 step 6 ("run this showcase against the upstream branch/commit... while the full suite is still being built") this counts as that verification step — but steps 7–9 (merge/release Modelable, update `.modelable-version`, complete the dependent showcase slice) are still outstanding: **PR #354 is not yet merged, and `.modelable-version` still pins `1.7.0`, the pre-fix release.** Do not treat any of #1–#13 as resolved in this showcase's own behavior until the pin actually moves - `apps/web/src/generated-types.ts`'s workaround for #12/#13, for example, is still active and necessary against the currently pinned release.
+
+**#14** was discovered after #354 already existed, is not yet addressed by it, and has not been taken upstream (no issue filed, no PR). Per `UPSTREAM_POLICY.md` §1 that is the required next step.
 
 ---
 
@@ -707,3 +710,58 @@ Zero `import` statements anywhere in the file, even though `Note` is a plain `va
 **Expected:** `_emit_projection` should collect and emit imports the same way `_emit_model` already does - the logic to do so already exists and works correctly; it just isn't called from this second function.
 
 **Showcase workaround:** none that avoids touching generated output, same reasoning as finding #12. `apps/web` avoids importing any projection-kind (`Db`/`Request`/`Reply`/`Event`/custom `projection`) TypeScript artifact until this is fixed upstream - see `apps/web/src/generated-types.ts`'s header comment.
+
+---
+
+## 14. `compile --target rust` loses named-type resolution for optional array fields specifically
+
+**Discovered:** Task 7.1 (Rust generated package build), running real `cargo check` against the generated multi-package workspace for the first time in this plan.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  value Note {
+    text: string
+  }
+
+  entity Thing @ 1 (additive) {
+    @key thingId: uuid
+    optionalNotes?: array<Note>
+    requiredNotes: array<Note>
+  }
+}
+```
+
+```bash
+modelable compile . --target rust --out ./dist
+cd ./dist/probe && cargo check
+```
+
+**Observed:**
+
+```rust
+// dist/probe/probe_thing_v1.rs
+use super::probe_note_v0::ProbeNoteV0;
+
+pub struct ProbeThingV1 {
+    pub thing_id: uuid::Uuid,
+    #[serde(default)]
+    pub optional_notes: Vec<Note>,       // <- undefined, should be Vec<ProbeNoteV0>
+    pub required_notes: Vec<ProbeNoteV0>, // <- correct
+}
+```
+
+```text
+error[E0425]: cannot find type `Note` in this scope
+```
+
+Identical field shape (`array<Note>`), only the optionality differs - the required version resolves correctly, the optional version doesn't. This showcase's own `clinical.Encounter.diagnoses?: array<Diagnosis>` field hits this exact bug (`Vec<Diagnosis>` instead of `Vec<ClinicalDiagnosisV0>`), which is enough to break `cargo check` on the real `clinical-core` package and, transitively, `billing-core` (which depends on it) - two of this showcase's three generated Rust packages fail to compile out of the box.
+
+**Root cause (read from source, not guessed):** `emitters/rust.py::_field_specs_from_model_fields` renders each field's type via `_shape_annotation(shape, ..., named_type_map=named_type_map)`, which correctly threads `named_type_map` through array/map/named recursion. But for the specific case of an *optional* array field, the function takes a second pass to switch the field from `Option<Vec<T>>` to a plain `Vec<T>` + `#[serde(default)]` (documented in an inline comment: "Optional arrays use Vec<T> + #[serde(default)] - Option<Vec<T>> forces unwrap before iteration"), and *recomputes* the annotation with a **second call** to `_shape_base_annotation(shape, owner_type=..., path=..., definitions=..., rust_hint=wire.get("rust"))` - which omits both `named_type_map=named_type_map` and `enum_info=enum_info`, even though `_shape_base_annotation`'s own signature accepts both. Losing `named_type_map` means the array's named-type item falls through to `_pascalize(shape.ref or "Named")` (the "nothing resolved" fallback) instead of the correct stable type name; losing `enum_info` likely has an analogous effect for `array<enum(...)>?` fields, not separately reproduced here but sharing the identical root cause.
+
+**Expected:** the second `_shape_base_annotation` call in the optional-array branch should pass `named_type_map=named_type_map, enum_info=enum_info`, matching every other call site.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1). This blocks the `clinical-core`/`billing-core` `cargo check` half of Task 7.1's acceptance criteria until fixed upstream.

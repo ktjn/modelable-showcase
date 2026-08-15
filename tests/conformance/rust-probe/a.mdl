@@ -1,0 +1,13 @@
+domain domaina {
+  owner: "test"
+
+  semantic WidgetId: uuid(7) {
+    registry: true
+  }
+
+  entity Widget @ 1 (additive) {
+    @key
+    widgetId: WidgetId
+    name: string
+  }
+}

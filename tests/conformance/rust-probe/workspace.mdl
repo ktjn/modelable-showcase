@@ -1,0 +1,24 @@
+// Isolated cross-package Rust build probe (IMPLEMENTATION_PLAN.md Task
+// 7.1). Standalone from model/ - proves "at least one cross-package
+// reference compiles" using a minimal two-package workspace rather than
+// the real product, because every real cross-package reference in
+// model/ currently routes through clinical-core or billing-core, both
+// of which fail to build under the pinned 1.7.0 release due to a real,
+// logged Rust-emitter bug (UPSTREAM_FINDINGS.md #14 -
+// clinical.Encounter.diagnoses?: array<Diagnosis>, an optional array of
+// a named value type, is exactly the shape that bug breaks). This
+// fixture deliberately avoids that shape (no optional array of a named
+// type anywhere) so it proves the underlying capability - Modelable can
+// and does generate a genuinely cross-crate `use pkg_a::...` reference
+// that compiles - independently of that unrelated, already-tracked bug.
+workspace "rust-probe" {
+  description: "Minimal two-package cross-crate Rust build probe."
+
+  package "pkg-a" {
+    include: ["domaina"]
+  }
+
+  package "pkg-b" {
+    include: ["domainb"]
+  }
+}
