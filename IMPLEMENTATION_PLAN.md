@@ -20,6 +20,7 @@ For every task:
 8. Do not add a second handwritten domain model alongside generated Modelable contracts.
 9. Do not implement deferred Modelable runtime features in this repository.
 10. When Modelable behavior differs from this plan, verify upstream `main`, then update this plan/spec deliberately rather than adding compatibility hacks silently.
+11. `SPEC.md` is the only place acceptance criteria/requirements are stated. This plan sequences work toward them — it does not restate, add to, or relax them. When a task needs to reference what "done" means for a domain, target, or fixture set, cross-reference the relevant `SPEC.md` section number instead of copying its bullet list. If a task section here and `SPEC.md` ever disagree, `SPEC.md` governs; fix this plan to match rather than treating the disagreement as a new requirement.
 
 ### Required source of truth checks
 
@@ -238,13 +239,23 @@ capabilities:
   target:json-schema:
     coverage: probe
     test: tests/integration/test_generated_artifacts.py::test_json_schema
+  sql_dialect:postgres:
+    coverage: product
+    test: model/patient.mdl
   model_kind:entity:
+    coverage: product
+    test: model/patient.mdl
+  annotation:pii:
     coverage: product
     test: model/patient.mdl
   deferred_feature:composite-keys:
     coverage: deferred
     test: tests/conformance/deferred/composite-key.mdl
 ```
+
+`modelable capabilities --format json` reports exactly five capability categories: `target`, `sql_dialect`, `model_kind`, `annotation`, `deferred_feature`. The checker MUST flatten and require coverage for all five, not just the ones illustrated above — `sql_dialect` is easy to miss since it currently has only two entries (`postgres`, `clickhouse`), both already exercised by the product.
+
+Targets that are only accepted in `.mdl` `generate {}` block vocabulary but have no `compile --target` implementation (for example `openapi`, `avro`, `asyncapi` at the time this plan was last verified against upstream) do **not** appear in `capabilities --format json` at all and therefore need no manifest entry. Do not invent placeholder capability keys for grammar-level vocabulary that the compiler does not yet expose as a real target — confirm absence with `modelable compile --help` before assuming a gap here.
 
 Allowed `coverage` values:
 
@@ -336,29 +347,9 @@ If this creates an actual package dependency cycle, change the grouping and docu
 
 ### `patient.mdl`
 
-Create realistic definitions:
+Implement the `patient` domain exactly as required by `SPEC.md` §6.1 — semantic types, `value` objects, the `Patient @1`/`@2 (additive)`/`@3 (breaking)` evolution story, indexes, auto projections, and the full governance/annotation coverage list. This task does not add or relax any requirement beyond §6.1; the only decision left to this task is tactical:
 
-- `semantic PatientId: uuid(7)` or the current legal equivalent;
-- at least one `registry: true` semantic;
-- `value Address`;
-- `value ContactDetails`;
-- `entity Patient @1`;
-- `entity Patient @2 (additive)`;
-- compatibility-only breaking `Patient @3` only if keeping all three versions in one canonical file does not make the live product awkward; otherwise keep v3 under `compat/` later;
-- index for current patient version;
-- auto projections `db`, `request`, `reply`, `event` for live version.
-
-Use meaningful governance:
-
-- patient ID: internal classification;
-- legal name: PII;
-- email/phone/address: PII;
-- optional notes should not contain fake secrets;
-- at least one field-level owner override;
-- at least one deprecated field in v2;
-- server-generated `createdAt`/`updatedAt`.
-
-Include access metadata using currently supported syntax.
+- Keep `Patient @3` (breaking) in this canonical file only if that does not make the live product awkward; otherwise keep it under `compat/` per Task 4.1 instead. Either placement satisfies SPEC.md §6.1.
 
 ### Registry IDs
 
@@ -404,13 +395,7 @@ model/scheduling.mdl
 
 ### Required definitions
 
-- semantic `AppointmentId`;
-- semantic `PractitionerId` if needed;
-- value `TimeRange` if current model rules make it useful;
-- `Appointment` entity/aggregate;
-- appointment status event;
-- current-version index declaration;
-- auto projections.
+Implement the `scheduling` domain per `SPEC.md` §6.2 — semantic types, `Appointment`, status event, indexes, auto projections, and the `timestamp`/`date`/`time`/`duration`/enum/ref type coverage. This task does not add requirements beyond §6.2; the field shape below is the tactical detail §6.2 leaves to the implementer.
 
 ### Product fields
 
@@ -433,13 +418,7 @@ Prefer a representation that exercises `date`, `time`, `duration`, and `timestam
 
 ### Indexes
 
-Create indexes for:
-
-- patient + chronological lookup;
-- practitioner + chronological lookup;
-- status lookup.
-
-Use `sort` and one descending sort somewhere if current syntax supports it.
+Index coverage requirements are in `SPEC.md` §6.2. Tactically, use `sort` and one descending sort somewhere if current syntax supports it.
 
 ### Tests
 
@@ -471,29 +450,11 @@ model/clinical.mdl
 
 ### Required definitions
 
-- `EncounterId` semantic;
-- at least one chained semantic type;
-- `Encounter`;
-- `Observation`;
-- `Diagnosis` value;
-- one nested object/value used by observations;
-- FHIR-oriented projections sourced from models named `Patient`, `Observation`, and `Encounter` as required by the current emitter.
+Implement the `clinical` domain per `SPEC.md` §6.3 — semantic types (including a chained one), `Encounter`, `Observation`, `Diagnosis`, and the broad type-surface list. FHIR-oriented projections sourced from `Patient`/`Observation`/`Encounter` are required by §6.3.
 
 ### Type coverage
 
-Use natural fields such as:
-
-- temperature: decimal or float;
-- weight: decimal;
-- blood pressure systolic/diastolic: fixed-width unsigned ints;
-- pulse: fixed-width unsigned int;
-- device payload digest: `binary(32)` if legal/current;
-- measurement metadata: map/json;
-- recorded time: timestamp;
-- diagnosis codes: array;
-- structured measurement object.
-
-Do not force every Modelable primitive into the product domain. Leave pathological cases for Task 3.1.
+`SPEC.md` §6.3 lists the required type surface; represent it with fields that read naturally for a clinical encounter (temperature, weight, blood pressure, pulse, a device payload digest, measurement metadata, recorded time, diagnosis codes, a structured measurement object) rather than forcing every primitive artificially. Do not force every Modelable primitive into the product domain — pathological/unnatural combinations belong in Task 3.1's fixtures, not here.
 
 ### Semantic ambiguity
 
@@ -530,59 +491,15 @@ model/reporting.mdl
 
 ### Billing
 
-Add:
-
-- `InvoiceId` semantic;
-- `InvoiceLine` value;
-- `Invoice` aggregate/entity;
-- `PaymentReceived` event;
-- indexes;
-- auto projections;
-- money as `decimal(p,s)`;
-- arrays of lines;
-- invoice/payment status enums;
-- references to patient/appointment where appropriate.
-
-Do not add compatibility-only reservation complexity to live product yet unless it is naturally valid. Task 4 handles historical fixtures.
+Implement per `SPEC.md` §6.4: `InvoiceId`, `InvoiceLine`, `Invoice`, `PaymentReceived`, indexes, auto projections, and the required type/reference coverage. Do not add compatibility-only reservation complexity to the live product yet unless it is naturally valid — Task 4 handles historical fixtures.
 
 ### Audit
 
-Add `AuditEntry` event with:
-
-- timestamp;
-- actor identifier;
-- subject reference/identifier;
-- action enum;
-- binary digest/signature representation;
-- JSON metadata;
-- internal/restricted classification as appropriate.
+Implement `AuditEntry` per `SPEC.md` §6.5.
 
 ### Reporting
 
-Implement at least:
-
-- `PatientSummary`;
-- `DailySchedule`;
-- `PatientClinicalSummary`;
-- `OutstandingInvoices`;
-- `PractitionerRevenue`;
-- `MonthlyClinicStats`.
-
-Collectively use current valid syntax for:
-
-- joins;
-- left joins;
-- where;
-- group by;
-- direct mappings;
-- computed fields;
-- `pick`;
-- `omit`;
-- classification/PII selectors;
-- aggregate functions;
-- deterministic CEL string/arithmetic/logical/ternary functions.
-
-If a desired function is not in the current capability/language reference, replace it with one that is. Do not add unsupported syntax simply because this plan names the concept.
+Implement the six projections and CEL/join/selection coverage required by `SPEC.md` §6.6. If a desired function is not in the current capability/language reference, replace it with one that is — do not add unsupported syntax simply because SPEC.md or this plan names the concept.
 
 ### Tests
 
@@ -613,7 +530,7 @@ At end of Phase 2, all canonical `.mdl` must validate strictly.
 
 ### Goal
 
-Cover legal edge cases without damaging product readability.
+Cover legal edge cases without damaging product readability. Required case coverage is `SPEC.md` §12's list; the filenames below are this task's concrete mapping of that list to fixtures, not an independent requirement.
 
 ### Create focused files
 
@@ -667,6 +584,8 @@ pytest -q tests/conformance/test_valid_fixtures.py
 
 ## Task 3.2 — Negative fixtures
 
+Required case coverage is `SPEC.md` §13's list; the filenames below are this task's concrete mapping of that list to fixtures, not an independent requirement.
+
 ### Create
 
 ```text
@@ -718,7 +637,7 @@ Create:
 tests/conformance/test_invalid_fixtures.py
 ```
 
-The test MUST prove each fixture fails for its intended reason. A generic parse failure is not acceptable for a fixture intended to test semantic validation.
+Enforce `SPEC.md` §13's rule that each fixture MUST fail for its intended reason, not an unrelated earlier parse error.
 
 ### Acceptance
 
@@ -732,7 +651,7 @@ pytest -q tests/conformance/test_invalid_fixtures.py
 
 ### Goal
 
-Lock in explicit behavior for upstream-deferred capabilities without relying on them.
+Lock in explicit behavior for upstream-deferred capabilities without relying on them, per `SPEC.md` §14 (including its note on the deferred federated-registry CLI entry points).
 
 ### Create fixtures for currently reported deferred capabilities
 
@@ -789,22 +708,7 @@ compat/breaking-v3/
 
 Each directory must be a minimal standalone workspace, not a copy of the entire product if unnecessary.
 
-Use one or two representative models, ideally Patient and Invoice.
-
-### Required cases
-
-`baseline-v1` -> `additive-v2`:
-
-- add optional field;
-- add deprecation metadata if compatible;
-- preserve existing required fields.
-
-`additive-v2` -> `breaking-v3`:
-
-- remove/rename field;
-- change type or nullability;
-- add required field;
-- change enum incompatibly.
+Use one or two representative models, ideally Patient and Invoice. Case coverage requirements (additive and breaking, both directions) are `SPEC.md` §11's list — this task does not add cases beyond it.
 
 ### Tests
 
@@ -839,19 +743,7 @@ compat/protobuf-breaking/
 compat/grpc-read-index-change/
 ```
 
-Each scenario should contain `old/` and `new/` workspaces if that matches the current CLI shape.
-
-### Protobuf-safe case
-
-Demonstrate deletion/evolution with correct `reserved protobuf` declarations where supported.
-
-### Protobuf-breaking case
-
-Demonstrate a target-wire incompatibility such as illegal number/name reuse or incompatible target type change according to current upstream rules.
-
-### gRPC case
-
-Change read index metadata so `validate-compat --target grpc` returns the current upstream classification for required read rebuild.
+Each scenario should contain `old/` and `new/` workspaces if that matches the current CLI shape. Case coverage requirements (protobuf reservation-safe evolution, protobuf field-number/name reuse rejection, gRPC read-index rebuild classification) are `SPEC.md` §11's list — this task does not add cases beyond it.
 
 ### Tests
 
@@ -939,58 +831,7 @@ Prefer pytest for assertions and a script wrapper for Makefile/CI.
 
 ### Validate by target
 
-#### JSON Schema
-
-- every JSON file parses;
-- schemas validate under Draft 2020-12 meta-schema where applicable;
-- representative Patient request/reply schemas accept valid synthetic JSON and reject an invalid required-field case;
-- expected Modelable metadata extensions are present on representative artifacts.
-
-#### Markdown
-
-- files exist for representative model/projection;
-- Patient/Reporting docs contain version/field metadata;
-- reporting projection contains lineage section/table.
-
-#### SQL Postgres
-
-Structural parsing may be minimal here; real application is Task 8.1.
-
-#### SQL ClickHouse
-
-Structural parsing may be minimal here; real application is Task 8.2.
-
-#### dbt YAML
-
-- parse every YAML file;
-- assert top-level structure expected by current emitter;
-- optionally add dbt parse later if generated output can be embedded cleanly.
-
-#### FHIR
-
-- parse JSON;
-- `resourceType == StructureDefinition` for profiles;
-- assert Patient/Observation/Encounter representative profile identity/base fields;
-- verify at least one Modelable classification/lineage extension if current emitter promises it.
-
-#### OpenMetadata
-
-- parse;
-- representative output contains domain/owner/classification/lineage metadata.
-
-#### OpenLineage
-
-- parse;
-- representative projection has schema and column-lineage facets according to current emitter contract.
-
-#### ODCS
-
-- parse emitted YAML/JSON;
-- assert contract identity/version/schema fields.
-
-#### Protobuf/gRPC
-
-File parsing and `protoc` happen in Task 7.5.
+Per-target validation requirements are `SPEC.md` §9.3's list, one target at a time. This task's only addition is sequencing: SQL Postgres/ClickHouse structural parsing here may stay minimal since real application against a live database happens in Task 8.1/8.2, and Protobuf/gRPC file parsing plus `protoc` happen in Task 7.5, not here.
 
 ### Acceptance
 
@@ -1032,6 +873,41 @@ If a target legitimately includes documented nondeterministic data, first verify
 
 ```bash
 make determinism
+```
+
+---
+
+## Task 5.4 — Deterministic import/interchange and non-AI CLI surface
+
+### Goal
+
+The Modelable CLI has real, deterministic command surface beyond `validate`/`resolve`/`lineage`/`diff`/`compile` that this plan has not previously exercised: schema import/interchange, external-source drift tracking, and graph export. None of these are reported by `modelable capabilities --format json` (that manifest only covers `target`/`sql_dialect`/`model_kind`/`annotation`/`deferred_feature`), so the capability-coverage gate in Task 1.3 cannot catch drift here on its own — this task exists specifically to close that blind spot.
+
+Do not confuse these with the AI-assisted commands (`update`, `chat` mutation turns, `suggest-projection`) that SPEC.md §2 excludes as a required deterministic gate. `generate --from` has both an AI path (freeform natural-language prompt) and a fully deterministic import path (`--format json-schema|sql|dbt|fhir|odcs`, no provider required) — only the deterministic import path belongs in this task.
+
+### Create
+
+```text
+tests/conformance/import/
+tests/integration/test_cli_surface.py
+```
+
+### Required coverage
+
+1. **`generate --from` deterministic import**: round-trip at least two formats already produced by this repo's own `make generate` output — for example import a generated `json-schema` artifact and a generated `odcs` document back into a fresh `.mdl` file with `--output`, and assert the result parses/validates and preserves `x-modelable`/`customProperties` metadata (PII, classification, owner, key) per the current CLI contract. Do not import third-party schemas found online; use this repository's own generated artifacts as fixtures so the test has no external network dependency.
+2. **`attach`**: attach an existing canonical model version to one external source format (dbt `schema.yml` is the natural fit given Task 2.x already produces one) and assert the command reports no drift when the source matches, and reports the expected additive/breaking `change_kind` when the source is deliberately mutated in a copied fixture.
+3. **`spec add` / `spec status` / `spec diff`**: track one external source under `.modelable/specs.yml` in a disposable test workspace and assert `spec status --json` reports `clean` and, after mutating the copied fixture, `drifted`.
+4. **`graph export`**: export the canonical workspace graph and assert the output is valid JSON containing the expected domain/model/projection identities; exercise `--focus` on one reference.
+5. **`codegen formats` / `codegen types --format <x>`**: assert the reported format list matches the targets reported as implemented by `capabilities --format json`, and that `codegen types` returns a non-empty type mapping for at least one representative target.
+6. **`transform <ref> --to <target> --explain`**: run once against a representative model version and assert the explanation output is non-empty; this is a thin smoke test, not a duplicate of Task 5.1/5.2's real compile-target coverage.
+
+Use copied/temp fixtures for anything that writes files (`attach`, `spec sync --write`, `generate --output`). Never mutate canonical `model/` files from this test suite.
+
+### Acceptance
+
+```bash
+make generate
+pytest -q tests/integration/test_cli_surface.py
 ```
 
 ---
@@ -1353,6 +1229,25 @@ pytest -q tests/integration/test_clickhouse_generated_schema.py
 
 # Phase 9 — Rust API product
 
+## Task 9.0 — Verify upstream OpenAPI Phase A/B status (required checkpoint)
+
+### Goal
+
+`UPSTREAM_POLICY.md` §10 mandates this check before any HTTP API contract work begins, but earlier phases of this plan do not need it. Do not skip straight to Task 9.1 without running this task — the API's request/reply contract is meant to come from generated OpenAPI, not from hand-written Axum route structs, and that is only possible once upstream Modelable exposes it.
+
+### Steps
+
+1. Run `modelable capabilities --format json` and `modelable compile --help`; confirm whether `openapi` now appears as an implemented target.
+2. If implemented, run `modelable compile ./model --target openapi --out generated/openapi` and confirm the output contains non-empty `paths` (Phase B), not only `components.schemas` with `paths: {}` (Phase A only).
+3. If either layer is still missing, stop showcase API work. Follow `UPSTREAM_POLICY.md` §1 and §9: reproduce the need upstream, verify against `ktjn/modelable@main`, and track status against `ktjn/modelable#352` (or its successor if renumbered) until Phase B lands. Use `MODELABLE_REF=<branch-or-sha> make acceptance` against a candidate upstream branch to verify a fix before it merges.
+4. Record the verified state (implemented / Phase A only / missing) in the PR or commit description for Task 9.1 so later agents do not re-verify from scratch unnecessarily.
+
+### Acceptance
+
+Task 9.1 may not begin until this task confirms full Phase A + Phase B OpenAPI generation is available on the pinned or canary Modelable ref being used for implementation.
+
+---
+
 ## Task 9.1 — Bootstrap Axum API and generated Rust dependency
 
 ### Create under `apps/api/`
@@ -1492,6 +1387,32 @@ The endpoint returns at least:
 The analytics table schema MUST come from generated ClickHouse output.
 
 Do not implement Modelable subscriptions/materialisation. Application code owns synchronization explicitly.
+
+---
+
+## Task 9.6 — OpenAPI contract generation and consumption
+
+### Goal
+
+Task 9.0 confirmed upstream OpenAPI Phase A + Phase B are available. This task makes the showcase actually consume the generated contract, per `UPSTREAM_POLICY.md` §5 (read that section for full detail; this task tracks it in the dependency graph and file-ownership table rather than restating it).
+
+### Required
+
+1. Add `openapi` to `scripts/generate-all.py`'s target loop (Task 5.1) so it is generated by `make generate` into disposable `generated/openapi/`.
+2. Independently validate the generated document with a standard OpenAPI 3.1 parser/validator, separate from whatever validation Modelable's own test suite performs.
+3. Expose the generated contract to developers — a static docs route or a local Swagger UI/Scalar viewer is sufficient; do not hand-write the document it serves.
+4. Add HTTP contract tests asserting the running Axum API's actual request/response shapes conform to the generated OpenAPI paths/operations for the endpoints built in Tasks 9.2-9.5.
+5. Add `openapi` to the Task 5.3 determinism gate.
+6. Add `target:openapi` (or its final capability key) to `tests/conformance/capability-coverage.yaml` classified as `product`.
+
+### Acceptance
+
+```bash
+make generate
+python -m json.tool generated/openapi/*.json >/dev/null
+pytest -q tests/integration -k openapi
+cargo test --manifest-path apps/api/Cargo.toml
+```
 
 ### Acceptance Phase 9
 
@@ -1961,7 +1882,7 @@ make clean
 make acceptance
 ```
 
-This is the final local definition of done.
+`make acceptance` passing locally is necessary but not sufficient — it is item 17 of `SPEC.md` §25's Definition of Done, not a substitute for it. Items covering CI in pinned-release mode, the `MODELABLE_REF` canary path, and the OpenAPI/CLI-surface additions still apply; see the Final verification checklist at the end of this document.
 
 ---
 
@@ -2023,14 +1944,14 @@ Use this order:
                      |
                      +--> 4.1 -> 4.2
                      |
-                     +--> 5.1 -> 5.2 -> 5.3
+                     +--> 5.1 -> 5.2 -> 5.3 -> 5.4
                                   |
                                   +--> 6.1
                                   +--> 7.1..7.6
                                   +--> 8.1 -> 8.2
                                            |
                                            v
-                                      9.1 -> 9.2 -> 9.3 -> 9.4 -> 9.5
+                                      9.0 -> 9.1 -> 9.2 -> 9.3 -> 9.4 -> 9.5 -> 9.6
                                                                |
                                                                v
                                                         10.1 -> 10.2 -> 10.3
@@ -2060,8 +1981,9 @@ If multiple agents implement in parallel, assign ownership:
 | Model language | `model/**`, `tests/conformance/**` |
 | Generator | `scripts/generate-all.py`, `scripts/check-determinism.py` |
 | Capability coverage | `tests/conformance/capability-coverage.yaml`, `scripts/check-capability-coverage.py` |
+| Import/interchange & CLI surface | `tests/conformance/import/**`, `tests/integration/test_cli_surface.py` |
 | Web | `apps/web/**` |
-| API | `apps/api/**` |
+| API | `apps/api/**` (includes OpenAPI consumption per Task 9.6) |
 | Language probes | `probes/**`, relevant integration tests |
 | Databases | `docker-compose.yml`, DB scripts/tests |
 | E2E | `tests/e2e/**` |
@@ -2149,15 +2071,7 @@ docker compose down -v
 docker compose up --build -d
 ```
 
-Then manually verify:
-
-- web page loads;
-- create patient works;
-- booking works;
-- encounter + observation works;
-- invoice + payment works;
-- patient summary works;
-- analytics page shows data.
+Then manually click through the user-visible flows required by `SPEC.md` §3 end to end (web page loads; create patient; booking; encounter + observation; invoice + payment; patient summary; analytics page shows data) — this is a manual walkthrough of that list, not an independent requirement.
 
 Then verify upstream canary:
 

@@ -4,6 +4,8 @@
 **Repository:** `ktjn/modelable-showcase`  
 **Upstream:** `ktjn/modelable`
 
+This document is the single source of truth for *what* is required and *what "done" means* — every requirement, acceptance criterion, and the Definition of Done (§25) live here and only here. [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) sequences the *how* and *in what order*; it cross-references section numbers here rather than restating requirements, and it must not be treated as adding to or relaxing anything stated in this document. [`UPSTREAM_POLICY.md`](UPSTREAM_POLICY.md) governs process for upstream gaps and points back to §25 for the OpenAPI-specific acceptance items it once duplicated. If any of the three ever disagree, this document governs.
+
 ## 1. Purpose
 
 `modelable-showcase` is a downstream acceptance application for Modelable.
@@ -512,6 +514,12 @@ to one of:
 - `deferred`: upstream says the capability is deferred and this repository asserts the deferred diagnostic/boundary;
 - `excluded`: explicitly not a downstream-testable surface, with a mandatory reason.
 
+Discover the manifest's own top-level categories from the binary rather than assuming a fixed set; at specification time they are `target`, `sql_dialect`, `model_kind`, `annotation`, and `deferred_feature`. `sql_dialect` is easy to under-cover because it currently has only two entries (`postgres`, `clickhouse`) and is not called out anywhere else in this document — both MUST still receive explicit manifest entries.
+
+Target vocabulary that is only accepted inside `.mdl` `generate {}` blocks but has no `compile --target` implementation behind it does not appear in `capabilities --format json` and therefore requires no manifest entry — do not fabricate placeholder keys for it. Confirm with `modelable compile --help` before treating something as a gap here.
+
+This manifest mechanism covers `target`/`sql_dialect`/`model_kind`/`annotation`/`deferred_feature` drift only. It does NOT cover drift in the broader CLI *command* surface (`spec`, `attach`, `graph export`, `generate --from` import paths, `transform`, `codegen`, etc.) — that surface is covered separately by §15.
+
 A CI test MUST fail when:
 
 1. upstream reports a new implemented capability with no coverage entry;
@@ -713,6 +721,8 @@ Known current deferred areas include:
 
 For parseable-but-deferred syntax, assert that the expected deferred warning is emitted and that the product does not rely on the ignored semantics.
 
+The CLI entry points for federated-registry behavior — `registry init`, `registry peer add`, `registry graph`, `registry sync`, `dependents`, and `lineage verify` — are themselves currently deferred functionality per upstream documentation, even though some exist as CLI subcommands. Cover their current (non-)behavior with the same deferred-fixture discipline as `workspace-registry`/`workspace-peers`/`consumer-declarations` rather than leaving them untested merely because they are commands rather than `.mdl` syntax.
+
 When upstream changes a capability to implemented, the capability coverage gate MUST force this repository to reclassify and add a real implementation test.
 
 ## 15. CLI acceptance surface
@@ -729,8 +739,18 @@ The deterministic test suite MUST exercise the user-facing CLI paths used by dow
 - `docs` or the equivalent markdown compile target
 - `inspect ... --auto` if present in the pinned version
 - formatting/check command(s) exposed by the pinned version
+- `graph export`, including `--focus`
+- `codegen formats` and `codegen types --format <x>`
+- `generate --from` using only its deterministic import paths (`--format json-schema|sql|dbt|fhir|odcs` against this repository's own generated artifacts), never the freeform natural-language path
+- `attach`
+- `spec add` / `spec status` / `spec diff` / `spec sync --preview`
+- `transform ... --to <target> --explain`
 
 Tests MUST discover command availability from the actual pinned binary when command names are version-sensitive. A removed/renamed stable command should fail the showcase until deliberately adapted.
+
+This list is intentionally broader than what `modelable capabilities --format json` reports (see §8) — several real, deterministic commands (`graph export`, `spec`, `attach`, `codegen`, the import path of `generate`, `transform`) live entirely outside that manifest's five categories, so this hand-maintained list is the only drift check they get. Keep it in sync with `docs/cli-reference.md` in the pinned/canary Modelable checkout when commands are added, renamed, or removed upstream.
+
+Explicitly out of scope for this section: `create`, `scenario`, `describe`, `docs-index`, `docs-eval`, `docs-ask`, `models`, and the AI-gated paths of `generate`/`update`/`chat`/`suggest-projection` (per §2, LLM features are never a required deterministic gate). `chat`'s deterministic, provider-free read-only question mode (ownership, lineage, dependents, indexes, compatibility, validation) MAY be smoke-tested but is not required.
 
 ## 16. LSP smoke suite
 
@@ -956,6 +976,17 @@ The repository is complete when all of the following are true:
 17. `make acceptance` passes locally from a clean generated state.
 18. CI passes in pinned-release mode.
 19. A manually supplied `MODELABLE_REF` can run the same downstream acceptance suite against an upstream Modelable commit.
+20. OpenAPI is generated by Modelable, not handwritten or derived from the web/API framework.
+21. The generated OpenAPI contains the product's real paths and operations, not only schemas.
+22. The generated OpenAPI document passes an independent validator.
+23. Running API contract tests prove the Axum implementation conforms to generated OpenAPI request/reply contracts.
+24. OpenAPI generation is deterministic and included in the coverage manifest as `product`.
+25. No permanent showcase patch layer exists for Modelable-generated artifacts (see `UPSTREAM_POLICY.md` §7).
+26. Every general Modelable defect or missing capability encountered during implementation is either fixed upstream or explicitly documented as an intentional upstream limitation with a corresponding showcase boundary test.
+27. The deterministic, non-AI-gated CLI surface listed in §15 — `graph export`, `codegen`, `attach`, `spec`, and the import path of `generate` — has passing coverage, not only the compiler/validation commands used earlier in this list.
+28. The federated-registry CLI entry points (`registry ...`, `dependents`, `lineage verify`) have an explicit deferred-boundary test per §14, not silence.
+
+Items 20-26 restate `UPSTREAM_POLICY.md` §11 verbatim as part of this single merged checklist; that document remains the authoritative process description for *how* to reach them, this list is the authoritative statement of *whether the repository is done*.
 
 The governing principle is:
 
