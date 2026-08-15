@@ -25,6 +25,8 @@
 | 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A |
 | 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A |
 | 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A |
+| 12 | [`compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error](#12-compile---target-typescript-never-imports-a-fields-semantic-type---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A |
+| 13 | [`compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)](#13-compile---target-typescript-never-emits-any-imports-at-all-for-auto-generated-projections-dbrequestreplyevent) | Crash (broken generated code) | A |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -585,3 +587,123 @@ So the two reuse checks accept different spellings of the same reservation, and 
 **Expected:** `compat/targets.py::_compare_schema` should check the old field's raw source name in addition to its proto name (matching `_validate_reservations`'s existing `source_name in reserved_names or proto_name in reserved_names` pattern), so a reservation written in Modelable's normal camelCase convention is honored consistently by both reuse checks.
 
 **Showcase workaround:** `compat/protobuf-safe/new/patient.mdl` writes its reservation as `names: ["legacy_notes"]` (the generated Protobuf name) rather than `names: ["legacyNotes"]` (the Modelable source field name used everywhere else in that same file) specifically so `validate-compat` recognizes it - see that file's header comment.
+
+---
+
+## 12. `compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error
+
+**Discovered:** Task 6.1 (bootstrap React application), while satisfying the task's own requirement that the app build imports and compiles a real generated Patient type.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  semantic ThingId: uuid(7) {
+    registry: true
+  }
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: ThingId
+  }
+}
+```
+
+```bash
+modelable compile . --target typescript --out ./dist
+npx tsc --noEmit --strict ./dist/probe.Thing.v1.ts
+```
+
+**Observed:**
+
+```text
+$ modelable compile . --target typescript --out ./dist
+WARN [EMIT003] Missing metadata required by target: probe.Thing.thingId
+OK ./dist/probe.Thing.v1.ts ...
+
+$ cat ./dist/probe.Thing.v1.ts
+export interface ProbeThingV1 {
+  thingId: ThingId;
+}
+export type Thing = ProbeThingV1;
+
+$ npx tsc --noEmit --strict ./dist/probe.Thing.v1.ts
+probe.Thing.v1.ts(12,12): error TS2552: Cannot find name 'ThingId'. Did you mean 'Thing'?
+```
+
+`ThingId` is referenced but never imported or declared anywhere in the file - a real, unhandled `tsc` compile error, not a lint warning. `EMIT003` fires at compile time but is only a warning; the CLI still writes broken code with exit 0. This affects essentially every entity/aggregate/event in a realistic Modelable workspace, since `@key` fields are conventionally semantic types (this showcase's own `patient.Patient.v2.ts` fails identically on its `patientId: PatientId` field).
+
+**Root cause (read from source, not guessed):** `emitters/typescript.py::_collect_named_imports` resolves a field's bare `NamedType` reference to an import only by searching `domain.models` (`DomainDef.models: dict[str, list[ModelVersion]]`, populated by `entity`/`aggregate`/`event`/`value` declarations):
+
+```python
+def _collect_named_imports(field_type, mdl, named_imports: dict[str, tuple[str, str]]) -> None:
+    if isinstance(field_type, NamedType):
+        name = field_type.name
+        if name not in named_imports and mdl is not None:
+            for domain in mdl.domains:
+                if name in domain.models:
+                    ...
+```
+
+`semantic` declarations live in a structurally separate field, `DomainDef.semantic_types: list[SemanticTypeDecl]`, which this function never consults. So a semantic type is never resolved to an import, and the field is emitted as a bare, undeclared type name. (Value types, by contrast, *are* stored in `domain.models` alongside entities/aggregates/events, which is why `patient.Patient.v2.ts`'s `contact: ContactDetails` and `address?: Address` fields import correctly while `patientId: PatientId` on the very next line does not.)
+
+**Expected:** `_collect_named_imports` should also search each domain's `semantic_types`, either importing a dedicated semantic-type file (if one is ever emitted for TypeScript - none currently is, unlike Rust's per-semantic-type file) or emitting the underlying type inline the way `EMIT002`'s "cannot be represented without loss" already signals elsewhere. Either way, the generated file must not reference an undefined name.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1 forbids post-processing generated files or shimming around a compile-breaking emitter bug as a permanent fix). `apps/web` imports `patient.ContactDetails.v0.ts`/`patient.Address.v0.ts` (patient-domain value types with no semantic-typed fields, which compile as-is) instead of the broken `patient.Patient.v2.ts`/`patient.PatientDb.v2.ts` - see `apps/web/src/generated-types.ts`'s header comment. The user has taken ownership of the upstream fix as a separate, dedicated task; this workaround is meant to be temporary until Modelable is re-pinned past a release that fixes it.
+
+---
+
+## 13. `compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)
+
+**Discovered:** Task 6.1 (bootstrap React application), alongside finding #12.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  value Note {
+    text: string
+  }
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    note: Note
+  }
+
+  auto projections Thing @ 1 {
+    db
+  }
+}
+```
+
+```bash
+modelable compile . --target typescript --out ./dist
+npx tsc --noEmit --strict ./dist/probe.ThingDb.v1.ts
+```
+
+**Observed:**
+
+```text
+$ cat ./dist/probe.ThingDb.v1.ts
+export interface ProbeThingDbV1 {
+  thingId: string;
+  note: Note;
+}
+export type ThingDb = ProbeThingDbV1;
+
+$ npx tsc --noEmit --strict ./dist/probe.ThingDb.v1.ts
+probe.ThingDb.v1.ts(11,9): error TS2304: Cannot find name 'Note'.
+```
+
+Zero `import` statements anywhere in the file, even though `Note` is a plain `value` type that *does* import correctly on the entity file (`probe.Thing.v1.ts`) it was auto-projected from. This is strictly worse than finding #12: every field type that would need an import - value types, semantic types, everything - is broken on every projection-kind artifact, which is the majority of files this target emits (every `Db`/`Request`/`Reply`/`Event` auto-projection, plus every hand-written `projection {}`).
+
+**Root cause (read from source, not guessed):** `emitters/typescript.py::_emit_model` (used for entities/aggregates/events/values) calls `_collect_ref_imports`/`_collect_named_imports` before rendering fields, and prepends the resulting `import_lines` to the file. `_emit_projection` (used for every projection, auto-generated or explicit) has no equivalent call anywhere in its body - it renders each field's type directly via `_type_to_ts(field_type, wire_targets=...)` with no `resolved_refs`/`named_imports` collected first, so the import-emission logic that exists in the codebase simply never runs for this code path.
+
+**Expected:** `_emit_projection` should collect and emit imports the same way `_emit_model` already does - the logic to do so already exists and works correctly; it just isn't called from this second function.
+
+**Showcase workaround:** none that avoids touching generated output, same reasoning as finding #12. `apps/web` avoids importing any projection-kind (`Db`/`Request`/`Reply`/`Event`/custom `projection`) TypeScript artifact until this is fixed upstream - see `apps/web/src/generated-types.ts`'s header comment.
