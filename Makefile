@@ -62,7 +62,7 @@ e2e:
 	$(call not_implemented,e2e,"Task 12.1 - Playwright harness")
 
 determinism:
-	$(call not_implemented,determinism,"Task 5.3 - Determinism gate")
+	@. ./scripts/modelable-env.sh; uv run scripts/check-determinism.py
 
 acceptance:
 	$(call not_implemented,acceptance,"Task 17.1 - Finalize command facade")
