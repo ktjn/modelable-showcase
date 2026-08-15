@@ -52,3 +52,12 @@ capabilities:
   annotation:wire:
     coverage: product
     test: model/patient.mdl
+  model_kind:event:
+    coverage: product
+    test: model/scheduling.mdl
+  sql_dialect:postgres:
+    coverage: probe
+    test: tests/integration/test_model_cli.py::test_sql_postgres_secondary_indexes_present
+  target:sql-postgres:
+    coverage: probe
+    test: tests/integration/test_model_cli.py::test_sql_postgres_secondary_indexes_present

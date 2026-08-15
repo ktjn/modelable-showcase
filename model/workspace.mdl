@@ -15,6 +15,6 @@ workspace "modelable-clinic" {
   // added).
   package "clinic-core" {
     description: "Patient identity and scheduling."
-    include: ["patient"]
+    include: ["patient", "scheduling"]
   }
 }

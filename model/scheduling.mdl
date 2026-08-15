@@ -1,0 +1,69 @@
+domain scheduling {
+  owner: "clinic-scheduling-team"
+  contact: "scheduling@modelable-clinic.example"
+  description: "Appointment booking and scheduling for Modelable Clinic."
+
+  semantic AppointmentId: uuid(7)
+  semantic PractitionerId: uuid
+
+  // No dedicated Practitioner domain exists in this showcase, so
+  // practitioners are referenced by semantic identifier rather than
+  // ref<> to a model - patient is a real cross-domain model reference,
+  // practitioner is an identifier reference (both forms SPEC.md Sec 6.2
+  // asks this domain to exercise).
+  value TimeRange {
+    start: time
+    end: time
+  }
+
+  entity Appointment @ 1 (additive) {
+    @key
+    appointmentId: AppointmentId
+    patientId: ref<patient.Patient@2>
+    practitionerId: PractitionerId
+    scheduledDate: date
+    slot: TimeRange
+    bufferDuration?: duration
+    status: enum(requested, confirmed, cancelled, completed, no_show) = requested
+    reason?: string
+    notes?: string
+    @server
+    createdAt: timestamp
+    @server
+    updatedAt?: timestamp
+  }
+
+  event AppointmentStatusChanged @ 1 (additive) {
+    eventId: uuid
+    appointmentId: AppointmentId
+    previousStatus: enum(requested, confirmed, cancelled, completed, no_show)
+    newStatus: enum(requested, confirmed, cancelled, completed, no_show)
+    reason?: string
+    @server
+    occurredAt: timestamp
+  }
+
+  index Appointment @ 1 {
+    primary appointmentId
+
+    secondary byPatientDay {
+      key: [patientId, scheduledDate]
+    }
+
+    secondary byPractitionerDay {
+      key: [practitionerId, scheduledDate]
+    }
+
+    secondary byStatus {
+      key: [status]
+      sort: [scheduledDate desc]
+    }
+  }
+
+  auto projections Appointment @ 1 {
+    db
+    request exclude [@server]
+    reply
+    event on [created, updated]
+  }
+}
