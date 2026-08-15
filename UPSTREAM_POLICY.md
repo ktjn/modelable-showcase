@@ -42,13 +42,32 @@ Forbidden alternatives:
 
 The `.mdl` workspace remains the source of truth.
 
-## 3. Known first upstream gap: OpenAPI emitter
+## 3. Known first upstream gap: OpenAPI
 
-At the time this policy was written, the current Modelable target manifest does not advertise `openapi` as an implemented code-generation target. The language documentation has historically accepted OpenAPI in target vocabulary while describing the actual emitter as deferred.
+Modelable already contains an accepted OpenAPI emission design:
 
-Therefore OpenAPI is the first known upstream gap discovered by this showcase.
+```text
+docs/superpowers/specs/2026-08-14-openapi-emission-design.md
+```
 
-Before the showcase implements its stable HTTP API contract, an implementation agent MUST add a real OpenAPI target to `ktjn/modelable` unless upstream has already gained one by the time the task starts.
+and a Phase A implementation plan:
+
+```text
+docs/superpowers/plans/2026-08-15-openapi-emission-phase-a-first-slice.md
+```
+
+Phase A intentionally emits OpenAPI 3.1 component schemas with `paths: {}`. That is useful and MUST be completed/consumed, but it is not sufficient for this showcase's real HTTP API.
+
+The showcase supplies the concrete consumer demand required by the upstream design for Phase B paths and operations. That gap is tracked upstream as:
+
+```text
+ktjn/modelable#352 — OpenAPI Phase B: paths and operations for modelable-showcase
+```
+
+Before the showcase implements its stable HTTP API contract, implementation agents MUST ensure both of these upstream capabilities exist:
+
+1. Phase A: deterministic OpenAPI schema emission;
+2. Phase B: explicit paths/operations generated from Modelable-owned API declarations.
 
 First check:
 
@@ -57,17 +76,15 @@ modelable capabilities --format json
 modelable compile --help
 ```
 
-If an implemented `openapi` target exists, use it and verify it satisfies this policy. Do not reimplement it.
+If the required OpenAPI behavior exists, use it and verify it satisfies this policy. Do not reimplement it.
 
-If it does not exist, work upstream first.
+If Phase A or Phase B is missing, work upstream first.
 
 ## 4. Required upstream OpenAPI behavior
 
-The exact upstream design belongs in Modelable, but the showcase requires at least the following observable contract before OpenAPI can be considered covered.
-
 ### 4.1 Generation
 
-A supported command MUST generate OpenAPI deterministically, using the normal compiler target mechanism, for example:
+A supported command MUST generate OpenAPI deterministically through the normal compiler target mechanism, for example:
 
 ```bash
 modelable compile ./model --target openapi --out ./generated/openapi
@@ -91,13 +108,28 @@ The generated OpenAPI schema MUST originate from the normalized Modelable graph 
 
 OpenAPI MUST NOT silently become a second semantic authority.
 
-### 4.3 API surface
+### 4.3 Paths and operations
 
-The showcase should model HTTP-facing contracts through explicit request/reply projections. The OpenAPI emitter MUST consume those contracts rather than exposing every canonical persistence entity indiscriminately.
+The final showcase requires non-empty OpenAPI `paths` generated from explicit Modelable contract declarations.
 
-If route/operation declaration syntax is missing from Modelable, that is another upstream gap. Add the smallest general Modelable feature required to describe operations cleanly. Do not encode route metadata in showcase-only side files merely to unblock generation.
+The upstream design's explicit `api {}` direction is preferred over inferred CRUD conventions or external mapping files.
 
-If Modelable intentionally chooses a convention-based operation mapping instead of new syntax, that convention MUST be documented and tested upstream before the showcase relies on it.
+At minimum, the general upstream feature must support:
+
+- explicit operation ID;
+- HTTP method;
+- path;
+- request/body projection where applicable;
+- success and error response projections/status codes;
+- typed path parameters;
+- typed query parameters for search/read operations;
+- semantic validation of parameter references;
+- deterministic emission;
+- a path toward operation compatibility diagnostics.
+
+The exact accepted grammar belongs upstream in Modelable. Showcase-specific route metadata files are prohibited.
+
+RFC 9457 `application/problem+json` SHOULD be used for standard error responses unless the accepted upstream design chooses another standard for a documented reason.
 
 ### 4.4 Validation
 
@@ -211,12 +243,15 @@ Do not merge a showcase change that relies on unpublished/unmerged Modelable beh
 
 ## 10. Required changes to the implementation plan
 
-Implementation agents MUST treat these as inserted requirements even if an older task in `IMPLEMENTATION_PLAN.md` does not mention them explicitly:
+Implementation agents MUST treat these as inserted requirements even if an older task in `IMPLEMENTATION_PLAN.md` does not mention them explicitly.
 
 ### Before API implementation
 
-- Verify `openapi` is implemented by Modelable.
-- If missing, implement it upstream before continuing.
+- Read the upstream OpenAPI design and Phase A plan.
+- Check upstream issue `ktjn/modelable#352` for Phase B status.
+- Verify `openapi` generation is implemented by Modelable.
+- Verify the generated document contains the explicit paths/operations needed by the product, not only `components.schemas` with `paths: {}`.
+- If either layer is missing, implement/fix it upstream before continuing.
 - Add OpenAPI generation and independent validation to `make generate`/`make acceptance`.
 
 ### During every product/conformance slice
@@ -237,12 +272,13 @@ A newly discovered implemented target/capability MUST be covered rather than ign
 The final definition of done additionally requires:
 
 1. OpenAPI is generated by Modelable, not handwritten or derived from the web/API framework.
-2. The generated OpenAPI document passes an independent validator.
-3. Running API contract tests prove the Axum implementation conforms to generated OpenAPI request/reply contracts.
-4. OpenAPI generation is deterministic.
-5. OpenAPI appears as an implemented capability/target in the tested Modelable version.
-6. No permanent showcase patch layer exists for Modelable-generated artifacts.
-7. Every general Modelable defect or missing capability encountered during implementation is either fixed upstream or explicitly documented as an intentional upstream limitation with a corresponding showcase boundary test.
+2. The generated OpenAPI contains the product's real paths and operations, not only schemas.
+3. The generated OpenAPI document passes an independent validator.
+4. Running API contract tests prove the Axum implementation conforms to generated OpenAPI request/reply contracts.
+5. OpenAPI generation is deterministic.
+6. OpenAPI appears as an implemented capability/target in the tested Modelable version.
+7. No permanent showcase patch layer exists for Modelable-generated artifacts.
+8. Every general Modelable defect or missing capability encountered during implementation is either fixed upstream or explicitly documented as an intentional upstream limitation with a corresponding showcase boundary test.
 
 The governing rule is:
 
