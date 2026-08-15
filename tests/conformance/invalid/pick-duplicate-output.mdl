@@ -1,0 +1,21 @@
+// Proves: a projection body field that redeclares an output name already
+// produced by a `pick` selection is rejected (SPEC.md Sec 13 "duplicate
+// projection output from selection + body"; language-reference.md Sec
+// 3.5.1: "Redeclaring a name that pick/omit already produces is a
+// compile error").
+domain pickduplicateoutput {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  projection ThingPickDuplicate @ 1
+    from pickduplicateoutput.Thing @ 1 as t
+    pick(t.thingId, t.name)
+  {
+    name = "shadowed"
+  }
+}

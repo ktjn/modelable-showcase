@@ -1,0 +1,20 @@
+// Proves: an aggregate function used without a `group by` clause is
+// rejected (SPEC.md Sec 13 "aggregate without grouping"). Uses `sum`, not
+// `max`/`min`, since validation/semantic.py exempts a scalar max/min from
+// this check (verified while reading the validator source).
+domain aggregatewithoutgroup {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    amount: decimal(10, 2)
+  }
+
+  projection ThingUngroupedSum @ 1
+    from aggregatewithoutgroup.Thing @ 1 as t
+  {
+    thingId <- t.thingId
+    total = sum(t.amount)
+  }
+}

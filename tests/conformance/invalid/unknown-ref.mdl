@@ -1,0 +1,11 @@
+// Proves: a ref<> targeting a model that does not exist is rejected
+// (SPEC.md Sec 13 "unknown model reference").
+domain unknownref {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    other: ref<unknownref.DoesNotExist>
+  }
+}

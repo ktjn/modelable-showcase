@@ -1,0 +1,18 @@
+// Proves: a version that removes a required field is rejected when
+// marked (additive) (SPEC.md Sec 13 "breaking change declared additive").
+domain additivemarkedbreaking {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+    mustStay: string
+  }
+
+  entity Thing @ 2 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+}

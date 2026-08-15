@@ -1,0 +1,8 @@
+// Proves: a semantic type chain cycle is rejected (SPEC.md Sec 13
+// "semantic cycle").
+domain semanticcycle {
+  owner: "conformance-fixtures"
+
+  semantic Alpha: Beta
+  semantic Beta: Alpha
+}

@@ -1,0 +1,24 @@
+// Proves: two secondary indexes with the same name on one model version
+// are rejected (SPEC.md Sec 13 "duplicate secondary index name").
+domain indexduplicatename {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+    status: enum(active, inactive)
+  }
+
+  index Thing @ 1 {
+    primary thingId
+
+    secondary byName {
+      key: [name]
+    }
+
+    secondary byName {
+      key: [status]
+    }
+  }
+}

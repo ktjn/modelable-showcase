@@ -1,0 +1,107 @@
+# Expected outcomes for tests/conformance/invalid/*.mdl, verified against
+# the real installed Modelable CLI (not guessed) - see
+# tests/conformance/test_invalid_fixtures.py. IMPLEMENTATION_PLAN.md
+# Task 3.2 / SPEC.md Sec 13.
+#
+# Fields:
+#   exit: expected process exit code (always 1 here).
+#   code: the diagnostic code prefix ("SEM", "COMPAT", or a numbered
+#     "CELnnn") when one is available. Omitted (null) for
+#     protobuf-reservation-reuse.mdl, which crashes with an unhandled
+#     Python ValueError/traceback rather than a clean CLI diagnostic - a
+#     real upstream bug found while building this fixture, not a mistake
+#     here. The exit code and message are still stable, so it's still
+#     assertable; it just has no clean "code" prefix.
+#   contains: one minimal stable substring proving the fixture failed for
+#     its intended reason, not an unrelated earlier parse error.
+#   command: which CLI invocation exercises this fixture. Defaults to
+#     `validate` (the vast majority). protobuf-reservation-reuse.mdl only
+#     fails under `compile --target protobuf`; plain `validate` reports it
+#     as valid, since reservation-reuse is a protobuf-emitter-specific
+#     check, not a general semantic rule.
+
+missing-key.mdl:
+  exit: 1
+  code: SEM
+  contains: "entity must have exactly one @key field"
+
+composite-key.mdl:
+  exit: 1
+  code: SEM
+  contains: "entity must have exactly one @key field"
+
+key-on-event.mdl:
+  exit: 1
+  code: SEM
+  contains: "event must not have an @key field"
+
+unknown-ref.mdl:
+  exit: 1
+  code: SEM
+  contains: "unresolved model reference unknownref.DoesNotExist"
+
+unknown-semantic.mdl:
+  exit: 1
+  code: SEM
+  contains: "references unknown semantic type 'NoSuchBaseType'"
+
+semantic-cycle.mdl:
+  exit: 1
+  code: SEM
+  contains: "has a cycle in its underlying chain"
+
+ambiguous-semantic.mdl:
+  exit: 1
+  code: SEM
+  contains: "references ambiguous semantic type 'Code'"
+
+index-unknown-field.mdl:
+  exit: 1
+  code: SEM
+  contains: "references undeclared field 'doesNotExist'"
+
+index-duplicate-name.mdl:
+  exit: 1
+  code: SEM
+  contains: "secondary index 'byName' is declared more than once"
+
+additive-marked-breaking-change.mdl:
+  exit: 1
+  code: COMPAT
+  contains: "additive declaration includes incompatible changes: removed_field mustStay"
+
+unresolved-version-range.mdl:
+  exit: 1
+  code: SEM
+  contains: "unresolved model reference unresolvedversionrange.Thing@>=5<10"
+
+pick-duplicate-output.mdl:
+  exit: 1
+  code: SEM
+  contains: "is selected by pick(...) and also declared in the projection body"
+
+empty-pick.mdl:
+  exit: 1
+  code: PARSE
+  contains: "No terminal matches ')' in the current parser context"
+
+invalid-cel-function.mdl:
+  exit: 1
+  code: CEL005
+  contains: "unsupported function 'frobnicate'"
+
+aggregate-without-group.mdl:
+  exit: 1
+  code: CEL006
+  contains: "aggregate function 'sum' used in projection without group by"
+
+invalid-join-predicate.mdl:
+  exit: 1
+  code: CEL002
+  contains: "unknown field 'r.doesNotExist'"
+
+protobuf-reservation-reuse.mdl:
+  exit: 1
+  code: null
+  contains: "uses reserved protobuf field number 2"
+  command: compile-protobuf

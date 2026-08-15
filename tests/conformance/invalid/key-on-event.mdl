@@ -1,0 +1,11 @@
+// Proves: @key is rejected on a model kind that forbids identity
+// (SPEC.md Sec 13 "key on invalid model kind").
+domain keyonevent {
+  owner: "conformance-fixtures"
+
+  event SomethingHappened @ 1 (additive) {
+    @key
+    eventId: uuid
+    detail: string
+  }
+}

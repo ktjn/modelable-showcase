@@ -1,0 +1,24 @@
+// Proves: a semantic type declaration whose underlying type does not
+// resolve is rejected (SPEC.md Sec 13 "unknown semantic type").
+//
+// A field bare-referencing an unknown type name (e.g. `category:
+// NoSuchType` with no `semantic NoSuchType` declaration anywhere) is
+// NOT rejected by `modelable validate` or `compile` today - it silently
+// becomes an opaque structural type and only produces an EMIT002 "cannot
+// be represented without loss" warning at compile time for targets that
+// need nominal identity. Verified with an isolated probe before writing
+// this fixture; that leniency is real upstream behavior, not a mistake
+// in this file. Chaining an unresolvable *underlying* type on an actual
+// `semantic` declaration, by contrast, is rejected at validate time -
+// that's the case this fixture proves instead.
+domain unknownsemantic {
+  owner: "conformance-fixtures"
+
+  semantic BadChain: NoSuchBaseType
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    category: BadChain
+  }
+}
