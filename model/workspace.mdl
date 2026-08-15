@@ -20,6 +20,11 @@ workspace "modelable-clinic" {
 
   package "clinical-core" {
     description: "Clinical encounters, observations, and the audit trail."
-    include: ["clinical"]
+    include: ["clinical", "audit"]
+  }
+
+  package "billing-core" {
+    description: "Billing and cross-domain reporting."
+    include: ["billing", "reporting"]
   }
 }

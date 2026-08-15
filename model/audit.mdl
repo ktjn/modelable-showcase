@@ -1,0 +1,30 @@
+domain audit {
+  owner: "clinic-compliance-team"
+  contact: "compliance@modelable-clinic.example"
+  description: "Immutable audit trail for record access and changes across Modelable Clinic. All entries MUST use fictional values and MUST NOT contain secrets."
+
+  event AuditEntry @ 1 (additive) {
+    auditId: uuid(7)
+    @classification("restricted")
+    actorId: string
+    // No single model kind covers every possible audited subject (patient,
+    // appointment, encounter, invoice, ...), so the subject is a loose
+    // identifier + type discriminator rather than a typed ref<> - the same
+    // pattern real Modelable fixtures use for cross-system identifiers that
+    // don't resolve to one local model.
+    subjectType: enum(patient, appointment, encounter, observation, invoice, payment)
+    subjectId: string
+    action: enum(created, viewed, updated, deleted, exported)
+    @classification("restricted")
+    detail?: json
+    signature?: binary(32)
+    @server
+    occurredAt: timestamp
+
+    access {
+      entity clinic-compliance-team [read]
+      property actorId clinic-compliance-team [read]
+      property subjectId clinic-compliance-team [read]
+    }
+  }
+}

@@ -1,0 +1,102 @@
+domain reporting {
+  owner: "clinic-analytics-team"
+  contact: "analytics@modelable-clinic.example"
+  description: "Cross-domain reporting projections for Modelable Clinic. Projection-heavy by design; owns no canonical entities of its own."
+
+  // Direct mapping, left joins, group by, count/max/sum, countif, and
+  // boolean-logic computed fields, spanning patient/clinical/billing.
+  projection PatientSummary @ 1
+    from patient.Patient @ 2 as p
+    left join clinical.Encounter @ 1 as e on e.patientId == p.patientId
+    left join billing.Invoice @ 2 as i on i.patientId == p.patientId
+    group by p.patientId, p.legalName, p.dateOfBirth
+  {
+    patientId             <- p.patientId
+    legalName             <- p.legalName
+    dateOfBirth           <- p.dateOfBirth
+    encounterCount          = count(e.encounterId)
+    lastEncounterAt         = max(e.startedAt)
+    totalBilled             = sum(i.total)
+    hasOutstandingBalance   = countif(i.status == "issued" || i.status == "overdue") > 0
+  }
+
+  // Inner join, where, ternary + a deterministic string helper together,
+  // coalesce, exact source versions.
+  projection DailySchedule @ 1
+    from scheduling.Appointment @ 1 as a
+    join patient.Patient @ 2 as p on a.patientId == p.patientId
+    where a.status != "cancelled"
+  {
+    appointmentId   <- a.appointmentId
+    patientName     <- p.legalName
+    practitionerId  <- a.practitionerId
+    scheduledDate   <- a.scheduledDate
+    slot            <- a.slot
+    statusLabel      = a.status == "confirmed" ? upper(a.status) : a.status
+    displayReason    = coalesce(a.reason, "General visit")
+  }
+
+  // "Clinical aggregate traces to observation source" (IMPLEMENTATION_PLAN.md
+  // Task 2.4 test requirement): avg/max aggregate over clinical.Observation,
+  // joined back to clinical.Encounter via Observation's ref<>.
+  projection PatientClinicalSummary @ 1
+    from clinical.Encounter @ 1 as e
+    left join clinical.Observation @ 1 as o on o.encounterId == e.encounterId
+    group by e.encounterId, e.patientId, e.status
+  {
+    encounterId               <- e.encounterId
+    patientId                 <- e.patientId
+    encounterStatus            = e.status
+    observationCount            = count(o.observationId)
+    abnormalObservationCount    = countif(o.isAbnormal == true)
+    avgTemperatureCelsius        = avg(o.temperatureCelsius)
+    maxPulseBpm                   = max(o.pulseBpm)
+  }
+
+  // omit + an annotation selector, combined with an additional computed
+  // body field (SPEC.md Sec 7.6 "selection plus additional body fields").
+  // Deliberately doesn't also use `where` here: a `where` clause
+  // immediately followed by a selection clause on the next line trips a
+  // real upstream lexer issue (the FIELD_EXPRESSION token's multi-line
+  // continuation doesn't treat `pick`/`omit` as a stop keyword the way it
+  // does `group by`/`access {`/etc., so it swallows the omit(...) line
+  // into the where predicate and fails to parse). `where` is already
+  // exercised in DailySchedule above.
+  projection OutstandingInvoices @ 1
+    from billing.Invoice @ 2 as i
+    omit(i.lines, @server)
+  {
+    isOutstanding = i.status == "issued" || i.status == "overdue"
+  }
+
+  // "Revenue aggregate traces to invoice/payment source"
+  // (IMPLEMENTATION_PLAN.md Task 2.4 test requirement): billing.Invoice
+  // joined through clinical.Encounter for practitioner attribution, left
+  // joined to billing.PaymentReceived for what was actually collected.
+  projection PractitionerRevenue @ 1
+    from billing.Invoice @ 2 as i
+    join clinical.Encounter @ 1 as e on i.encounterId == e.encounterId
+    left join billing.PaymentReceived @ 1 as pmt on pmt.invoiceId == i.invoiceId
+    group by e.practitionerId
+  {
+    practitionerId  <- e.practitionerId
+    invoicedTotal     = sum(i.total)
+    paidTotal          = sum(pmt.amount)
+    paymentCount        = count(pmt.paymentId)
+  }
+
+  // count_distinct, version range on the join source, group by a
+  // precomputed period field (see billing.mdl Invoice@2.billingPeriod for
+  // why this isn't a date-truncation expression).
+  projection MonthlyClinicStats @ 1
+    from billing.Invoice @ >=1 <3 as i
+    left join billing.PaymentReceived @ 1 as pmt on pmt.invoiceId == i.invoiceId
+    group by i.billingPeriod
+  {
+    billingPeriod       <- i.billingPeriod
+    invoiceCount          = count(i.invoiceId)
+    billedTotal            = sum(i.total)
+    paidTotal               = sum(pmt.amount)
+    distinctPatients         = count_distinct(i.patientId)
+  }
+}
