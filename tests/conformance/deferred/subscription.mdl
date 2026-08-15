@@ -1,0 +1,27 @@
+// Deferred capability: subscriptions. Both the top-level `subscription
+// NAME {}` form and the per-projection `subscription {}` block parse and
+// each produce their own explicit "WARNING DEFERRED" diagnostic, but
+// neither has any runtime effect - no subscription behavior is
+// implemented.
+domain deferredsubscription {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  projection ThingView @ 1
+    from deferredsubscription.Thing @ 1 as t
+  {
+    thingId <- t.thingId
+    subscription {
+      channel: "thing-updates"
+    }
+  }
+}
+
+subscription exampleTopLevelSubscription {
+  source: "deferredsubscription.Thing@1"
+}

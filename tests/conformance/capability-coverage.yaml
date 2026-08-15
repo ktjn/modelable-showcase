@@ -79,3 +79,42 @@ capabilities:
   target:protobuf:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_legal_maps_compile_in_protobuf
+  target:sql-clickhouse:
+    coverage: probe
+    test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
+  sql_dialect:clickhouse:
+    coverage: probe
+    test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
+  deferred_feature:composite-keys:
+    coverage: deferred
+    test: tests/conformance/deferred/composite-keys.mdl
+  deferred_feature:workspace-registry:
+    coverage: deferred
+    test: tests/conformance/deferred/workspace-registry.mdl
+  deferred_feature:workspace-peers:
+    coverage: deferred
+    test: tests/conformance/deferred/workspace-peers.mdl
+  deferred_feature:consumer-declarations:
+    coverage: deferred
+    test: tests/conformance/deferred/consumer.mdl
+  deferred_feature:subscriptions:
+    coverage: deferred
+    test: tests/conformance/deferred/subscription.mdl
+  deferred_feature:materialisation:
+    coverage: deferred
+    test: tests/conformance/deferred/materialisation.mdl
+  deferred_feature:binding-opaque-content:
+    coverage: deferred
+    test: tests/conformance/deferred/binding-opaque-content.mdl
+  deferred_feature:clickhouse-secondary-indexes:
+    coverage: deferred
+    test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
+  deferred_feature:nominal-semantic-types-beyond-rust:
+    coverage: deferred
+    test: tests/conformance/test_deferred_capabilities.py::test_nominal_semantic_identity_lost_beyond_rust
+  deferred_feature:model-lifecycle-status:
+    coverage: deferred
+    test: tests/conformance/test_deferred_capabilities.py::test_model_lifecycle_status_not_representable
+  deferred_feature:projection-event-operation-coverage-compatibility:
+    coverage: deferred
+    test: tests/conformance/test_deferred_capabilities.py::test_projection_event_operation_coverage_not_comparable

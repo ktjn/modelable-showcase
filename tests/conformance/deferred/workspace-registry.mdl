@@ -1,0 +1,18 @@
+// Deferred capability: workspace-registry. `registry {}` parses and
+// produces an explicit "WARNING DEFERRED" diagnostic but has no effect on
+// compilation - the block is discarded before IR construction.
+domain deferredworkspaceregistry {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+  }
+}
+
+workspace "deferred-registry-probe" {
+  registry {
+    id: "conformance-registry"
+    owns: ["deferredworkspaceregistry"]
+  }
+}

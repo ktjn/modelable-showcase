@@ -1,0 +1,23 @@
+// Deferred capability: materialisation. A per-projection
+// `materialisation {}` block parses and produces an explicit "WARNING
+// DEFERRED" diagnostic but has no runtime effect - no materialization
+// strategy is implemented; application code owns data movement (SPEC.md
+// Sec 4.4).
+domain deferredmaterialisation {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  projection ThingView @ 1
+    from deferredmaterialisation.Thing @ 1 as t
+  {
+    thingId <- t.thingId
+    materialisation {
+      strategy: "eager"
+    }
+  }
+}

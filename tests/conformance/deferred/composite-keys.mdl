@@ -1,0 +1,19 @@
+// Deferred capability: composite-keys (docs/architecture.md describes
+// multiple @key fields as supported; the current compiler requires
+// exactly one). Unlike the other six fixtures in this directory, this is
+// grammar-level *non-support*: it fails with a hard SEM error, not a
+// deferred warning, per IMPLEMENTATION_PLAN.md Task 3.3's own guidance
+// ("For grammar-level non-support, assert the current explicit
+// failure"). Same construct as tests/conformance/invalid/composite-key.mdl,
+// deliberately duplicated here framed as the deferred-capability boundary
+// rather than a generic negative case.
+domain compositekeys {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    firstId: uuid
+    @key
+    secondId: uuid
+  }
+}

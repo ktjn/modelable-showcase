@@ -22,6 +22,7 @@
 | 6 | [`compile --target protobuf` crashes on reservation reuse instead of diagnosing it](#6-compile---target-protobuf-crashes-on-reservation-reuse-instead-of-diagnosing-it) | Crash | A |
 | 7 | [CEL type-mismatch checking is not implemented](#7-cel-type-mismatch-checking-is-not-implemented) | Missing feature | A |
 | 8 | [`ref<Model @ >=N <M>>` version-range notation is easy to double-bracket](#8-refmodel--n-m-version-range-notation-is-easy-to-double-bracket) | Docs clarity | C |
+| 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -369,3 +370,91 @@ other: ref<probe.Thing @ >=1 <3>>
 **Expected:** nothing needs to change upstream; this entry exists purely so the next person (in this repo or reading this file from outside it) doesn't spend the same few minutes staring at the same lexer error.
 
 **Showcase workaround:** N/A — corrected to the single-bracket form directly; see `model/billing.mdl`'s `Invoice.encounterId` field.
+
+---
+
+## 9. A second `auto projections` declaration for another version of the same model is silently dropped
+
+**Discovered:** Task 3.3 (deferred-capability fixtures), while probing whether `on [...]` operation subsets on `event` auto-projections are visible to `diff`/`lineage` for cross-version comparison.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  entity Thing @ 1 (additive) {
+    @key thingId: uuid
+    name: string
+  }
+
+  entity Thing @ 2 (additive) {
+    @key thingId: uuid
+    name: string
+    extra?: string
+  }
+
+  auto projections Thing @ 1 {
+    db
+    request
+    reply
+    event on [created]
+  }
+
+  auto projections Thing @ 2 {
+    db
+    request
+    reply
+    event on [created, deleted]
+  }
+}
+```
+
+```bash
+modelable validate .
+modelable inspect probe.Thing@1 --auto .
+modelable inspect probe.Thing@2 --auto .
+```
+
+**Observed:**
+
+```text
+$ modelable validate .
+OK 3 files valid.
+
+$ modelable inspect probe.Thing@1 --auto .
+probe.ThingDb@1 (auto db)
+  thingId
+  name
+probe.ThingRequest@1 (auto request)
+  thingId
+  name
+probe.ThingReply@1 (auto reply)
+  thingId
+  name
+probe.ThingEvent@1 (auto event)
+  thingId
+  name
+
+$ modelable inspect probe.Thing@2 --auto .
+(empty output — no ThingDb@2/ThingRequest@2/ThingReply@2/ThingEvent@2 at all)
+```
+
+`validate` reports the file valid with no warning of any kind. Reversing the declaration order in the source (`Thing @ 2`'s `auto projections` block written *before* `Thing @ 1`'s) reverses which version is dropped: version 1's generated projections vanish instead, and version 2's are the ones that materialize. In both orderings, **whichever `auto projections` block appears first in file order wins; the second is discarded entirely**, regardless of which version number it targets. `modelable diff probe.ThingEvent@1 probe.ThingEvent@2` on the first ordering fails outright with `Error: unresolved model reference probe.ThingEvent@2`, since the dropped version's projection was never created to diff against.
+
+**Root cause (read from source, not guessed):** `planner/planner.py::_expand_domain_auto_projections` generates a projection name that is *not* version-qualified (`_generated_projection_name` returns e.g. `"ThingDb"` for every version alike), then guards against overwriting an explicit hand-written projection with:
+
+```python
+existing = domain.projections.get(projection_name)
+if existing is not None:
+    # Skip if an explicit projection with the same name already exists.
+    # The workspace validator already checks for conflicts; this is
+    # just a safety guard.
+    continue
+```
+
+`domain.projections[projection_name]` is a *list* of `ProjectionVersion` entries (multiple versions of the same projection name coexist there normally — that's exactly how `ThingDb@1` and `ThingDb@2` are meant to both exist side by side). But this guard only checks whether the key has *any* entries at all, not whether an entry for `decl.version` specifically already exists. After the first `auto projections Thing @ 1` block runs, `domain.projections["ThingDb"]` already has one entry (added via `domain.projections.setdefault(projection_name, []).append(projection)`), so when the second `auto projections Thing @ 2` block runs, `existing is not None` is already true and the whole block is skipped — even though nothing named `ThingDb@2` actually exists yet. The comment's own stated intent ("skip if an *explicit* projection with the same name already exists") is not what the code checks; it skips on *any* prior entry, auto-generated or not, for *any* version.
+
+**Expected:** the guard should check for an entry at `decl.version` specifically (e.g. `any(p.version == decl.version for p in existing)`), not merely `existing is not None`, so that multiple versions of the same model can each get their own auto-generated projections independently, the same way hand-written projection versions already coexist.
+
+**Showcase workaround:** `tests/conformance/deferred/*.mdl` and every canonical domain in `model/` only ever declare one `auto projections <Model> @ <N>` block per model per domain (each real model in this showcase is introduced with auto-projections at its first version and left alone on later additive versions), so the bug is never triggered by the showcase's own deliverables. `tests/conformance/test_deferred_capabilities.py`'s coverage for the `projection-event-operation-coverage-compatibility` deferred capability uses the single-version `scheduling.AppointmentEvent@1` (real, already-shipped model) and its `lineage` output instead of a synthetic multi-version probe, specifically to sidestep this bug rather than let it block that unrelated check. See that test file for detail.
