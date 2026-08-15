@@ -1,0 +1,20 @@
+workspace "modelable-clinic" {
+  description: "Modelable Clinic - a fictional outpatient clinic showcase for Modelable-generated contracts. All data is synthetic; this is not clinical software."
+
+  // Rust package grouping (Task 2.1). `package.include` is validated against
+  // domains that actually exist in the workspace, so this list grows
+  // incrementally as each domain lands (Tasks 2.2-2.4) rather than declaring
+  // the full target shape up front. Final intended shape:
+  //   clinic-core    -> patient, scheduling
+  //   clinical-core  -> clinical, audit
+  //   billing-core   -> billing, reporting
+  // Dependency direction only ever flows billing-core -> {clinic-core,
+  // clinical-core} via reporting's cross-domain joins and billing's
+  // patient/appointment refs, so this does not create a package dependency
+  // cycle (re-verified with `modelable validate --strict` as each domain is
+  // added).
+  package "clinic-core" {
+    description: "Patient identity and scheduling."
+    include: ["patient"]
+  }
+}
