@@ -1,0 +1,25 @@
+// Proves: a join predicate referencing a field that doesn't exist is
+// rejected (SPEC.md Sec 13 "invalid join predicate").
+domain invalidjoinpredicate {
+  owner: "conformance-fixtures"
+
+  entity Left @ 1 (additive) {
+    @key
+    leftId: uuid
+    name: string
+  }
+
+  entity Right @ 1 (additive) {
+    @key
+    rightId: uuid
+    label: string
+  }
+
+  projection LeftWithRight @ 1
+    from invalidjoinpredicate.Left @ 1 as l
+    join invalidjoinpredicate.Right @ 1 as r on l.leftId == r.doesNotExist
+  {
+    leftId <- l.leftId
+    label  <- r.label
+  }
+}

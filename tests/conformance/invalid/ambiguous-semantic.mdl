@@ -1,0 +1,33 @@
+// Proves: an unqualified reference to a semantic name declared in more
+// than one domain is rejected as ambiguous (SPEC.md Sec 13 "ambiguous
+// semantic type" - the failing twin of
+// tests/conformance/valid/qualified-semantics.mdl's successful
+// domain-qualified resolution).
+//
+// Like unknown-semantic.mdl, this has to go through a `semantic X: Y`
+// chain reference rather than a bare field type: `resolve_semantic_type_ref`
+// really does raise AmbiguousSemanticTypeError for a bare field reference
+// too (verified in registry/resolver.py), but AmbiguousSemanticTypeError
+// is a LookupError subclass and field-type resolution catches LookupError
+// broadly, silently falling back to an opaque structural type instead of
+// surfacing a diagnostic - confirmed with an isolated probe (a plain
+// `code: Code` field with the same two colliding domains validates clean)
+// before writing this fixture. The semantic-declaration chain path does
+// not swallow the error.
+domain ambiguousalpha {
+  owner: "conformance-fixtures"
+
+  semantic Code: string
+}
+
+domain ambiguousbeta {
+  owner: "conformance-fixtures"
+
+  semantic Code: string
+}
+
+domain ambiguousconsumer {
+  owner: "conformance-fixtures"
+
+  semantic Wrapper: Code
+}

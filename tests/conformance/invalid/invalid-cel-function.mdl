@@ -1,0 +1,18 @@
+// Proves: calling a CEL function that isn't in the deterministic
+// function set is rejected (SPEC.md Sec 13 "invalid CEL function").
+domain invalidcelfunction {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  projection ThingBadFunction @ 1
+    from invalidcelfunction.Thing @ 1 as t
+  {
+    thingId <- t.thingId
+    shouted = frobnicate(t.name)
+  }
+}

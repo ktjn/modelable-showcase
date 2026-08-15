@@ -1,0 +1,16 @@
+// Proves: a version range that matches no published version is rejected
+// (SPEC.md Sec 13 "unresolved version range").
+domain unresolvedversionrange {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  value RangeHolder {
+    // Only Thing@1 exists; nothing satisfies >=5<10.
+    unresolvable: ref<unresolvedversionrange.Thing @ >=5 <10>
+  }
+}

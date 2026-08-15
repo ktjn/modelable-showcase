@@ -1,0 +1,9 @@
+// Proves: an entity with no @key field is rejected (SPEC.md Sec 13
+// "missing key").
+domain missingkey {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    name: string
+  }
+}

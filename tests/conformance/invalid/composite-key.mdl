@@ -1,0 +1,16 @@
+// Proves: composite keys (multiple @key fields) are rejected - the same
+// "exactly one @key field" rule as missing-key.mdl, from the other
+// direction (SPEC.md Sec 13 "duplicate key / unsupported composite key").
+// Task 3.3's deferred fixture covers this same limitation framed as an
+// upstream-deferred capability boundary; this fixture just proves the
+// showcase gets a clean rejection today.
+domain compositekey {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    firstId: uuid
+    @key
+    secondId: uuid
+  }
+}

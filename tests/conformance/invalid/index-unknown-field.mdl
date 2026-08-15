@@ -1,0 +1,19 @@
+// Proves: an index referencing a field that doesn't exist on the model
+// is rejected (SPEC.md Sec 13 "invalid index field").
+domain indexunknownfield {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  index Thing @ 1 {
+    primary thingId
+
+    secondary byMissingField {
+      key: [doesNotExist]
+    }
+  }
+}

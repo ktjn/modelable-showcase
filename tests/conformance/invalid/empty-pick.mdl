@@ -1,0 +1,19 @@
+// Proves: `pick()` with zero selectors is rejected (SPEC.md Sec 13
+// "empty/invalid pick where prohibited"; language-reference.md Sec 3.5.1:
+// "pick() is invalid"). Caught at parse time, not semantic validation -
+// the pick_clause grammar production requires at least one selector.
+domain emptypick {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    name: string
+  }
+
+  projection ThingEmptyPick @ 1
+    from emptypick.Thing @ 1 as t
+    pick()
+  {
+  }
+}

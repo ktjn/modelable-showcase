@@ -1,0 +1,17 @@
+// Proves: reserving a field number/name that a live field on the same
+// version also uses is rejected (SPEC.md Sec 13 "Protobuf reservation
+// reuse").
+domain protobufreservationreuse {
+  owner: "conformance-fixtures"
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    activeField: string
+
+    reserved protobuf {
+      numbers: [2]
+      names: ["activeField"]
+    }
+  }
+}
