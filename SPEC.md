@@ -701,7 +701,7 @@ Initial cases:
 
 Tests SHOULD assert diagnostic codes/categories and source locations when upstream exposes stable structured diagnostics.
 
-"CEL type mismatch" is not currently enforceable: verified against both the pinned `modelable==1.7.0` release and upstream `main` that comparing incompatible CEL operand types (e.g. `stringField > 5`) validates cleanly with no diagnostic. The `CEL003`/`CEL004` diagnostic codes are reserved in the code but have no implementation behind them, strongly suggesting this was planned and never finished rather than intentionally out of scope. `tests/conformance/invalid/` accordingly has 17 fixtures, not 18 — 16 from this list plus `empty-pick.mdl` for "empty/invalid pick", with CEL type mismatch the one documented gap. Per `UPSTREAM_POLICY.md` Sec 1 this belongs on the list of gaps to eventually fix upstream (Case A: Modelable is incomplete); do not add a downstream fixture that pretends to test enforcement that does not exist.
+"CEL type mismatch" is not currently enforceable by the pinned CLI (verified against both `modelable==1.7.0` and upstream `main`; see `UPSTREAM_FINDINGS.md` #7 for the reproduction and root cause). `tests/conformance/invalid/` accordingly has 17 fixtures, not 18 — 16 from this list plus `empty-pick.mdl` for "empty/invalid pick", with CEL type mismatch the one documented gap. Do not add a downstream fixture that pretends to test enforcement that does not exist.
 
 ## 14. Deferred capability fixtures
 
