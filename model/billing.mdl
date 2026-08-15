@@ -1,0 +1,95 @@
+domain billing {
+  owner: "clinic-billing-team"
+  contact: "billing@modelable-clinic.example"
+  description: "Invoicing and payments for Modelable Clinic."
+
+  semantic InvoiceId: uuid(7) {
+    registry: true
+  }
+
+  value InvoiceLine {
+    description: string
+    quantity: int = 1
+    unitPrice: decimal(10, 2)
+    lineTotal: decimal(10, 2)
+  }
+
+  aggregate Invoice @ 1 (additive) {
+    @key
+    invoiceId: InvoiceId
+    patientId: patient.PatientId
+    // Version range (SPEC.md Sec 6.4 "version ranges"): tolerate any
+    // Encounter version below 2, since this field only needs the encounter
+    // to exist, not its exact evolving shape.
+    encounterId?: ref<clinical.Encounter @ >=1 <2>
+    lines: array<InvoiceLine>
+    subtotal: decimal(10, 2)
+    tax: decimal(10, 2) = 0
+    total: decimal(10, 2)
+    status: enum(draft, issued, paid, overdue, void) = draft
+    issuedAt?: timestamp
+    dueDate?: date
+    @server
+    createdAt: timestamp
+    @server
+    updatedAt?: timestamp
+  }
+
+  // Additive v2: multiple versions exist so Task 4.1's compat/ fixtures
+  // (baseline-v1 -> additive-v2 -> breaking-v3) have a real second billing
+  // model to build from, per SPEC.md Sec 6.4.
+  aggregate Invoice @ 2 (additive) {
+    @key
+    invoiceId: InvoiceId
+    patientId: patient.PatientId
+    encounterId?: ref<clinical.Encounter @ >=1 <2>
+    lines: array<InvoiceLine>
+    subtotal: decimal(10, 2)
+    tax: decimal(10, 2) = 0
+    total: decimal(10, 2)
+    currency?: string = "SEK"
+    // Precomputed "YYYY-MM" period, set at issue time. group_item in
+    // reporting.MonthlyClinicStats can only reference a plain field (its
+    // grammar splits on any comma, which breaks a truncate(...)-style
+    // function call with multiple arguments), so real billing systems
+    // commonly store this instead of re-deriving it via date-truncation
+    // on every query.
+    billingPeriod?: string
+    status: enum(draft, issued, paid, overdue, void) = draft
+    issuedAt?: timestamp
+    dueDate?: date
+    @server
+    createdAt: timestamp
+    @server
+    updatedAt?: timestamp
+  }
+
+  event PaymentReceived @ 1 (additive) {
+    paymentId: uuid(7)
+    invoiceId: InvoiceId
+    amount: decimal(10, 2)
+    method: enum(card, cash, bank_transfer, insurance)
+    @server
+    receivedAt: timestamp
+  }
+
+  index Invoice @ 2 {
+    primary invoiceId
+
+    secondary byPatient {
+      key: [patientId]
+      sort: [issuedAt desc]
+    }
+
+    secondary byStatus {
+      key: [status]
+    }
+  }
+
+  auto projections Invoice @ 2 {
+    db
+    request exclude [@server]
+    reply
+    event
+  }
+}
