@@ -17,4 +17,9 @@ workspace "modelable-clinic" {
     description: "Patient identity and scheduling."
     include: ["patient", "scheduling"]
   }
+
+  package "clinical-core" {
+    description: "Clinical encounters, observations, and the audit trail."
+    include: ["clinical"]
+  }
 }

@@ -1,0 +1,104 @@
+domain clinical {
+  owner: "clinical-documentation-team"
+  contact: "clinical-docs@modelable-clinic.example"
+  description: "Clinical encounters, observations, and diagnoses for Modelable Clinic."
+
+  semantic EncounterId: uuid(7)
+
+  // Chained semantic type (SPEC.md Sec 6.3): VitalSignCode -> string,
+  // ObservationCode -> VitalSignCode.
+  semantic VitalSignCode: string
+  semantic ObservationCode: VitalSignCode
+
+  value Diagnosis {
+    codes: array<string>
+    description?: string
+    diagnosedDate: date
+    severityRank?: int
+  }
+
+  aggregate Encounter @ 1 (additive) {
+    @key
+    encounterId: EncounterId
+    // Domain-qualified semantic references to types declared elsewhere
+    // (SPEC.md Sec 6.3 "Semantic ambiguity": the successful case belongs
+    // here; the ambiguous-failure case belongs in Task 3.2).
+    patientId: patient.PatientId
+    practitionerId: scheduling.PractitionerId
+    appointmentId?: ref<scheduling.Appointment@1>
+    status: enum(in_progress, completed, cancelled) = in_progress
+    startedAt: timestamp
+    endedAt?: timestamp
+    expectedDuration?: duration
+    reasonCode?: string
+    diagnoses?: array<Diagnosis>
+    @server
+    createdAt: timestamp
+    @server
+    updatedAt?: timestamp
+  }
+
+  event Observation @ 1 (additive) {
+    observationId: uuid(7)
+    encounterId: ref<clinical.Encounter@1>
+    code: ObservationCode
+    temperatureCelsius?: float
+    weightKg?: decimal(5, 2)
+    bloodPressureSystolic?: u8
+    bloodPressureDiastolic?: u8
+    pulseBpm?: u8
+    isAbnormal: bool = false
+    deviceId?: uuid
+    deviceSignature?: binary(32)
+    rawDevicePayload?: binary
+    rawDeviceReading?: json
+    metadata?: object {
+      unit?: string
+      calibrationOffset?: i16
+      deviceLocalTime?: time
+      tags?: map<string, string>
+    }
+    recordedAt: timestamp
+  }
+
+  auto projections Encounter @ 1 {
+    db
+    request exclude [@server]
+    reply
+    event
+  }
+
+  // FHIR-oriented projections (SPEC.md Sec 6.3): the fhir-profile emitter
+  // selects a real R4 base resource only when a projection's *source
+  // model name* is exactly Patient, Observation, or Encounter - true
+  // regardless of which domain declares the projection or which domain
+  // the source model itself lives in.
+  projection PatientFhirView @ 1
+    from patient.Patient @ 2 as p
+  {
+    patientId  <- p.patientId
+    legalName  <- p.legalName
+    dateOfBirth <- p.dateOfBirth
+    contact    <- p.contact
+  }
+
+  projection EncounterFhirView @ 1
+    from clinical.Encounter @ 1 as e
+  {
+    encounterId <- e.encounterId
+    patientId   <- e.patientId
+    status      <- e.status
+    startedAt   <- e.startedAt
+    endedAt     <- e.endedAt
+  }
+
+  projection ObservationFhirView @ 1
+    from clinical.Observation @ 1 as o
+  {
+    observationId      <- o.observationId
+    encounterId        <- o.encounterId
+    code               <- o.code
+    temperatureCelsius <- o.temperatureCelsius
+    recordedAt         <- o.recordedAt
+  }
+}
