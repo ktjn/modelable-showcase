@@ -1,0 +1,12 @@
+// Proves: binary(N) is legal at both ends of its length range, 1 and the
+// documented maximum 4096 (SPEC.md Sec 12 "binary(1) and maximum legal
+// fixed binary size").
+domain fixedbinary {
+  owner: "conformance-fixtures"
+
+  value BinaryBoundaries {
+    smallestFixed: binary(1)
+    largestFixed: binary(4096)
+    unboundedForComparison: binary
+  }
+}

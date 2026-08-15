@@ -1,0 +1,24 @@
+// Proves: domain-qualified semantic references correctly disambiguate two
+// same-named semantic types declared in different domains (SPEC.md Sec 12
+// "qualified semantic-name ambiguity resolution", the successful case -
+// the failing/ambiguous case belongs in Task 3.2's negative fixtures).
+domain alphacodes {
+  owner: "conformance-fixtures"
+
+  semantic Code: string
+}
+
+domain betacodes {
+  owner: "conformance-fixtures"
+
+  semantic Code: string
+}
+
+domain qualifiedconsumer {
+  owner: "conformance-fixtures"
+
+  value QualifiedHolder {
+    alphaCode: alphacodes.Code
+    betaCode: betacodes.Code
+  }
+}

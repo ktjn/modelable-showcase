@@ -1,0 +1,37 @@
+// Proves: a semantic-type chain near the documented 32-level depth limit
+// (validation/semantic.py _SEMANTIC_CHAIN_DEPTH_LIMIT = 32) resolves
+// correctly without excessive compile time (SPEC.md Sec 12 "deeply chained
+// semantic types near a practical boundary without making CI slow").
+domain semanticchain {
+  owner: "conformance-fixtures"
+
+  semantic Chain0: string
+  semantic Chain1: Chain0
+  semantic Chain2: Chain1
+  semantic Chain3: Chain2
+  semantic Chain4: Chain3
+  semantic Chain5: Chain4
+  semantic Chain6: Chain5
+  semantic Chain7: Chain6
+  semantic Chain8: Chain7
+  semantic Chain9: Chain8
+  semantic Chain10: Chain9
+  semantic Chain11: Chain10
+  semantic Chain12: Chain11
+  semantic Chain13: Chain12
+  semantic Chain14: Chain13
+  semantic Chain15: Chain14
+  semantic Chain16: Chain15
+  semantic Chain17: Chain16
+  semantic Chain18: Chain17
+  semantic Chain19: Chain18
+  semantic Chain20: Chain19
+  semantic Chain21: Chain20
+  semantic Chain22: Chain21
+  semantic Chain23: Chain22
+  semantic Chain24: Chain23
+
+  value ChainHolder {
+    deeplyChained: Chain24
+  }
+}

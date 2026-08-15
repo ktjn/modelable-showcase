@@ -1,0 +1,20 @@
+// Proves: a `reserved protobuf { }` block is legal on a model version
+// (SPEC.md Sec 12 "Protobuf reservations"). Field numbers/names reserved
+// here don't need to correspond to an actual prior version in this file -
+// the reservation itself is a standalone declarative statement; whether
+// it's honored against real prior-version history is what
+// `validate-compat --target protobuf` checks (Task 4.2).
+domain protobufreservations {
+  owner: "conformance-fixtures"
+
+  entity LegacyMigrated @ 1 (additive) {
+    @key
+    legacyMigratedId: uuid
+    currentField: string
+
+    reserved protobuf {
+      numbers: [5, 6]
+      names: ["oldField", "deprecatedFlag"]
+    }
+  }
+}

@@ -1,0 +1,34 @@
+// Proves: `pick`/`omit` selection clauses accept annotation filters
+// (@pii, @classification(...)) alongside explicit field selectors, and a
+// selection clause may be combined with additional computed body fields
+// (SPEC.md Sec 12 "annotation selectors"; SPEC.md Sec 7.6 "selection plus
+// additional body fields").
+domain annotationselectors {
+  owner: "conformance-fixtures"
+
+  entity Person @ 1 (additive) {
+    @key
+    personId: uuid
+    @pii
+    fullName: string
+    @pii
+    @classification("restricted")
+    nationalIdToken: string
+    @classification("confidential")
+    riskScore: decimal(5, 2)
+    publicNote?: string
+  }
+
+  projection PersonPickPii @ 1
+    from annotationselectors.Person @ 1 as p
+    pick(p.personId, @pii)
+  {
+  }
+
+  projection PersonOmitSensitive @ 1
+    from annotationselectors.Person @ 1 as p
+    omit(@pii, @classification("restricted"))
+  {
+    isHighRisk = p.riskScore > 50
+  }
+}

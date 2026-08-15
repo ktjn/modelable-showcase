@@ -1,0 +1,21 @@
+// Proves: ternary expressions and string escaping in CEL literals
+// (SPEC.md Sec 12 "ternaries" and "string escaping" - folded into one
+// file since IMPLEMENTATION_PLAN.md Task 3.1 lists no separate file for
+// string escaping).
+domain celternary {
+  owner: "conformance-fixtures"
+
+  entity Reading @ 1 (additive) {
+    @key
+    readingId: uuid
+    score: int
+  }
+
+  projection ReadingTernaryCheck @ 1
+    from celternary.Reading @ 1 as r
+  {
+    readingId <- r.readingId
+    label = r.score > 100 ? "over the \"limit\"" : 'within \'range\''
+    tabbedNote = r.score > 0 ? "positive\tvalue" : "zero or negative\nvalue"
+  }
+}

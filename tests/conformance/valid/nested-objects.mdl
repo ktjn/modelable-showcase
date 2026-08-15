@@ -1,0 +1,17 @@
+// Proves: anonymous object {} types nest (SPEC.md Sec 12 "nested
+// objects").
+domain nestedobjects {
+  owner: "conformance-fixtures"
+
+  value NestedObjectHolder {
+    outer: object {
+      middle: object {
+        inner: object {
+          leaf: string
+        }
+        siblingOfInner: int
+      }
+      siblingOfMiddle?: bool
+    }
+  }
+}
