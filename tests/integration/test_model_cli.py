@@ -5,6 +5,7 @@ not implementation details (IMPLEMENTATION_PLAN.md Sec 0, rule 2)."""
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import tempfile
@@ -28,6 +29,27 @@ def run_modelable(*args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def compile_to_tmp(tmp_path: Path, target: str) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """Compile into an isolated temp dir with its own --registry/--registry-ids
+    paths, so tests never touch the repo's real .modelable/ or
+    registry-ids.lock (durable allocation state, not a disposable build
+    artifact - see IMPLEMENTATION_PLAN.md Task 14.1)."""
+    out_dir = tmp_path / target
+    result = run_modelable(
+        "compile",
+        str(MODEL_DIR),
+        "--target",
+        target,
+        "--out",
+        str(out_dir),
+        "--registry",
+        str(tmp_path / "registry.db"),
+        "--registry-ids",
+        str(tmp_path / "registry-ids.lock"),
+    )
+    return result, out_dir
 
 
 def test_strict_validation_succeeds():
@@ -88,25 +110,8 @@ def test_appointment_auto_projection_names():
 
 
 def test_sql_postgres_secondary_indexes_present():
-    # Compile into an isolated temp dir with its own registry/ledger paths so
-    # this test never touches the repo's real .modelable/ or
-    # registry-ids.lock (that file is durable allocation state, not a
-    # disposable build artifact - see IMPLEMENTATION_PLAN.md Task 14.1).
     with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        out_dir = tmp_path / "sql" / "postgres"
-        result = run_modelable(
-            "compile",
-            str(MODEL_DIR),
-            "--target",
-            "sql-postgres",
-            "--out",
-            str(out_dir),
-            "--registry",
-            str(tmp_path / "registry.db"),
-            "--registry-ids",
-            str(tmp_path / "registry-ids.lock"),
-        )
+        result, out_dir = compile_to_tmp(Path(tmp), "sql-postgres")
         assert result.returncode == 0, result.stdout + result.stderr
 
         db_sql_files = list(out_dir.glob("scheduling.AppointmentDb.*.sql"))
@@ -119,3 +124,41 @@ def test_sql_postgres_secondary_indexes_present():
         assert "CREATE INDEX IF NOT EXISTS by_patient_day" in sql
         assert "CREATE INDEX IF NOT EXISTS by_practitioner_day" in sql
         assert "CREATE INDEX IF NOT EXISTS by_status" in sql
+
+
+def test_clinical_json_schema_compiles():
+    with tempfile.TemporaryDirectory() as tmp:
+        result, out_dir = compile_to_tmp(Path(tmp), "json-schema")
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        schema_files = list(out_dir.glob("clinical.*.json"))
+        assert schema_files, "expected at least one clinical.*.json schema file"
+        for path in schema_files:
+            schema = json.loads(path.read_text())
+            assert schema.get("$schema", "").startswith("https://json-schema.org/draft/2020-12"), path
+
+
+def test_fhir_profiles_use_intended_resource_bases():
+    with tempfile.TemporaryDirectory() as tmp:
+        result, out_dir = compile_to_tmp(Path(tmp), "fhir-profile")
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        expected = {
+            "clinical.PatientFhirView.v1.fhir.json": "Patient",
+            "clinical.EncounterFhirView.v1.fhir.json": "Encounter",
+            "clinical.ObservationFhirView.v1.fhir.json": "Observation",
+        }
+        for filename, base_resource in expected.items():
+            path = out_dir / filename
+            assert path.exists(), f"expected {filename} to be generated"
+            profile = json.loads(path.read_text())
+            # Parses as real FHIR JSON, and does not silently fall back to
+            # the generic 'Basic' resource (SPEC.md Sec 6.3).
+            assert profile["resourceType"] == "StructureDefinition"
+            assert profile["type"] == base_resource
+            assert profile["baseDefinition"] == f"http://hl7.org/fhir/StructureDefinition/{base_resource}"
+
+        # A source model outside the hardened set (scheduling.Appointment)
+        # is expected to fall back to Basic rather than fail the compile.
+        appointment_profile = json.loads((out_dir / "scheduling.AppointmentDb.v1.fhir.json").read_text())
+        assert appointment_profile["type"] == "Basic"

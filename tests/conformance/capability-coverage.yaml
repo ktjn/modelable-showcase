@@ -61,3 +61,12 @@ capabilities:
   target:sql-postgres:
     coverage: probe
     test: tests/integration/test_model_cli.py::test_sql_postgres_secondary_indexes_present
+  model_kind:aggregate:
+    coverage: product
+    test: model/clinical.mdl
+  target:json-schema:
+    coverage: probe
+    test: tests/integration/test_model_cli.py::test_clinical_json_schema_compiles
+  target:fhir-profile:
+    coverage: probe
+    test: tests/integration/test_model_cli.py::test_fhir_profiles_use_intended_resource_bases
