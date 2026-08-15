@@ -1,0 +1,13 @@
+generated/
+dist/
+.modelable/
+node_modules/
+target/
+.venv/
+__pycache__/
+.pytest_cache/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example

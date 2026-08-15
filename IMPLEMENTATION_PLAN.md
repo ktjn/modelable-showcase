@@ -289,7 +289,7 @@ Use Python standard library plus PyYAML if needed. Add the dependency explicitly
 
 Populate every capability from the current binary. Entries may temporarily point at `TODO` only if the checker explicitly understands a temporary `planned` field and `make acceptance` is not yet enabled. Remove all planned placeholders by the final phase.
 
-Better approach: mark only completed coverage and have this task's checker run in non-strict bootstrap mode. Add `--strict` later in Task 10.1.
+Better approach: mark only completed coverage and have this task's checker run in non-strict bootstrap mode. Add `--strict` later in Task 17.1 (which is also where it becomes part of `make validate`/`make acceptance`).
 
 ### Acceptance
 

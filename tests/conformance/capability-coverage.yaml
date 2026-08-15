@@ -1,0 +1,27 @@
+# Machine-readable coverage manifest checked by
+# scripts/check-capability-coverage.py against `modelable capabilities
+# --format json`. See IMPLEMENTATION_PLAN.md Task 1.3 and SPEC.md Sec 8.
+#
+# Every key is "<category>:<name>" from the five categories the pinned
+# Modelable CLI reports: target, sql_dialect, model_kind, annotation,
+# deferred_feature.
+#
+# coverage is one of: product | probe | fixture | deferred | excluded.
+# `excluded` requires a non-empty `reason`. Every other value requires a
+# non-empty `test` reference (a file/test-ID path, or the .mdl file that
+# exercises it for `product`).
+#
+# This file intentionally starts empty. As of Phase 1 (repository
+# bootstrap) no domain models, fixtures, or generated-artifact tests exist
+# yet, so every one of the 45 capabilities reported by modelable 1.7.0 is a
+# genuine, not-yet-covered gap - running
+# `uv run scripts/check-capability-coverage.py` right now is expected to
+# print all of them. Add an entry here in the same task/commit that adds
+# the model, fixture, or test proving that entry's coverage (per Task 2.1's
+# "Update capability coverage entries for features now exercised" and
+# equivalent notes on later tasks). `--strict` (Task 17.1) is what turns
+# "gap" into "failure" once the showcase is complete; it stays off by
+# default so this checker is a status report during earlier phases, not a
+# blocker.
+
+capabilities: {}
