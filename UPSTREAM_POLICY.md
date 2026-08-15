@@ -10,9 +10,11 @@ This document overrides any conflicting implementation shortcut in `SPEC.md` or 
 
 `modelable-showcase` is a downstream acceptance product for Modelable. It MUST expose gaps in Modelable rather than hide them.
 
+[`UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md) is where step 1 below gets recorded permanently. A gap documented only in a commit message or a PR description is invisible to the next implementer; log it there so it stays visible until it's actually fixed upstream.
+
 When the showcase needs a contract, emitter, language feature, validation rule, compatibility behavior, or generated artifact that Modelable cannot provide correctly, the default action is:
 
-1. reproduce the gap against the current intended Modelable baseline;
+1. reproduce the gap against the current intended Modelable baseline, and add an entry to `UPSTREAM_FINDINGS.md`;
 2. verify the gap against upstream `ktjn/modelable@main`;
 3. add or update upstream Modelable tests that demonstrate the missing/broken behavior;
 4. implement the fix or feature in `ktjn/modelable`;
@@ -225,7 +227,7 @@ Every upstream change discovered through the showcase MUST include, where applic
 - compatibility tests when wire/schema compatibility is affected;
 - downstream verification against this showcase using the exact upstream branch/commit.
 
-The upstream PR description SHOULD state that the gap was found by `modelable-showcase` and include the showcase verification command/result.
+The upstream PR description SHOULD state that the gap was found by `modelable-showcase` and include the showcase verification command/result. Once a gap is actually fixed upstream, update its `UPSTREAM_FINDINGS.md` entry to say so (with the fixing commit/PR) rather than deleting the entry — the log is a record of what was found and resolved, not just what's currently outstanding.
 
 ## 9. Branch and dependency workflow
 

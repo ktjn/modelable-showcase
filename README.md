@@ -13,6 +13,7 @@ Read these in order before implementing anything:
 1. [`SPEC.md`](SPEC.md) — authoritative product scope and acceptance contract.
 2. [`UPSTREAM_POLICY.md`](UPSTREAM_POLICY.md) — mandatory upstream-first policy. This overrides conflicting shortcuts in the spec or plan.
 3. [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — task-by-task execution plan.
+4. [`UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md) — log of real Modelable behavior this showcase has found diverging from its own docs or crashing instead of diagnosing. Check it before re-discovering the same lexer error twice.
 
 The implementation plan is intentionally explicit enough for small implementation agents: each slice defines files, constraints, tests, verification commands, and completion criteria.
 
