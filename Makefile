@@ -31,10 +31,17 @@ help:
 	@echo "  modelable-version  print showcase pin + installed Modelable version"
 
 bootstrap:
-	$(call not_implemented,bootstrap,"Task 1.2 - Pin and install Modelable")
+	./scripts/install-modelable.sh
 
 modelable-version:
-	$(call not_implemented,modelable-version,"Task 1.2 - Pin and install Modelable")
+	@echo "showcase pin (.modelable-version): $$(cat .modelable-version)"
+	@. ./scripts/modelable-env.sh; \
+	if command -v modelable >/dev/null 2>&1; then \
+		echo "installed modelable: $$(modelable --version)"; \
+	else \
+		echo "installed modelable: not installed - run 'make bootstrap' first" >&2; \
+	fi
+	@if [ -n "$$MODELABLE_REF" ]; then echo "MODELABLE_REF: $$MODELABLE_REF"; fi
 
 generate:
 	$(call not_implemented,generate,"Task 5.1 - Unified generation script")
