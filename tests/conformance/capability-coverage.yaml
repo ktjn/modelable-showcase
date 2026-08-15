@@ -24,4 +24,31 @@
 # default so this checker is a status report during earlier phases, not a
 # blocker.
 
-capabilities: {}
+capabilities:
+  model_kind:entity:
+    coverage: product
+    test: model/patient.mdl
+  model_kind:value:
+    coverage: product
+    test: model/patient.mdl
+  annotation:key:
+    coverage: product
+    test: model/patient.mdl
+  annotation:pii:
+    coverage: product
+    test: model/patient.mdl
+  annotation:classification:
+    coverage: product
+    test: model/patient.mdl
+  annotation:owner:
+    coverage: product
+    test: model/patient.mdl
+  annotation:deprecated:
+    coverage: product
+    test: model/patient.mdl
+  annotation:server:
+    coverage: product
+    test: model/patient.mdl
+  annotation:wire:
+    coverage: product
+    test: model/patient.mdl

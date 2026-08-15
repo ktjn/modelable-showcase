@@ -1,0 +1,87 @@
+domain patient {
+  owner: "clinic-frontdesk-team"
+  contact: "frontdesk@modelable-clinic.example"
+  description: "Patient identity and contact information for Modelable Clinic."
+
+  semantic PatientId: uuid(7) {
+    registry: true
+  }
+
+  value ContactDetails {
+    email?: string
+    phone?: string
+  }
+
+  value Address {
+    street: string
+    city: string
+    postalCode: string
+    country: string
+  }
+
+  entity Patient @ 1 (additive) {
+    @key
+    @classification("internal")
+    patientId: PatientId
+    @pii
+    legalName: string
+    dateOfBirth: date
+    @pii
+    contact: ContactDetails
+    @pii
+    address?: Address
+    preferredLanguage: string = "en"
+    notes?: string
+    @server
+    createdAt: timestamp
+    @server
+    updatedAt?: timestamp
+  }
+
+  entity Patient @ 2 (additive) {
+    @key
+    @classification("internal")
+    patientId: PatientId
+    @pii
+    legalName: string
+    preferredName?: string
+    dateOfBirth: date
+    @pii
+    contact: ContactDetails
+    @pii
+    address?: Address
+    preferredLanguage: string = "en"
+    alternatePhoneNumbers?: array<string>
+    @deprecated(replacedBy: "clinicalNotes")
+    notes?: string
+    @owner("clinical-documentation-team")
+    @wire(clickhouse: "string")
+    clinicalNotes?: string
+    @server
+    createdAt: timestamp
+    @server
+    updatedAt?: timestamp
+
+    access {
+      entity * [read]
+      property legalName clinic-frontdesk-team [read, write]
+      property clinicalNotes clinical-documentation-team [read, write]
+    }
+  }
+
+  index Patient @ 2 {
+    primary patientId
+
+    secondary byName {
+      key: [legalName]
+      sort: [dateOfBirth]
+    }
+  }
+
+  auto projections Patient @ 2 {
+    db
+    request exclude [@server]
+    reply
+    event
+  }
+}

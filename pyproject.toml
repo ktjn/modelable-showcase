@@ -1,0 +1,15 @@
+[project]
+name = "modelable-showcase-tests"
+version = "0.0.0"
+description = "Test/tooling dependencies for the Modelable showcase (tests/, scripts/). Not a distributable package."
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "pyyaml>=6.0",
+]
+
+[tool.uv]
+package = false
