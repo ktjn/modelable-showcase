@@ -8,10 +8,20 @@ All data is synthetic. This is a technical showcase, not clinical software.
 
 ## Start here
 
-1. Read [`SPEC.md`](SPEC.md) for the authoritative scope and acceptance contract.
-2. Follow [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) task-by-task.
+Read these in order before implementing anything:
+
+1. [`SPEC.md`](SPEC.md) — authoritative product scope and acceptance contract.
+2. [`UPSTREAM_POLICY.md`](UPSTREAM_POLICY.md) — mandatory upstream-first policy. This overrides conflicting shortcuts in the spec or plan.
+3. [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — task-by-task execution plan.
 
 The implementation plan is intentionally explicit enough for small implementation agents: each slice defines files, constraints, tests, verification commands, and completion criteria.
+
+## Non-negotiable rules
+
+- OpenAPI MUST be generated directly by Modelable from `.mdl`; never maintain a handwritten or framework-derived canonical OpenAPI document.
+- If the showcase exposes a general Modelable gap, fix Modelable upstream first instead of adding a permanent showcase workaround.
+- Verify upstream fixes with `MODELABLE_REF=<branch-or-sha> make acceptance` before depending on them here.
+- Current Modelable versions may not yet advertise an implemented OpenAPI emitter. If so, implementing that emitter upstream is a prerequisite for the stable HTTP API slice.
 
 ## Final target
 
