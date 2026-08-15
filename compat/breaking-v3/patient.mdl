@@ -1,0 +1,97 @@
+// Compatibility suite: unsafe/breaking evolution (IMPLEMENTATION_PLAN.md
+// Task 4.1, SPEC.md Sec 11). A standalone workspace carrying Patient@1
+// (identical to ../baseline-v1/patient.mdl) and Patient@3, an evolution
+// that makes several genuinely breaking changes, each correctly declared
+// `(breaking)` so `modelable validate` accepts it - the point of this
+// fixture is proving `modelable diff` independently classifies the change
+// set as breaking regardless of the honest (breaking) declaration, not
+// that the declaration itself is rejected. (The rejection side - the same
+// kind of change wrongly marked `(additive)` - is already covered by
+// tests/conformance/invalid/additive-marked-breaking-change.mdl from
+// Task 3.2, and by test_model_compatibility.py's own inline probe for the
+// required-field-addition variant of that same rejection.)
+//
+// Changes vs Patient@1, each verified in isolation against the real CLI
+// before being combined here:
+//   - legalName is dropped entirely (field removal)
+//   - dateOfBirth: date -> timestamp (type change)
+//   - contactPhone: date? -> date (nullability tightened: optional ->
+//     required is the breaking direction; the safe direction is covered
+//     in ../additive-v2/)
+//   - status: enum(active, inactive) -> enum(active, suspended) (enum
+//     evolution - note this is breaking even though "suspended" is only
+//     ever added, never removed, because Modelable treats any change to
+//     an enum's value set as breaking, not just removals; "inactive" is
+//     also genuinely dropped here to keep the fixture from resting on
+//     that nuance alone)
+//   - insuranceId: uuid added as a required field (breaking - the safe
+//     counterpart, an optional field addition, is covered in
+//     ../additive-v2/)
+//
+// PatientSummary@3 additionally tightens governance on ssn: adds
+// `@classification("restricted")` (was unset) and drops the admin-team
+// `write` grant, keeping only `read`. `modelable diff` only compares
+// governance (access grants, @pii, @classification) at the *projection*
+// level, not for bare entities/aggregates - a real, confirmed gap in the
+// CLI's model-level diff, logged as UPSTREAM_FINDINGS.md #10. That's why
+// the governance-tightening half of this fixture lives on the projection,
+// not on Patient@3 itself.
+//
+// `modelable diff compat.Patient@1 compat.Patient@3 --path .` and
+// `modelable diff compat.PatientSummary@1 compat.PatientSummary@3 --path .`
+// both report `status: breaking`.
+domain compat {
+  owner: "conformance-fixtures"
+
+  entity Patient @ 1 (additive) {
+    @key
+    patientId: uuid
+
+    legalName: string
+    dateOfBirth: date
+    contactPhone?: string
+    status: enum(active, inactive)
+
+    @pii
+    ssn: string
+  }
+
+  entity Patient @ 3 (breaking) {
+    @key
+    patientId: uuid
+
+    dateOfBirth: timestamp
+    contactPhone: string
+    status: enum(active, suspended)
+    insuranceId: uuid
+
+    @pii
+    ssn: string
+  }
+
+  projection PatientSummary @ 1
+    from compat.Patient @ 1 as p
+  {
+    patientId <- p.patientId
+    legalName <- p.legalName
+    @pii ssn <- p.ssn
+
+    access {
+      entity * [read]
+      property ssn admin-team [read, write]
+    }
+  }
+
+  projection PatientSummary @ 3
+    from compat.Patient @ 3 as p
+  {
+    patientId <- p.patientId
+    insuranceId <- p.insuranceId
+    @pii @classification("restricted") ssn <- p.ssn
+
+    access {
+      entity * [read]
+      property ssn admin-team [read]
+    }
+  }
+}

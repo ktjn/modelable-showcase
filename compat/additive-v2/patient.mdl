@@ -1,0 +1,75 @@
+// Compatibility suite: safe/additive evolution (IMPLEMENTATION_PLAN.md
+// Task 4.1, SPEC.md Sec 11). A standalone workspace carrying both
+// Patient@1 (identical to ../baseline-v1/patient.mdl, needed here so
+// `modelable diff compat.Patient@1 compat.Patient@2` has both ends to
+// compare within this one directory) and Patient@2, which only makes
+// changes real Modelable classifies as backward-compatible - verified
+// against the real CLI, not assumed:
+//
+//   - dateOfBirth: date -> date? (nullability loosened: required ->
+//     optional is safe; the reverse direction is covered as a breaking
+//     case in ../breaking-v3/)
+//   - preferredName?: string added (additive field addition)
+//   - PatientSummary@2 moves its `from` clause to Patient@2 (source
+//     version change) and picks up preferredName - both the field
+//     addition and the source-version bump report as compatible.
+//
+// `modelable diff compat.Patient@1 compat.Patient@2 --path .` reports
+// `status: compatible`, and so does the equivalent PatientSummary diff.
+domain compat {
+  owner: "conformance-fixtures"
+
+  entity Patient @ 1 (additive) {
+    @key
+    patientId: uuid
+
+    legalName: string
+    dateOfBirth: date
+    contactPhone?: string
+    status: enum(active, inactive)
+
+    @pii
+    ssn: string
+  }
+
+  entity Patient @ 2 (additive) {
+    @key
+    patientId: uuid
+
+    legalName: string
+    dateOfBirth?: date
+    contactPhone?: string
+    status: enum(active, inactive)
+    preferredName?: string
+
+    @pii
+    ssn: string
+  }
+
+  projection PatientSummary @ 1
+    from compat.Patient @ 1 as p
+  {
+    patientId <- p.patientId
+    legalName <- p.legalName
+    @pii ssn <- p.ssn
+
+    access {
+      entity * [read]
+      property ssn admin-team [read, write]
+    }
+  }
+
+  projection PatientSummary @ 2
+    from compat.Patient @ 2 as p
+  {
+    patientId <- p.patientId
+    legalName <- p.legalName
+    preferredName <- p.preferredName
+    @pii ssn <- p.ssn
+
+    access {
+      entity * [read]
+      property ssn admin-team [read, write]
+    }
+  }
+}

@@ -53,7 +53,7 @@ probes:
 	$(call not_implemented,probes,"Task 7.6 - Unified probe target")
 
 compat:
-	$(call not_implemented,compat,"Task 4.1 - Model compatibility evolution")
+	@. ./scripts/modelable-env.sh; uv run pytest -q tests/conformance/test_model_compatibility.py $(wildcard tests/conformance/test_target_compatibility.py)
 
 integration:
 	$(call not_implemented,integration,"Task 17.1 - Finalize command facade")

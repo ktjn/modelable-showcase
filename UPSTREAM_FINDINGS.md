@@ -23,6 +23,7 @@
 | 7 | [CEL type-mismatch checking is not implemented](#7-cel-type-mismatch-checking-is-not-implemented) | Missing feature | A |
 | 8 | [`ref<Model @ >=N <M>>` version-range notation is easy to double-bracket](#8-refmodel--n-m-version-range-notation-is-easy-to-double-bracket) | Docs clarity | C |
 | 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A |
+| 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -458,3 +459,67 @@ if existing is not None:
 **Expected:** the guard should check for an entry at `decl.version` specifically (e.g. `any(p.version == decl.version for p in existing)`), not merely `existing is not None`, so that multiple versions of the same model can each get their own auto-generated projections independently, the same way hand-written projection versions already coexist.
 
 **Showcase workaround:** `tests/conformance/deferred/*.mdl` and every canonical domain in `model/` only ever declare one `auto projections <Model> @ <N>` block per model per domain (each real model in this showcase is introduced with auto-projections at its first version and left alone on later additive versions), so the bug is never triggered by the showcase's own deliverables. `tests/conformance/test_deferred_capabilities.py`'s coverage for the `projection-event-operation-coverage-compatibility` deferred capability uses the single-version `scheduling.AppointmentEvent@1` (real, already-shipped model) and its `lineage` output instead of a synthetic multi-version probe, specifically to sidestep this bug rather than let it block that unrelated check. See that test file for detail.
+
+---
+
+## 10. `modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections
+
+**Discovered:** Task 4.1 (model compatibility evolution fixtures), while designing the "classification/access change visibility" case `SPEC.md` §11 requires the compatibility suite to cover.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+  entity Thing @ 1 (additive) {
+    @key thingId: uuid
+    @pii
+    ssn: string
+
+    access {
+      entity * [read]
+      property ssn admin-team [read, write]
+    }
+  }
+  entity Thing @ 2 (additive) {
+    @key thingId: uuid
+    @pii
+    @classification("restricted")
+    ssn: string
+
+    access {
+      entity * [read]
+      property ssn admin-team [read]
+    }
+  }
+}
+```
+
+```bash
+modelable diff probe.Thing@1 probe.Thing@2 --path .
+```
+
+**Observed:**
+
+```text
+probe.Thing@1 -> probe.Thing@2
+status: compatible
+- no changes
+```
+
+Despite `ssn` gaining a `@classification("restricted")` annotation it didn't have before, and the `admin-team` principal losing its `write` grant on `ssn` - both real, meaningful governance changes on the entity itself - `diff` reports nothing at all.
+
+**By contrast**, the *identical* kind of change on a **projection** (`from Thing @ 1 as t { ... }`) *is* correctly detected and reported, including a `breaking: true` classification for the tightening direction:
+
+```text
+probe.ThingView@1 -> probe.ThingView@2
+status: breaking
+- access_grant_removed ssn (governance): access grant removed: ssn principal 'admin-team' permission 'write'
+- classification_changed ssn (governance): field 'ssn' classification changed: None -> restricted
+```
+
+**Root cause (read from source, not guessed):** `compat/diff.py::_compare_governance(old: ProjectionVersion, new: ProjectionVersion)` implements exactly this comparison (access-grant triples, `@pii`, `@classification`) correctly and completely - but it is only ever called from `compare_projection_versions` (`compat/diff.py` line 637). `compare_model_versions`, the function `check_model_version_compatibility` uses for entity/aggregate/event/value diffs, only ever compares field shape (`compat/diff.py` lines 45+: name, type, optionality, enum values) and index declarations - it never calls `_compare_governance` or anything equivalent, even though `docs/language-reference.md` §10.1 explicitly states "`access` block may appear in a model body and in a projection body," and field-level `@pii`/`@classification` annotations are declared identically in both places syntactically.
+
+**Expected:** `check_model_version_compatibility` should call the same governance-comparison logic `compare_projection_versions` already uses, so a governance change on an entity/aggregate is visible in `diff` output the same way a governance change on a projection already is - the underlying comparison function exists and works, it just isn't wired into both call sites.
+
+**Showcase workaround:** `compat/breaking-v3/patient.mdl` puts its governance-tightening changes (added `@classification("restricted")`, removed `write` grant) on `PatientSummary@3` (a projection) rather than `Patient@3` (the entity), specifically because that's the only place `diff` actually surfaces them. See that file's header comment and `tests/conformance/test_model_compatibility.py::test_breaking_projection_reports_governance_changes`.
