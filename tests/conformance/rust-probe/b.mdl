@@ -1,0 +1,13 @@
+domain domainb {
+  owner: "test"
+
+  // widgetId's type (domaina.WidgetId) is what forces pkg-b to depend on
+  // pkg-a and produces the cross-crate `use pkg_a::...::WidgetId;`
+  // this fixture exists to prove compiles.
+  entity Order @ 1 (additive) {
+    @key
+    orderId: uuid
+    widgetId: domaina.WidgetId
+    quantity: int
+  }
+}
