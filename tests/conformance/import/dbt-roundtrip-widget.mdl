@@ -1,0 +1,35 @@
+// Fixture for the `attach`/`spec` interchange coverage in
+// tests/integration/test_cli_surface.py (IMPLEMENTATION_PLAN.md Task 5.4,
+// SPEC.md Sec 9.3's sibling CLI-surface requirements).
+//
+// Deliberately minimal and NOT reused from model/: every canonical model in
+// this showcase (Patient, Appointment, Invoice, ...) uses at least one of
+// uuid(N), enum(...), semantic-type refs, json, or binary(N) - and every one
+// of those loses precision round-tripping through dbt's `schema.yml` type
+// vocabulary (data_type: text/integer/numeric/timestamp/... has no way to
+// express "uuid version 7", an enum's closed value set, or a named semantic
+// type). Verified directly: attaching model/patient.mdl's own
+// `compile --target dbt-yaml` output for Patient@2 back onto Patient@2
+// always produces spurious drift (patientId's `uuid(7)` round-trips as a
+// bare `Unknown`/`text`-derived type, enum fields round-trip as plain
+// `string`, etc.) - real, structural lossiness in dbt's type system, not a
+// Modelable bug, and not useful for demonstrating a genuine "no drift"
+// result.
+//
+// This fixture uses only string/int/timestamp fields, the one type
+// vocabulary subset that round-trips through dbt-yaml losslessly - verified
+// empirically before being used as the "clean" half of the attach/spec
+// tests. See test_cli_surface.py for the additive/breaking mutated
+// counterparts.
+domain importroundtrip {
+  owner: "conformance-fixtures"
+
+  entity Widget @ 1 (additive) {
+    @key
+    widgetId: string
+
+    name: string
+    quantity: int
+    createdAt: timestamp
+  }
+}

@@ -1,0 +1,39 @@
+# Mutated copy of `modelable compile dbt-roundtrip-widget.mdl --target
+# dbt-yaml`'s real output for Widget@1 (verified against the real CLI before
+# being hand-edited): drops the `quantity` column entirely. Attaching this
+# onto importroundtrip.Widget@1 must produce a new Widget@2 with
+# `change_kind: breaking` and a single `removed_field quantity` change - see
+# test_cli_surface.py::test_attach_reports_breaking_drift_from_a_mutated_dbt_source.
+version: 2
+models:
+- name: Widget
+  latest_version: 1
+  meta:
+    modelable_domain: importroundtrip
+    modelable_name: Widget
+    modelable_kind: entity
+    modelable_version: 1
+    modelable_change_kind: additive
+    modelable_owner: conformance-fixtures
+  versions:
+  - v: 1
+    columns:
+    - name: widgetId
+      data_type: text
+      constraints:
+      - type: primary_key
+      - type: not_null
+      meta:
+        modelable_owner: conformance-fixtures
+    - name: name
+      data_type: text
+      constraints:
+      - type: not_null
+      meta:
+        modelable_owner: conformance-fixtures
+    - name: createdAt
+      data_type: timestamp
+      constraints:
+      - type: not_null
+      meta:
+        modelable_owner: conformance-fixtures
