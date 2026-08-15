@@ -1,0 +1,22 @@
+// Compatibility suite: Protobuf field-number/name reuse rejection
+// (IMPLEMENTATION_PLAN.md Task 4.2, SPEC.md Sec 11). Drops legacyNotes
+// (Protobuf field 3) and adds insuranceId as a new field with no
+// `reserved protobuf {}` block - insuranceId lands on field 3 purely by
+// declaration order, silently reusing the wire slot legacyNotes used to
+// occupy. `modelable validate` accepts this file on its own (reservation
+// rules are cross-version, not a single-file syntax check), but
+// `modelable validate-compat --from ../old --to ../new --target protobuf`
+// reports `status: breaking` with both a field_number_reused and a
+// field_type_changed finding (legacyNotes was string, insuranceId is
+// uuid/string-on-the-wire but a different logical field entirely).
+domain compat {
+  owner: "conformance-fixtures"
+
+  entity Patient @ 1 (breaking) {
+    @key
+    patientId: uuid
+
+    legalName: string
+    insuranceId: uuid
+  }
+}

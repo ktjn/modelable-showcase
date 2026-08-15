@@ -24,6 +24,7 @@
 | 8 | [`ref<Model @ >=N <M>>` version-range notation is easy to double-bracket](#8-refmodel--n-m-version-range-notation-is-easy-to-double-bracket) | Docs clarity | C |
 | 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A |
 | 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A |
+| 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -523,3 +524,64 @@ status: breaking
 **Expected:** `check_model_version_compatibility` should call the same governance-comparison logic `compare_projection_versions` already uses, so a governance change on an entity/aggregate is visible in `diff` output the same way a governance change on a projection already is - the underlying comparison function exists and works, it just isn't wired into both call sites.
 
 **Showcase workaround:** `compat/breaking-v3/patient.mdl` puts its governance-tightening changes (added `@classification("restricted")`, removed `write` grant) on `PatientSummary@3` (a projection) rather than `Patient@3` (the entity), specifically because that's the only place `diff` actually surfaces them. See that file's header comment and `tests/conformance/test_model_compatibility.py::test_breaking_projection_reports_governance_changes`.
+
+---
+
+## 11. `reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks
+
+**Discovered:** Task 4.2 (protobuf/gRPC compatibility fixtures), while building the reservation-safe evolution case `SPEC.md` §11 requires.
+
+**Reproduction:**
+
+```mdl
+// old/probe.mdl
+domain probe {
+  owner: "test"
+  entity Thing @ 1 (additive) {
+    @key thingId: uuid
+    name: string
+    legacyNote: string
+  }
+}
+```
+
+```mdl
+// new/probe.mdl - legacyNote (Protobuf field 3, proto name legacy_note)
+// removed, reserved using its Modelable *source* field name
+domain probe {
+  owner: "test"
+  entity Thing @ 1 (additive) {
+    @key thingId: uuid
+    name: string
+    reserved protobuf {
+      numbers: [3]
+      names: ["legacyNote"]
+    }
+  }
+}
+```
+
+```bash
+modelable validate-compat --from old --to new --target protobuf
+```
+
+**Observed:**
+
+```text
+target: protobuf
+status: breaking
+- [breaking] removed_field_not_reserved: legacy_note: removed field legacy_note must reserve protobuf number and name
+```
+
+Both `new/probe.mdl` and `old/probe.mdl` validate cleanly on their own (`modelable validate` gives no indication anything is wrong with the reservation). Changing only the reservation's spelling to the generated Protobuf name - `names: ["legacy_note"]` (snake_case) instead of `names: ["legacyNote"]` (the Modelable source field name, matching every other identifier's casing convention in the file) - makes the identical scenario report `status: wire_compatible` instead.
+
+**Root cause (read from source, not guessed):** there are two independent reservation-reuse checks in the codebase, and they disagree:
+
+- `emitters/protobuf.py::_validate_reservations` (the same-version, compile-time check - see finding #6 above for its crash-instead-of-diagnostic behavior) compares a candidate field against reservations using **both** spellings: `field.source_name in reserved_names or field.proto_name in reserved_names`.
+- `compat/targets.py::_compare_schema` (the cross-version `validate-compat` check this finding is about) reads `reservations.names` from the compiled `schema-manifest.json` - which stores the reservation exactly as typed in `.mdl`, unconverted (`emitters/protobuf.py`'s `reservations=version.protobuf_reservations` passthrough) - and compares it against only `old_field.get("proto_name")`, the *generated* snake_case name. It never also checks the old field's raw source name.
+
+So the two reuse checks accept different spellings of the same reservation, and only one of the two documents which spelling it needs. `docs/language-reference.md`'s own example (`reserved protobuf { names: ["legacy_status"] }`) happens to already use snake_case, but the surrounding prose ("A field... may not reuse a reserved number, source field name, or generated Protobuf field name") reads as if either spelling should work everywhere, which is true for the compile-time check but not the `validate-compat` one.
+
+**Expected:** `compat/targets.py::_compare_schema` should check the old field's raw source name in addition to its proto name (matching `_validate_reservations`'s existing `source_name in reserved_names or proto_name in reserved_names` pattern), so a reservation written in Modelable's normal camelCase convention is honored consistently by both reuse checks.
+
+**Showcase workaround:** `compat/protobuf-safe/new/patient.mdl` writes its reservation as `names: ["legacy_notes"]` (the generated Protobuf name) rather than `names: ["legacyNotes"]` (the Modelable source field name used everywhere else in that same file) specifically so `validate-compat` recognizes it - see that file's header comment.
