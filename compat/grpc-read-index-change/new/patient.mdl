@@ -1,0 +1,31 @@
+// Compatibility suite: gRPC read-index change classification
+// (IMPLEMENTATION_PLAN.md Task 4.2, SPEC.md Sec 11). Replaces the
+// `byStatus` secondary index (keyed on `status`) with a `byName`
+// secondary index (keyed on `legalName`) - the wire schema (field set,
+// types, numbers) is completely unchanged from ../old/patient.mdl, so
+// `modelable validate-compat --target protobuf` reports
+// `status: wire_compatible` for this same pair. But
+// `modelable validate-compat --target grpc` reports
+// `status: requires_read_rebuild`, the upstream-defined classification
+// for a change that doesn't break the wire format but does invalidate
+// any materialized read model built from the old index shape - a
+// distinction the Protobuf-only comparison has no way to express.
+domain compat {
+  owner: "conformance-fixtures"
+
+  entity Patient @ 1 (additive) {
+    @key
+    patientId: uuid
+
+    legalName: string
+    status: enum(active, inactive)
+  }
+
+  index Patient @ 1 {
+    primary patientId
+
+    secondary byName {
+      key: [legalName]
+    }
+  }
+}

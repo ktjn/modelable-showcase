@@ -1,0 +1,35 @@
+// Compatibility suite: Protobuf-target reservation-safe evolution
+// (IMPLEMENTATION_PLAN.md Task 4.2, SPEC.md Sec 11). "new" side: drops
+// legacyNotes (Protobuf field 3, proto name legacy_notes) and reserves
+// both its number and name so no future field can reuse them -
+// `modelable validate-compat --from ../old --to ../new --target protobuf`
+// reports `status: wire_compatible`.
+//
+// The `names:` entry below is deliberately the generated Protobuf field
+// name (`legacy_notes`, snake_case) rather than the Modelable source
+// field name (`legacyNotes`, as declared in ../old/patient.mdl and as
+// every other identifier in this language is written) - see
+// UPSTREAM_FINDINGS.md #11. `compile --target protobuf`'s own
+// same-version reservation-reuse check (emitters/protobuf.py) accepts
+// either spelling, but `validate-compat`'s cross-version reuse check
+// (compat/targets.py) only ever compares against the generated proto
+// name, so writing `names: ["legacyNotes"]` here - the natural choice
+// given this file's own field is named `legalName`, not `legal_name` -
+// silently fails to satisfy the check and `validate-compat` reports
+// `removed_field_not_reserved: breaking` instead of `wire_compatible`,
+// with nothing at `validate` time to indicate why.
+domain compat {
+  owner: "conformance-fixtures"
+
+  entity Patient @ 1 (additive) {
+    @key
+    patientId: uuid
+
+    legalName: string
+
+    reserved protobuf {
+      numbers: [3]
+      names: ["legacy_notes"]
+    }
+  }
+}
