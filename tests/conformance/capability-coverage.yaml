@@ -57,10 +57,10 @@ capabilities:
     test: model/scheduling.mdl
   sql_dialect:postgres:
     coverage: probe
-    test: tests/integration/test_model_cli.py::test_sql_postgres_secondary_indexes_present
+    test: tests/integration/test_postgres_generated_schema.py::test_patient_appointment_invoice_columns_and_sql_types
   target:sql-postgres:
     coverage: probe
-    test: tests/integration/test_model_cli.py::test_sql_postgres_secondary_indexes_present
+    test: tests/integration/test_postgres_generated_schema.py::test_all_generated_tables_exist
   model_kind:aggregate:
     coverage: product
     test: model/clinical.mdl
