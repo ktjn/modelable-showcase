@@ -8,6 +8,11 @@ Each request names the concrete friction the showcase hit, maps it to the
 relevant task and/or `UPSTREAM_FINDINGS.md` entry, proposes a behavior, and gives
 an acceptance hint. The requests are ordered roughly by impact on this project.
 
+This log is maintained in lockstep with `UPSTREAM_FINDINGS.md` per
+`UPSTREAM_POLICY.md` §13: new findings that imply a capability update this
+document, and a finding that is fixed upstream updates the status of the FRs
+that cite it in the same commit.
+
 Status is informational for the upstream team; nothing here is fixed in the
 pinned 1.7.0 release.
 

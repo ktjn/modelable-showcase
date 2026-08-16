@@ -12,6 +12,8 @@ This document overrides any conflicting implementation shortcut in `SPEC.md` or 
 
 [`UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md) is where step 1 below gets recorded permanently. A gap documented only in a commit message or a PR description is invisible to the next implementer; log it there so it stays visible until it's actually fixed upstream.
 
+[`MODELABLE_FEATURE_REQUESTS.md`](MODELABLE_FEATURE_REQUESTS.md) is the companion, forward-looking log of upstream capabilities this showcase needs. It is maintained in lockstep with `UPSTREAM_FINDINGS.md`; §13 describes how the two logs are kept in sync.
+
 When the showcase needs a contract, emitter, language feature, validation rule, compatibility behavior, or generated artifact that Modelable cannot provide correctly, the default action is:
 
 1. reproduce the gap against the current intended Modelable baseline, and add an entry to `UPSTREAM_FINDINGS.md`;
@@ -282,3 +284,40 @@ This section exists only so a future implementation agent recognizes the pattern
 The governing rule is:
 
 > The showcase adapts to product-specific concerns. Modelable adapts when its general-purpose contract/compiler surface is insufficient. Never hide a Modelable gap inside the showcase.
+
+## 13. Keeping the upstream logs in sync
+
+[`MODELABLE_FEATURE_REQUESTS.md`](MODELABLE_FEATURE_REQUESTS.md) and
+[`UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md) are two views of the same upstream
+work: findings record what is wrong/broken today, feature requests record what
+Modelable should grow into. They MUST NOT drift. This section is mandatory for
+every change that touches either log.
+
+1. **New finding ⇒ feature request.** When a new `UPSTREAM_FINDINGS.md` entry
+   records a generally useful missing capability (Case A in §6), the same commit
+   MUST also add or update the corresponding `MODELABLE_FEATURE_REQUESTS.md`
+   entry — or attach the finding number to an existing FR — and set the FR's
+   "Friction source" to reference the finding. A pure bug with no
+   forward-looking feature surface is logged as a finding only.
+2. **New feature request ⇒ reproducible evidence.** When an FR describes a
+   concrete wrong/broken generated behavior, it SHOULD also carry a
+   `UPSTREAM_FINDINGS.md` entry (or an upstream issue reference) so the request
+   is reproducible rather than merely desired. FRs that are purely capability /
+   product asks (e.g. shipping `openapi` in a release) do not require a finding.
+3. **Resolved finding ⇒ resolved FR.** When a `UPSTREAM_FINDINGS.md` entry is
+   updated to record the upstream fix (see §8, last paragraph), the SAME commit
+   MUST update every FR whose "Friction source" cites that finding from
+   "Proposed" to "Fixed upstream", with the fixing upstream PR/commit. Never
+   defer the FR status update to a later drive-by edit.
+4. **Release / capability satisfaction.** When a pinned release or upstream
+   change satisfies an FR that had no finding (e.g. `openapi` shipped), update
+   that FR's status in the commit that bumps the pin or adopts the capability.
+5. **Bidirectional references.** Keep FR ↔ finding references bidirectional and
+   exact: each FR cites the finding numbers that motivate it, and each finding
+   that implies an FR notes "see FR-x".
+6. **Append, don't delete.** Like the findings log, a resolved FR is marked
+   "Fixed upstream" with the fixing reference rather than deleted — the log is a
+   record of what was requested and delivered.
+7. **Showcase tasks reference both.** A task whose implementation depends on an
+   outstanding FR/finding MUST reference both documents so the dependency and
+   its status stay visible to the next implementer.
