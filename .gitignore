@@ -5,6 +5,7 @@ node_modules/
 target/
 .venv/
 uv.lock
+tools/
 __pycache__/
 .pytest_cache/
 playwright-report/

@@ -32,6 +32,7 @@ help:
 
 bootstrap:
 	./scripts/install-modelable.sh
+	./scripts/install-protoc.sh
 
 modelable-version:
 	@echo "showcase pin (.modelable-version): $$(cat .modelable-version)"
