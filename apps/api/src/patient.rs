@@ -4,25 +4,25 @@
 //! persists to the generated `patient_db` table. Per the model, `patientId` is
 //! client-supplied (the generated request projection only excludes `@server`
 //! fields, and `patientId` is not `@server`), while `createdAt`/`updatedAt`
-//! are server-generated. The generated `patient_db` DDL carries no unique
-//! constraint on `patient_id`, so duplicate creation is detected with an
-//! explicit existence check (check-then-insert) returning 409.
+//! are server-generated. The generated `patient_db` DDL declares `patient_id`
+//! as `PRIMARY KEY`, so duplicate creation is rejected atomically with
+//! `INSERT ... ON CONFLICT (patient_id) DO NOTHING` returning 409.
 //!
 //! `GET /api/patients` supports synthetic search by name and/or email only.
-
-use std::str::FromStr;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use clinic_core::patient::patient_address_v0::PatientAddressV0;
 use clinic_core::patient::patient_contact_details_v0::PatientContactDetailsV0;
 use clinic_core::patient::patient_id::PatientId;
 use clinic_core::patient::patient_patient_db_v2::PatientPatientDbV2;
 use clinic_core::patient::patient_patient_reply_v2::PatientPatientReplyV2;
 use clinic_core::patient::patient_patient_request_v2::PatientPatientRequestV2;
+use std::str::FromStr;
+
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
@@ -42,95 +42,95 @@ pub fn patient_routes() -> Router<AppState> {
 
 // --- mapping helpers ------------------------------------------------------------
 
-pub fn request_to_db(
-    request: &PatientPatientRequestV2,
-    created_at: &str,
-) -> PatientPatientDbV2 {
+fn request_to_db(request: &PatientPatientRequestV2, created_at: DateTime<Utc>) -> PatientPatientDbV2 {
     PatientPatientDbV2 {
         patient_id: request.patient_id,
         legal_name: request.legal_name.clone(),
-        date_of_birth: request.date_of_birth.clone(),
-        contact: request.contact.clone(),
-        preferred_language: request.preferred_language.clone(),
-        created_at: created_at.to_string(),
         preferred_name: request.preferred_name.clone(),
+        date_of_birth: request.date_of_birth,
+        contact: request.contact.clone(),
         address: request.address.clone(),
+        preferred_language: request.preferred_language.clone(),
         alternate_phone_numbers: request.alternate_phone_numbers.clone(),
         notes: request.notes.clone(),
         clinical_notes: request.clinical_notes.clone(),
+        created_at,
         updated_at: None,
     }
 }
 
-pub fn db_to_reply(db: PatientPatientDbV2) -> PatientPatientReplyV2 {
+fn db_to_reply(db: PatientPatientDbV2) -> PatientPatientReplyV2 {
     PatientPatientReplyV2 {
         patient_id: db.patient_id,
         legal_name: db.legal_name,
+        preferred_name: db.preferred_name,
         date_of_birth: db.date_of_birth,
         contact: db.contact,
-        preferred_language: db.preferred_language,
-        created_at: db.created_at,
-        preferred_name: db.preferred_name,
         address: db.address,
+        preferred_language: db.preferred_language,
         alternate_phone_numbers: db.alternate_phone_numbers,
         notes: db.notes,
         clinical_notes: db.clinical_notes,
+        created_at: db.created_at,
         updated_at: db.updated_at,
     }
 }
 
-fn parse_date(value: &str) -> Result<NaiveDate, ApiError> {
-    NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .map_err(|err| ApiError::bad_request(format!("invalid date '{value}': {err}")))
-}
-
 fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<PatientPatientReplyV2, ApiError> {
-    let patient_id: String = row.try_get("patient_id")
+    let patient_id: String = row
+        .try_get("patient_id")
         .map_err(|err| ApiError::internal(format!("decoding patient_id: {err}")))?;
-    let legal_name: String = row.try_get("legal_name")
+    let patient_id = PatientId(
+        Uuid::from_str(&patient_id)
+            .map_err(|err| ApiError::internal(format!("patient_id column is not a uuid: {err}")))?,
+    );
+    let legal_name: String = row
+        .try_get("legal_name")
         .map_err(|err| ApiError::internal(format!("decoding legal_name: {err}")))?;
-    let preferred_name: Option<String> = row.try_get("preferred_name")
+    let preferred_name: Option<String> = row
+        .try_get("preferred_name")
         .map_err(|err| ApiError::internal(format!("decoding preferred_name: {err}")))?;
-    let date_of_birth: NaiveDate = row.try_get("date_of_birth")
+    let date_of_birth: chrono::NaiveDate = row
+        .try_get("date_of_birth")
         .map_err(|err| ApiError::internal(format!("decoding date_of_birth: {err}")))?;
-    let contact: String = row.try_get("contact")
+    let contact: sqlx::types::Json<PatientContactDetailsV0> = row
+        .try_get("contact")
         .map_err(|err| ApiError::internal(format!("decoding contact: {err}")))?;
-    let address: Option<String> = row.try_get("address")
+    let address: Option<sqlx::types::Json<PatientAddressV0>> = row
+        .try_get("address")
         .map_err(|err| ApiError::internal(format!("decoding address: {err}")))?;
-    let preferred_language: String = row.try_get("preferred_language")
+    let preferred_language: String = row
+        .try_get("preferred_language")
         .map_err(|err| ApiError::internal(format!("decoding preferred_language: {err}")))?;
-    let alternate_phone_numbers: Option<Vec<String>> = row.try_get("alternate_phone_numbers")
+    let alternate_phone_numbers: Option<Vec<String>> = row
+        .try_get("alternate_phone_numbers")
         .map_err(|err| ApiError::internal(format!("decoding alternate_phone_numbers: {err}")))?;
-    let notes: Option<String> = row.try_get("notes")
+    let notes: Option<String> = row
+        .try_get("notes")
         .map_err(|err| ApiError::internal(format!("decoding notes: {err}")))?;
-    let clinical_notes: Option<String> = row.try_get("clinical_notes")
+    let clinical_notes: Option<String> = row
+        .try_get("clinical_notes")
         .map_err(|err| ApiError::internal(format!("decoding clinical_notes: {err}")))?;
-    let created_at: DateTime<Utc> = row.try_get("created_at")
+    let created_at: DateTime<Utc> = row
+        .try_get("created_at")
         .map_err(|err| ApiError::internal(format!("decoding created_at: {err}")))?;
-    let updated_at: Option<DateTime<Utc>> = row.try_get("updated_at")
+    let updated_at: Option<DateTime<Utc>> = row
+        .try_get("updated_at")
         .map_err(|err| ApiError::internal(format!("decoding updated_at: {err}")))?;
 
-    let contact = serde_json::from_str::<PatientContactDetailsV0>(&contact)
-        .map_err(|err| ApiError::internal(format!("contact column is not valid JSON: {err}")))?;
-    let address = address
-        .map(|value| serde_json::from_str::<PatientAddressV0>(&value))
-        .transpose()
-        .map_err(|err| ApiError::internal(format!("address column is not valid JSON: {err}")))?;
-
     Ok(PatientPatientReplyV2 {
-        patient_id: PatientId(Uuid::from_str(&patient_id)
-            .map_err(|err| ApiError::internal(format!("patient_id column is not a uuid: {err}")))?),
+        patient_id,
         legal_name,
         preferred_name,
-        date_of_birth: date_of_birth.format("%Y-%m-%d").to_string(),
-        contact,
-        address,
+        date_of_birth,
+        contact: contact.0,
+        address: address.map(|value| value.0),
         preferred_language,
         alternate_phone_numbers,
         notes,
         clinical_notes,
-        created_at: http::format_rfc3339(created_at),
-        updated_at: updated_at.map(http::format_rfc3339),
+        created_at,
+        updated_at,
     })
 }
 
@@ -140,44 +140,34 @@ async fn create_patient(
     State(state): State<AppState>,
     JsonBody(request): JsonBody<PatientPatientRequestV2>,
 ) -> Result<(StatusCode, Json<PatientPatientReplyV2>), ApiError> {
-    parse_date(&request.date_of_birth)?;
-    let patient_id = request.patient_id.to_string();
+    let created_at = http::utc_now();
+    let db_row = request_to_db(&request, created_at);
 
-    let exists = sqlx::query_scalar::<_, i32>("SELECT 1 FROM patient_db WHERE patient_id = $1")
-        .bind(&patient_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|err| ApiError::internal(format!("duplicate check failed: {err}")))?;
-    if exists.is_some() {
-        return Err(ApiError::conflict(format!("patient {patient_id} already exists")));
-    }
-
-    let created_at = http::utc_now_rfc3339();
-    let db_row = request_to_db(&request, &created_at);
-
+    // patient_id is the generated PK; atomic duplicate detection.
     let insert = sqlx::query(
         "INSERT INTO patient_db (patient_id, legal_name, preferred_name, date_of_birth, contact, \
          address, preferred_language, alternate_phone_numbers, notes, clinical_notes, created_at, \
-         updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+         updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+         ON CONFLICT (patient_id) DO NOTHING",
     )
     .bind(db_row.patient_id.to_string())
     .bind(&db_row.legal_name)
-    .bind(db_row.preferred_name.clone())
-    .bind(parse_date(&db_row.date_of_birth)?)
-    .bind(http::json(&db_row.contact)?)
-    .bind(db_row.address.as_ref().map(http::json).transpose()?)
+    .bind(&db_row.preferred_name)
+    .bind(db_row.date_of_birth)
+    .bind(sqlx::types::Json(&db_row.contact))
+    .bind(db_row.address.as_ref().map(sqlx::types::Json))
     .bind(&db_row.preferred_language)
-    .bind(db_row.alternate_phone_numbers.clone())
-    .bind(db_row.notes.clone())
-    .bind(db_row.clinical_notes.clone())
-    .bind(http::parse_timestamp(&db_row.created_at)?)
+    .bind(&db_row.alternate_phone_numbers)
+    .bind(&db_row.notes)
+    .bind(&db_row.clinical_notes)
+    .bind(db_row.created_at)
     .bind(None::<DateTime<Utc>>)
     .execute(&state.pool)
     .await
     .map_err(|err| ApiError::internal(format!("patient insert failed: {err}")))?;
 
     if insert.rows_affected() != 1 {
-        return Err(ApiError::internal("patient insert affected no rows"));
+        return Err(ApiError::conflict(format!("patient {} already exists", db_row.patient_id.0)));
     }
 
     Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
@@ -219,7 +209,7 @@ async fn list_patients(
     }
     if let Some(email) = search.email.filter(|value| !value.is_empty()) {
         params.push(email);
-        sql.push_str(&format!(" AND contact::jsonb ->> 'email' ILIKE '%' || ${} || '%'", params.len()));
+        sql.push_str(&format!(" AND contact ->> 'email' ILIKE '%' || ${} || '%'", params.len()));
     }
     sql.push_str(" ORDER BY created_at, patient_id");
 

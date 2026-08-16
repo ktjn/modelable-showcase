@@ -121,9 +121,13 @@ def test_sql_postgres_secondary_indexes_present():
         # Structural presence only - determinism/byte-for-byte SQL content is
         # a separate suite (SPEC.md Sec 18, IMPLEMENTATION_PLAN.md Task 5.3).
         assert "CREATE TABLE" in sql
-        assert "CREATE INDEX IF NOT EXISTS by_patient_day" in sql
-        assert "CREATE INDEX IF NOT EXISTS by_practitioner_day" in sql
-        assert "CREATE INDEX IF NOT EXISTS by_status" in sql
+        # Index names now carry the <table>_ prefix (UPSTREAM_FINDINGS.md #24,
+        # fixed in 1.8.0) so they are collision-proof across projections that
+        # share a field set (by_patient_day, by_practitioner_day, by_status
+        # would otherwise collide across AppointmentDb/Event/Reply/Request).
+        assert "CREATE INDEX IF NOT EXISTS appointment_db_by_patient_day" in sql
+        assert "CREATE INDEX IF NOT EXISTS appointment_db_by_practitioner_day" in sql
+        assert "CREATE INDEX IF NOT EXISTS appointment_db_by_status" in sql
 
 
 def test_clinical_json_schema_compiles():

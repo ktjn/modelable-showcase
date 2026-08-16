@@ -4,24 +4,23 @@
 //
 // The go target emits one file per model/projection under
 // generated/go/<domain>/<name>.go, packaged as the lowercase domain name. Go
-// compiles whole packages, and every domain package contains structs that
-// reference undefined names under the pinned 1.7.0 release - value types are
-// referenced by their short source name while defined under the stable
-// <Domain><Name>V<version> name (UPSTREAM_FINDINGS.md #21), and semantic types
-// are referenced but never emitted at all (#22). Nothing in generated/go/ can
-// therefore be built in its original packages.
+// compiles whole packages. Under the pinned 1.8.0 release, the patient and
+// scheduling packages build cleanly - their value types, semantic types,
+// models, and projections all resolve within the same package (UPSTREAM_FINDINGS.md
+// #21/#22 fixed via #365) - as do the self-contained billing/clinical value
+// type files. Cross-package references (billing/clinical/reporting referencing
+// PatientPatientId, SchedulingPractitionerId, SchedulingTimeRangeV0) are still
+// emitted bare with no import, so those packages still do not build (#31).
 //
 // This probe works around whole-package compilation without touching generated
-// output: it copies the five self-contained value-type source files verbatim
-// into a throwaway module whose packages contain only their own declarations
+// output: it copies the compilable subset verbatim into a throwaway module
 // (the reassembly set below), then runs `go test` there. No generated file is
 // edited or copied into git. The construction/serialization proof lives in the
 // throwaway test program; tests/integration/test_go_codegen.py asserts the
 // full-set failure explicitly so it flips when the emitter is fixed.
 //
-// Revisit once Modelable is re-pinned past a release that fixes #21/#22
-// (tracked per project owner direction, same as #12/#13/#15/#16/#17/#18): the
-// full generated/go/ set should build in its original layout at that point.
+// Revisit once Modelable is re-pinned past a release that fixes #31: the full
+// generated/go/ set should build in its original layout at that point.
 package probe
 
 import (
@@ -29,19 +28,33 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 )
 
-// generatedValueTypeFiles maps each verbatim generated value-type source file
-// (relative to generated/go/) to the throwaway-module package directory it is
-// copied into. Kept in sync with probes/python and
+// generatedSubset maps each verbatim generated source file (relative to
+// generated/go/) to the throwaway-module package directory it is copied into.
+// The whole patient and scheduling packages are copied, plus the
+// self-contained billing/clinical value types. Kept in sync with
 // tests/integration/test_go_codegen.py's expectations.
-var generatedValueTypeFiles = map[string]string{
-	"patient/patient_address_v0.go":          "patient",
-	"patient/patient_contact_details_v0.go":  "patient",
-	"scheduling/scheduling_time_range_v0.go": "scheduling",
-	"billing/billing_invoice_line_v0.go":     "billing",
-	"clinical/clinical_diagnosis_v0.go":      "clinical",
+func generatedSubset() map[string]string {
+	set := map[string]string{
+		"billing/billing_invoice_line_v0.go": "billing",
+		"clinical/clinical_diagnosis_v0.go":  "clinical",
+	}
+	genDir := filepath.Join(repoRoot(), "generated", "go")
+	for _, pkg := range []string{"patient", "scheduling"} {
+		entries, err := os.ReadDir(filepath.Join(genDir, pkg))
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && filepath.Ext(entry.Name()) == ".go" {
+				set[filepath.Join(pkg, entry.Name())] = pkg
+			}
+		}
+	}
+	return set
 }
 
 // tempTestProgram is written into the throwaway module and exercises the
@@ -124,14 +137,20 @@ func TestGeneratedValueTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Reassemble the value-type files into per-domain packages (see the header
+	// Reassemble the compilable subset into per-domain packages (see the header
 	// comment). Files are copied verbatim, never edited.
-	for rel, pkgDir := range generatedValueTypeFiles {
+	set := generatedSubset()
+	rels := make([]string, 0, len(set))
+	for rel := range set {
+		rels = append(rels, rel)
+	}
+	sort.Strings(rels)
+	for _, rel := range rels {
 		data, err := os.ReadFile(filepath.Join(genDir, filepath.FromSlash(rel)))
 		if err != nil {
 			t.Fatalf("read generated file %s: %v", rel, err)
 		}
-		dstDir := filepath.Join(tmp, pkgDir)
+		dstDir := filepath.Join(tmp, set[rel])
 		if err := os.MkdirAll(dstDir, 0o755); err != nil {
 			t.Fatal(err)
 		}

@@ -14,15 +14,12 @@ variables with those defaults (shared with scripts/apply-clickhouse-ddl.py,
 whose connection_params() this module imports). Tests skip when the server is
 unreachable.
 
-Under the pinned 1.7.0 release the FULL generated graph does not apply: the
-clickhouse emitter renders optional array fields as `Nullable(Array(T))`
-(UPSTREAM_FINDINGS.md #25), an illegal ClickHouse type, so application aborts
-at the first such table. The six `reporting.*` tables contain no array columns
-and apply cleanly, so they carry the real proof (deterministic sorted
-application, representative reporting tables, synthetic-row insert/query-back).
-The full-set failure is asserted explicitly in
-test_full_generated_set_currently_fails_nullable_array so it flips when the
-emitter is fixed.
+Under the pinned 1.8.0 release the FULL generated graph applies cleanly:
+UPSTREAM_FINDINGS.md #25 is fixed, so optional array fields are emitted as bare
+`Array(T)` rather than the illegal `Nullable(Array(T))`. The test applies the
+entire `generated/sql-clickhouse/` set (deterministic sorted application), then
+verifies representative reporting tables/columns and inserts/queries back
+synthetic report rows.
 
 The clickhouse target emits no secondary indexes at all (that capability is
 deferred upstream - `tests/conformance/test_deferred_capabilities.py`), so the
@@ -152,11 +149,10 @@ def test_apply_script_cli_is_deterministic_sorted_and_idempotent(reporting_ddl_d
     assert second.returncode == 0, "re-applying the DDL must be idempotent: " + second.stdout + second.stderr
 
 
-def test_full_generated_set_currently_fails_nullable_array():
-    # UPSTREAM_FINDINGS.md #25: optional array fields are emitted as
-    # Nullable(Array(T)), which ClickHouse rejects (arrays cannot be Nullable).
-    # Application aborts at the first such table, so the full generated graph
-    # cannot be applied.
+def test_full_generated_set_applies_cleanly_per_finding_25_fixed():
+    # UPSTREAM_FINDINGS.md #25 is fixed in 1.8.0: optional array fields are
+    # emitted as bare `Array(T)` (not `Nullable(Array(T))`), so the full
+    # generated graph applies in one pass.
     assert DDL_DIR.is_dir(), "run 'make generate' first (generated/sql-clickhouse missing)"
     uv = shutil.which("uv")
     assert uv is not None, "uv is not on PATH"
@@ -167,15 +163,14 @@ def test_full_generated_set_currently_fails_nullable_array():
         capture_output=True,
         text=True,
     )
-    assert result.returncode != 0, (
-        "the full generated/sql-clickhouse set now applies - UPSTREAM_FINDINGS.md "
-        "#25 appears fixed. Update this test (and the finding) instead of leaving "
-        "it green by accident.\n" + result.stdout + result.stderr
+    assert result.returncode == 0, (
+        "the full generated/sql-clickhouse set failed to apply - the #25 fix "
+        "appears to have regressed. UPSTREAM_FINDINGS.md #25 asserts this applies.\n"
+        + result.stdout
+        + result.stderr
     )
     output = result.stdout + result.stderr
-    assert "failed to apply" in output, output
-    assert "Array(String) cannot be inside Nullable" in output, output
-    assert "ILLEGAL_TYPE_OF_ARGUMENT" in output, output
+    assert f"applied 25 file(s) from {DDL_DIR}" in output, output
 
 
 def test_representative_reporting_tables_exist(client):

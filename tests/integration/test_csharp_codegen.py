@@ -4,22 +4,21 @@ C# compiles with a real `dotnet build`, not a text grep.
 The csharp target emits a flat set of `.cs` files (one per model/projection),
 all namespaced under `Modelable.<Domain>`. Unlike the Rust target's
 multi-package layout, there is no package split to isolate what compiles, so
-this file tests both halves of the current reality:
+this file tests both halves of the current 1.8.0 reality:
 
-- The five value-type artifacts that compile as-is under the pinned 1.7.0
-  release build cleanly (`test_compilable_subset_builds`). These are exactly
-  the files `probes/csharp/ModelableShowcase.Probe.csproj` links, which
-  carries the instantiate/serialize proof.
+- The same-domain subset compiles as-is: every `patient.*` and `scheduling.*`
+  artifact (their value types, semantic types, models, and projections resolve
+  within their own namespace - the #15/#16 fix from #365). This subset is what
+  `probes/csharp/ModelableShowcase.Probe.csproj` links, which carries the
+  instantiate/serialize proof.
 
-- Everything else the csharp target emits does NOT compile: value types are
-  referenced by their short source name while defined under the stable
-  prefixed name, and semantic types are referenced but never emitted at all
-  (`test_full_generated_set_currently_fails_named_type_resolution`). Both are
-  real, logged upstream findings - UPSTREAM_FINDINGS.md #15 and #16 - broken
-  on the pinned release AND on upstream `main` (verified there: the emitter is
-  byte-identical). This failure assertion is the flip signal: it must be
-  updated (and `probes/csharp`'s linked subset grown to the full set) once
-  Modelable is re-pinned past a release that fixes either finding.
+- The full generated set still does NOT compile: references to types declared
+  in another domain are emitted bare with no `using` import
+  (`test_full_generated_set_currently_fails_cross_domain_resolution`). That is
+  the residual half of #15/#16, logged as a new finding - UPSTREAM_FINDINGS.md
+  #28. This failure assertion is the flip signal: it must be updated (and
+  `probes/csharp`'s linked subset grown to the full set) once Modelable is
+  re-pinned past a release that fixes #28.
 """
 
 from __future__ import annotations
@@ -39,16 +38,16 @@ pytestmark = [
     pytest.mark.skipif(shutil.which("dotnet") is None, reason="dotnet is not on PATH"),
 ]
 
-# The five generated value-type artifacts that compile as-is under the pinned
-# 1.7.0 release. Kept in sync with probes/csharp/ModelableShowcase.Probe.csproj's
-# <Compile Include> list.
-COMPILABLE_SUBSET = [
-    "patient.Address.v0.cs",
-    "patient.ContactDetails.v0.cs",
-    "scheduling.TimeRange.v0.cs",
-    "billing.InvoiceLine.v0.cs",
-    "clinical.Diagnosis.v0.cs",
-]
+# The generated artifacts that compile as-is under the pinned 1.8.0 release:
+# everything in the patient and scheduling namespaces (all references resolve
+# within the same domain - #15/#16 fixed), plus the plain billing/clinical
+# value types that have no cross-domain or named-type references. Kept in sync
+# with probes/csharp/ModelableShowcase.Probe.csproj's <Compile Include> list.
+COMPILABLE_SUBSET = sorted(
+    [name for name in (p.name for p in Path.iterdir(CSHARP_DIR) if p.suffix == ".cs")
+     if name.startswith(("patient.", "scheduling."))]
+    + ["billing.InvoiceLine.v0.cs", "clinical.Diagnosis.v0.cs"]
+)
 
 
 def _write_probe_csproj(project_dir: Path, files: list[str]) -> None:
@@ -93,7 +92,7 @@ def test_compilable_subset_builds():
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_full_generated_set_currently_fails_named_type_resolution():
+def test_full_generated_set_currently_fails_cross_domain_resolution():
     assert CSHARP_DIR.is_dir(), "run 'make generate' first"
     files = sorted(path.name for path in CSHARP_DIR.glob("*.cs"))
 
@@ -103,8 +102,8 @@ def test_full_generated_set_currently_fails_named_type_resolution():
         result = dotnet_build(project_dir)
 
         assert result.returncode != 0, (
-            "generated/csharp/ now builds in full - UPSTREAM_FINDINGS.md #15/#16 "
-            "appear fixed. Update this test and grow "
+            "generated/csharp/ now builds in full - UPSTREAM_FINDINGS.md #28 "
+            "appears fixed. Update this test and grow "
             "probes/csharp/ModelableShowcase.Probe.csproj's linked subset to the "
             "full set instead of leaving it green by accident.\n"
             + result.stdout
@@ -113,14 +112,13 @@ def test_full_generated_set_currently_fails_named_type_resolution():
 
         output = result.stdout + result.stderr
         assert "CS0246" in output, output
-        # #16: a semantic-typed @key field references a type that is never emitted.
-        assert "The type or namespace name 'PatientId' could not be found" in output, output
-        # #15: a value-type reference uses the short source name, not the emitted
-        # stable name (Address is emitted as PatientAddressV0; Diagnosis as
-        # ClinicalDiagnosisV0).
-        assert "The type or namespace name 'Address' could not be found" in output, output
-        assert "The type or namespace name 'Diagnosis' could not be found" in output, output
+        # #28: references to types declared in another domain are emitted bare
+        # with no `using` import - the four cross-domain names in this graph.
+        assert "The type or namespace name 'PatientPatientId' could not be found" in output, output
+        assert "The type or namespace name 'SchedulingPractitionerId' could not be found" in output, output
+        assert "The type or namespace name 'PatientContactDetailsV0' could not be found" in output, output
+        assert "The type or namespace name 'SchedulingTimeRangeV0' could not be found" in output, output
 
-        # The probe's own subset must not be implicated in any error.
+        # The probe's own same-domain subset must not be implicated in any error.
         for name in COMPILABLE_SUBSET:
             assert name not in output, f"subset file {name} unexpectedly reported an error:\n{output}"

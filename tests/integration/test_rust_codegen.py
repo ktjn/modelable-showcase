@@ -8,26 +8,24 @@ dependencies rather than a shared [workspace] manifest, so packages are
 checked individually (`cargo check` inside each package directory), not
 via a single workspace-wide command.
 
-Two of those three real packages currently fail to build under the
-pinned 1.7.0 release due to a real, logged Rust-emitter bug
-(UPSTREAM_FINDINGS.md #14): clinical-core because of
-clinical.Encounter.diagnoses?: array<Diagnosis> (an optional array of a
-named value type - exactly the shape that bug breaks), and billing-core
-transitively because it depends on clinical-core. clinic-core itself
-(patient + scheduling domains) doesn't use that shape anywhere and
-builds cleanly, so it carries the real proof for the "registered
-semantic newtype exposes a stable ID" and "model exposes schema
-version/content signature constants" requirements. The "at least one
-cross-package reference compiles" requirement is proven with a small
-isolated two-package fixture (tests/conformance/rust-probe/) instead of
-the real product, specifically because every real cross-package
-reference in model/ currently routes through one of the two broken
-packages - see that fixture's own header comment for the full reasoning.
+Against the pinned 1.8.0 release, UPSTREAM_FINDINGS.md #14 is fixed, so
+clinical-core now builds cleanly (its optional-array-of-named-type shape
+`clinical.Encounter.diagnoses?: array<Diagnosis>` resolves). billing-core
+still fails, but for a different, new bug (UPSTREAM_FINDINGS.md #26): the
+`From<BillingInvoiceV2Status> for ReportingOutstandingInvoicesV1Status` impl
+is never generated even though the projection's `From<BillingInvoiceV2>`
+impl calls `src.status.into()`. clinic-core (patient + scheduling domains)
+builds cleanly and carries the real proof for the "registered semantic
+newtype exposes a stable ID" and "model exposes schema version/content
+signature constants" requirements; note the registry-id ledger moved with
+1.8.0 (model/registry-ids.lock) and PatientId's stable ID is now 2, not 1.
+The "at least one cross-package reference compiles" requirement is proven
+with a small isolated two-package fixture (tests/conformance/rust-probe/).
 
-clinical-core and billing-core's current failures are asserted
-explicitly (their precise, expected error) rather than skipped, so this
-file itself becomes the signal to update once Modelable is re-pinned
-past a release that fixes #14.
+clinical-core's restored build and billing-core's current #26 failure are
+both asserted explicitly (with their precise expected outcomes) rather than
+skipped, so this file itself becomes the signal to update once Modelable is
+re-pinned past a release that fixes #26.
 """
 
 from __future__ import annotations
@@ -58,7 +56,7 @@ def cargo(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["cargo", *args], cwd=cwd, capture_output=True, text=True)
 
 
-# --- clinic-core: the one real package unaffected by UPSTREAM_FINDINGS.md #14 -
+# --- clinic-core: builds cleanly against 1.8.0 (UPSTREAM_FINDINGS.md #14 fixed) -
 
 
 def test_clinic_core_directory_exists():
@@ -78,7 +76,7 @@ def test_clinic_core_package_tests_pass():
 def test_registered_semantic_newtype_exposes_stable_registry_id():
     text = (RUST_DIR / "clinic-core" / "src" / "patient" / "patient_id.rs").read_text()
     assert "pub struct PatientId(pub uuid::Uuid);" in text
-    assert "pub const REGISTRY_ID: u32 = 1;" in text
+    assert "pub const REGISTRY_ID: u32 = 2;" in text
 
 
 def test_model_exposes_schema_version_and_content_signature_constants():
@@ -117,27 +115,22 @@ def test_cross_package_reference_compiles():
         assert result_b.returncode == 0, result_b.stdout + result_b.stderr
 
 
-# --- clinical-core / billing-core: currently broken, tracked as #14 --------
+# --- clinical-core / billing-core: clinical-core restored, billing-core #26 ---
 
 
-def test_clinical_core_currently_fails_to_build_per_upstream_finding_14():
+def test_clinical_core_builds_per_finding_14_fixed():
     result = cargo("check", cwd=RUST_DIR / "clinical-core")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_billing_core_currently_fails_per_upstream_finding_26():
+    result = cargo("check", cwd=RUST_DIR / "billing-core")
     assert result.returncode != 0, (
-        "clinical-core now builds - UPSTREAM_FINDINGS.md #14 appears fixed. "
-        "Update this test (and re-check whether the pin should move) instead of leaving it green by accident.\n"
+        "billing-core now builds - UPSTREAM_FINDINGS.md #26 appears fixed. "
+        "Update this test instead of leaving it green by accident.\n"
         + result.stdout
         + result.stderr
     )
     output = result.stdout + result.stderr
-    assert "cannot find type `Diagnosis`" in output, output
-    assert "clinical_encounter_v1.rs" in output, output
-
-
-def test_billing_core_currently_fails_transitively_per_upstream_finding_14():
-    result = cargo("check", cwd=RUST_DIR / "billing-core")
-    assert result.returncode != 0, (
-        "billing-core now builds - UPSTREAM_FINDINGS.md #14 appears fixed (it depends on clinical-core). "
-        "Update this test instead of leaving it green by accident.\n" + result.stdout + result.stderr
-    )
-    output = result.stdout + result.stderr
-    assert "cannot find type `Diagnosis`" in output, output
+    assert "ReportingOutstandingInvoicesV1Status" in output, output
+    assert "From<BillingInvoiceV2Status>" in output, output

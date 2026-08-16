@@ -13,13 +13,12 @@ Two realities are asserted for the graphs:
 - The full protobuf graph compiles cleanly in one invocation
   (`test_full_protobuf_graph_compiles`).
 
-- The full gRPC graph does NOT compile in one invocation: every model/projection
-  gets its own standalone `.grpc.proto` file, all in the same
-  `modelable.<domain>.<version>.scalable` package, so the envelope/service
-  definitions collide (UPSTREAM_FINDINGS.md #23). That failure is asserted
-  explicitly (`test_full_grpc_graph_currently_fails_duplicate_service_symbols`)
-  so it flips when the emitter is fixed - while the schema `.proto` files and
-  each individual service file DO compile (`test_grpc_schema_protos_compile`,
+- The full gRPC graph compiles cleanly in one invocation
+  (`test_full_grpc_graph_compiles`): UPSTREAM_FINDINGS.md #23 was fixed in
+  v1.8.0 via #365, which switched `--target grpc` to emit one service file per
+  domain (no more per-model duplicate envelope/service symbols in the same
+  package). The schema `.proto` files and each individual service file also
+  compile (`test_grpc_schema_protos_compile`,
   `test_each_grpc_service_proto_compiles_standalone`), which is the documented
   per-service mode that `--descriptor-set` also uses.
 """
@@ -154,31 +153,18 @@ def test_each_grpc_service_proto_compiles_standalone():
 
 @requires_protoc
 @requires_protoc_include
-def test_full_grpc_graph_currently_fails_duplicate_service_symbols():
+def test_full_grpc_graph_compiles():
     assert GRPC_DIR.is_dir(), "run 'make generate' first"
     files = sorted(GRPC_DIR.rglob("*.proto"))
     assert files, "generated/grpc is empty"
 
     with tempfile.TemporaryDirectory() as tmp:
         result = _protoc(files, GRPC_DIR, Path(tmp) / "all.desc")
-
-        assert result.returncode != 0, (
-            "generated/grpc/ now compiles as one graph - UPSTREAM_FINDINGS.md #23 "
-            "appears fixed. Update this test (and the workaround note in #23) "
-            "instead of leaving it green by accident.\n"
-            + result.stdout
-            + result.stderr
-        )
-
-        output = result.stdout + result.stderr
-        # #23: every .grpc.proto file redeclares the same package-scoped envelope
-        # and service definitions, so the union is a mass of duplicate symbols.
-        assert "is already defined" in output, output
-        assert "modelable.billing.v2.scalable.SchemaIdentity" in output, output
-        # Only service .proto files are implicated; the schema .proto files are not.
-        for line in output.splitlines():
-            if ".proto:" in line and ".grpc.proto" not in line:
-                pytest.fail(f"schema proto unexpectedly implicated in #23 failure:\n{output}")
+        # UPSTREAM_FINDINGS.md #23: fixed in v1.8.0 via #365 - the full emitted
+        # gRPC graph now compiles in one `protoc` invocation. If this flips,
+        # the emitter regressed; restore the old failure assertion.
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (Path(tmp) / "all.desc").stat().st_size > 0
 
 
 # --- --descriptor-set generation (requires protoc + modelable) --------------
@@ -276,7 +262,17 @@ def test_schema_manifest_reservations_in_evolved_fixture():
     with tempfile.TemporaryDirectory() as tmp:
         cwd = Path(tmp)
         out = cwd / "out"
-        result = _modelable("compile", str(COMPAT_FIXTURE), "--target", "protobuf", "--out", str(out), cwd=cwd)
+        result = _modelable(
+            "compile",
+            str(COMPAT_FIXTURE),
+            "--target",
+            "protobuf",
+            "--out",
+            str(out),
+            "--registry-ids",
+            str(cwd / "registry-ids.lock"),
+            cwd=cwd,
+        )
         assert result.returncode == 0, result.stdout + result.stderr
 
         manifest = load_json(out / "compat" / "Patient.v1" / "schema-manifest.json")

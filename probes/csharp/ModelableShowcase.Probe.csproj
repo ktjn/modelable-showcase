@@ -21,27 +21,37 @@
   </ItemGroup>
 
   <!-- Generated C# sources are linked from the disposable generated/ tree, never
-       copied into git (IMPLEMENTATION_PLAN.md Task 7.2). Only the five value-type
-       artifacts that compile as-is under the pinned 1.7.0 release are linked here.
+       copied into git (IMPLEMENTATION_PLAN.md Task 7.2). Under the pinned 1.8.0
+       release the patient.* and scheduling.* artifacts all resolve within their
+       own namespace (UPSTREAM_FINDINGS.md #15/#16 fixed via #365), so they are
+       linked here and carry the instantiate/serialize proof.
 
-       Everything else the csharp target emits references a type name that does not
-       exist in the output, so it fails `dotnet build` with CS0246:
-         - value types are referenced by their short source name but defined under
-           the stable prefixed name (UPSTREAM_FINDINGS.md #15);
-         - semantic types are referenced but never emitted at all (#16).
-       ContactDetails/Address/TimeRange/InvoiceLine/Diagnosis here are the plain
-       `value` declarations with no named-type or semantic-typed fields, so they are
-       unaffected by either bug and compile as-is - they are still real generated
-       patient/billing/clinical domain data.
+       Everything else the csharp target emits still fails `dotnet build` with
+       CS0246: references to types declared in another domain are emitted bare
+       with no `using` import (UPSTREAM_FINDINGS.md #28), e.g. billing.* uses
+       PatientPatientId, clinical.* uses PatientPatientId/SchedulingPractitionerId/
+       PatientContactDetailsV0, reporting.* uses PatientPatientId/
+       SchedulingTimeRangeV0.
 
-       Revisit once Modelable is re-pinned past a release that fixes #15/#16
-       (tracked per project owner direction, same as #12/#13): the full
-       generated/csharp/ set should become linkable at that point.
+       Revisit once Modelable is re-pinned past a release that fixes #28: the
+       full generated/csharp/ set should become linkable at that point.
        tests/integration/test_csharp_codegen.py asserts the full-set failure
        explicitly so it flips when the emitter is fixed upstream. -->
   <ItemGroup>
     <Compile Include="../../generated/csharp/patient.Address.v0.cs" Link="generated/patient.Address.v0.cs" />
     <Compile Include="../../generated/csharp/patient.ContactDetails.v0.cs" Link="generated/patient.ContactDetails.v0.cs" />
+    <Compile Include="../../generated/csharp/patient.Patient.v1.cs" Link="generated/patient.Patient.v1.cs" />
+    <Compile Include="../../generated/csharp/patient.Patient.v2.cs" Link="generated/patient.Patient.v2.cs" />
+    <Compile Include="../../generated/csharp/patient.PatientDb.v2.cs" Link="generated/patient.PatientDb.v2.cs" />
+    <Compile Include="../../generated/csharp/patient.PatientEvent.v2.cs" Link="generated/patient.PatientEvent.v2.cs" />
+    <Compile Include="../../generated/csharp/patient.PatientReply.v2.cs" Link="generated/patient.PatientReply.v2.cs" />
+    <Compile Include="../../generated/csharp/patient.PatientRequest.v2.cs" Link="generated/patient.PatientRequest.v2.cs" />
+    <Compile Include="../../generated/csharp/scheduling.Appointment.v1.cs" Link="generated/scheduling.Appointment.v1.cs" />
+    <Compile Include="../../generated/csharp/scheduling.AppointmentDb.v1.cs" Link="generated/scheduling.AppointmentDb.v1.cs" />
+    <Compile Include="../../generated/csharp/scheduling.AppointmentEvent.v1.cs" Link="generated/scheduling.AppointmentEvent.v1.cs" />
+    <Compile Include="../../generated/csharp/scheduling.AppointmentReply.v1.cs" Link="generated/scheduling.AppointmentReply.v1.cs" />
+    <Compile Include="../../generated/csharp/scheduling.AppointmentRequest.v1.cs" Link="generated/scheduling.AppointmentRequest.v1.cs" />
+    <Compile Include="../../generated/csharp/scheduling.AppointmentStatusChanged.v1.cs" Link="generated/scheduling.AppointmentStatusChanged.v1.cs" />
     <Compile Include="../../generated/csharp/scheduling.TimeRange.v0.cs" Link="generated/scheduling.TimeRange.v0.cs" />
     <Compile Include="../../generated/csharp/billing.InvoiceLine.v0.cs" Link="generated/billing.InvoiceLine.v0.cs" />
     <Compile Include="../../generated/csharp/clinical.Diagnosis.v0.cs" Link="generated/clinical.Diagnosis.v0.cs" />
