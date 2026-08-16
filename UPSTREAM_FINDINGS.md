@@ -32,6 +32,10 @@
 | 16 | [`compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error](#16-compile---target-csharp-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 17 | [`compile --target java` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#17-compile---target-java-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 18 | [`compile --target java` never emits semantic types at all - every semantic-typed field is a compile error](#18-compile---target-java-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
+| 19 | [`compile --target python` never resolves named-type references to the emitted stable type name - every value-type-typed annotation is a NameError](#19-compile---target-python-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Open |
+| 20 | [`compile --target python` never emits semantic types at all - every semantic-typed annotation is a NameError](#20-compile---target-python-never-emits-semantic-types-at-all---every-semantic-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Open |
+| 21 | [`compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#21-compile---target-go-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
+| 22 | [`compile --target go` never emits semantic types at all - every semantic-typed field is a compile error](#22-compile---target-go-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -42,6 +46,8 @@
 **#15 and #16** (the C# emitter, discovered together during Task 7.2) were verified against upstream `main` at commit `22eaf4c` (`fix: tolerate rewritten main history in validation (#356)`): `emitters/csharp.py` is byte-identical to the pinned `1.7.0` release on that branch (its last real change is the naming-helper consolidation in #313, long before #354/#355/#356), so neither is fixed or even touched there yet. They share a root-cause neighborhood but are distinct bugs with distinct fixes, so they are logged as two entries below rather than one. Neither has been taken upstream yet — per `UPSTREAM_POLICY.md` §1 that is the required next step.
 
 **#17 and #18** (the Java emitter, discovered together during Task 7.3) are the C# pair's exact analogues for the `java` target. They were verified against upstream `main` at the same commit `22eaf4c`: `emitters/java.py` is byte-identical to the pinned `1.7.0` release there (same #313 last-change history as `csharp.py`), so neither is fixed or touched upstream either. They are logged as two separate entries below (distinct bugs, distinct fixes), and neither has been taken upstream yet.
+
+**#19–#22** (the Python and Go emitters, discovered together during Task 7.4) complete the same named-type/semantic-type picture for the last two first-class target languages. Both were verified against upstream `main` at the same commit `22eaf4c`: `emitters/python.py` and `emitters/go.py` are both byte-identical to the pinned `1.7.0` release there (both share the same #313 last-change history), so neither pair is fixed or touched upstream either. The Go pair (#21/#22) is a hard compile failure exactly like the C#/Java ones; the Python pair (#19/#20) is *latent* — because every generated module starts with `from __future__ import annotations`, the broken references are lazy string annotations, so modules import and dataclasses instantiate fine, and the breakage only surfaces when the annotations are actually resolved (`typing.get_type_hints` raises `NameError`) or consumed by any typed tooling. All four are logged as separate entries below (distinct bugs per emitter, distinct fixes), and none has been taken upstream yet.
 
 ---
 
@@ -991,3 +997,211 @@ WidgetV1.java:6: error: cannot find symbol
 **Expected:** emit a semantic type for the Java target (e.g. a record wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated file must not reference an undefined name, and `@key` fields on real entities must compile.
 
 **Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13/#15/#16. `probes/java/` deliberately does not compile any artifact containing a semantic-typed field and documents why; `tests/integration/test_java_codegen.py` asserts the current failure explicitly. Until one of these two findings is fixed upstream, the Java target cannot compile any realistic Modelable workspace.
+
+---
+
+## 19. `compile --target python` never resolves named-type references to the emitted stable type name - every value-type-typed annotation is a NameError
+
+**Discovered:** Task 7.4 (Python probe), running the first real annotation-resolution (`typing.get_type_hints`) against generated `python` output.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  value Address {
+    street: string
+  }
+
+  entity Widget @ 1 (additive) {
+    @key id: uuid
+    addr?: Address
+  }
+}
+```
+
+```bash
+modelable compile . --target python --out ./dist
+python -c "import probe_widget_v1, typing; typing.get_type_hints(probe_widget_v1.ProbeWidgetV1)"
+```
+
+**Observed:**
+
+```text
+// dist/probe/probe_address_v0.py
+@dataclass(frozen=True, slots=True)
+class ProbeAddressV0:
+    street: str
+
+// dist/probe/probe_widget_v1.py
+@dataclass(frozen=True, slots=True)
+class ProbeWidgetV1:
+    id: ThingId
+    addr: Optional[Address] = None
+
+$ python -c "import probe_widget_v1, typing; typing.get_type_hints(probe_widget_v1.ProbeWidgetV1)"
+NameError: name 'ThingId' is not defined
+```
+
+The value type `Address` **is** emitted - under the stable prefixed name `ProbeAddressV0` - but the entity field that references it emits the short source name `Address` in its annotation. Same directory, same import universe, and the two names never agree, so resolving the annotation on any field whose type is a `value` declaration raises `NameError` (as does any semantic-typed field - see finding #20). Every entity/projection annotation that references a value type is affected: this showcase's own `PatientPatientV2` (`contact: ContactDetails`, `address: Optional[Address]`), `SchedulingAppointmentV1` (`slot: TimeRange`), `BillingInvoiceV2` (`lines: list[InvoiceLine]`), `ClinicalEncounterDbV1` (`diagnoses: list[Diagnosis]`), and so on. Only self-contained value types with no references (`ProbeAddressV0`/`ProbeContactDetailsV0`/`ProbeTimeRangeV0`/`ProbeInvoiceLineV0`/`ProbeDiagnosisV0`) resolve cleanly.
+
+**Root cause (read from source, not guessed):** `emitters/python.py::_shape_base_annotation` renders every `named`-kind shape as `_pascalize(shape.ref or "Named")` (line 221) - the raw short source name from the `.mdl` file, with no lookup into what the emitter actually named the declaration. That differs from `emitters/rust.py`, which threads a `named_type_map` through its shape rendering so a reference is rewritten to the *emitted* stable name (`PatientAddressV0` etc.); the Python emitter has no equivalent map at all. The definitions are emitted correctly elsewhere (`_stable_type_name(domain, name, version)` produces `ProbeAddressV0`), so reference and definition simply disagree by construction. The breakage is *latent* rather than a hard error because `_header_lines()` unconditionally emits `from __future__ import annotations` - annotations are stored as strings and nothing resolves them at class-definition time - so the module imports and the dataclass instantiates normally; the `NameError` only appears when an annotation is resolved (`typing.get_type_hints`, `inspect`, pydantic, static type checkers, IDE hover, etc.). Nothing upstream checks for this: `cli/tests/test_emit_python.py` asserts only on generated *text substrings* for primitives and never resolves an annotation or references a declared `value` type, so the mismatch is invisible to the upstream suite.
+
+**Expected:** `_shape_base_annotation`'s `named` branch should resolve `shape.ref` to the emitted stable type name the same way the Rust emitter's `named_type_map` does - and ideally the emitter should emit the real cross-module imports its own annotations imply (it emits *no* `from ... import` lines at all, relying entirely on `from __future__ import annotations` to defer resolution), so a consumer can resolve `get_type_hints` without first constructing a bespoke import graph. A small regression test that resolves the generated annotations (or at least asserts the reference name equals `_stable_type_name(...)` for a declared value type) would keep it fixed.
+
+**Showcase workaround:** `probes/python/` (Task 7.4) imports and instantiates every generated module directly (which works today thanks to the lazy annotations) and serializes the working value types, but asserts the current `get_type_hints` failure on entity/projection classes explicitly so it flips when the emitter is fixed. See `probes/python/test_generated.py`'s header comment; `tests/integration/test_python_codegen.py` mirrors the flip signal.
+
+---
+
+## 20. `compile --target python` never emits semantic types at all - every semantic-typed annotation is a NameError
+
+**Discovered:** Task 7.4 (Python probe), alongside finding #19.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  semantic ThingId: uuid(7) {
+    registry: true
+  }
+
+  entity Widget @ 1 (additive) {
+    @key
+    id: ThingId
+  }
+}
+```
+
+```bash
+modelable compile . --target python --out ./dist
+python -c "import probe_widget_v1, typing; typing.get_type_hints(probe_widget_v1.ProbeWidgetV1)"
+```
+
+**Observed:**
+
+```text
+$ ls ./dist/probe
+probe_address_v0.py   # (from the reproduction in finding #19)
+probe_widget_v1.py    # <- no probe_thing_id.py anywhere
+
+$ python -c "import probe_widget_v1, typing; typing.get_type_hints(probe_widget_v1.ProbeWidgetV1)"
+NameError: name 'ThingId' is not defined
+```
+
+`ThingId` appears in the `id` field's annotation but no definition module is ever emitted - unlike `emitters/rust.py`, which emits one `*_id.rs` file per `semantic` declaration (carrying the `REGISTRY_ID` constant). The Python emitter emits exactly one module per model/projection and nothing for semantic types. This affects essentially every entity/aggregate/event in a realistic workspace (this showcase's own `PatientPatientV2` fails on its `@key patientId: PatientId`, `SchedulingAppointmentV1` on `AppointmentId`/`PractitionerId`, `ClinicalEncounterDbV1` on `EncounterId`, `BillingInvoiceV2` on `InvoiceId`, `ClinicalObservationV1` on `ObservationCode`). Cross-domain semantic references (`patientId: patient.PatientId` in clinical/billing) get spelled `PatientPatientId` - the whole dotted reference is pascalized in place - which is a second, equally-undefined name (`SchedulingPractitionerId` appears the same way). As with finding #19 this is latent: the module imports and instantiates fine, and the `NameError` surfaces only on annotation resolution.
+
+**Root cause (read from source, not guessed):** `emitters/python.py::emit_python` (lines 16-31) iterates only `domain.models` (entities/aggregates/events/values) and `domain.projections`. It never iterates `domain.semantic_types`, and unlike `emitters/rust.py::_emit_semantic_type` there is no Python semantic-type emitter at all - nothing produces a `ThingId` module or resolves the reference structurally to the underlying `UUID`. The `named`-kind shape for a semantic-typed field therefore falls through to the same `_pascalize(shape.ref)` fallback as finding #19, yielding a bare undefined name in the annotation. (`cli/tests/test_emit_python.py` never uses a `semantic` declaration, so upstream has no test that would catch it.)
+
+**Expected:** emit a semantic type for the Python target (e.g. a module wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated annotation must not reference an undefined name, and `@key` fields on real entities must survive `get_type_hints`.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13/#15/#16/#18. `probes/python/` instantiates the generated dataclasses directly (valid today) but deliberately does not rely on resolving semantic-typed annotations, and `tests/integration/test_python_codegen.py` asserts the current `NameError` explicitly. Until one of these two findings is fixed upstream, the Python target's annotations cannot be consumed by any typed tooling.
+
+---
+
+## 21. `compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error
+
+**Discovered:** Task 7.4 (Go probe), running the first real `go build` against generated `go` output.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  value Address {
+    street: string
+  }
+
+  entity Widget @ 1 (additive) {
+    @key id: uuid
+    addr?: Address
+  }
+}
+```
+
+```bash
+modelable compile . --target go --out ./dist
+# dist/go/probe has no go.mod; init a throwaway module around it, then:
+cd ./dist && go build ./...
+```
+
+**Observed:**
+
+```text
+// dist/probe/probe_address_v0.go
+type ProbeAddressV0 struct {
+    Street string `json:"street"`
+}
+
+// dist/probe/probe_widget_v1.go
+type ProbeWidgetV1 struct {
+    Id ThingId `json:"id"`
+    Addr *Address `json:"addr,omitempty"`
+}
+
+# probe/probe
+probe\probe_widget_v1.go:5:8: undefined: ThingId
+probe\probe_widget_v1.go:6:11: undefined: Address
+```
+
+The value type `Address` **is** emitted - under the stable prefixed name `ProbeAddressV0` - but the entity struct that references it emits the short source name `Address`. Same package, same compile unit, and the two names never agree, so every field whose type is a `value` declaration is a compile error. This is the majority of the Go output: `go build` over this showcase's full `generated/go/` reports 48 `undefined:` error lines for `Address`, `ContactDetails`, `TimeRange`, `InvoiceLine`, and `Diagnosis` (plus the semantic-typed names from finding #22 - the missing-symbol set is identical to Java's). Go's whole-package compilation means not even the self-contained value types can be built on their own in their original packages (each domain package also contains a struct that references the undefined names), though the value-type files themselves are valid Go in isolation.
+
+**Root cause (read from source, not guessed):** `emitters/go.py::_shape_base_annotation` renders every `named`-kind shape as `_pascalize(shape.ref or "Named")` (line 288) - the raw short source name from the `.mdl` file, with no lookup into what the emitter actually named the declaration. That differs from `emitters/rust.py`, which threads a `named_type_map` through its shape rendering so a reference is rewritten to the *emitted* stable name (`PatientAddressV0` etc.); the Go emitter has no equivalent map at all. The definitions are emitted correctly elsewhere (`_stable_type_name(domain, name, version)` produces `ProbeAddressV0`), so reference and definition simply disagree by construction. Nothing upstream checks for this: `cli/tests/test_emit_go.py` asserts only on generated *text substrings* for primitives and never compiles the output or references a declared `value` type, so the compile-breaking reference mismatch is invisible to the upstream suite.
+
+**Expected:** `_shape_base_annotation`'s `named` branch should resolve `shape.ref` to the emitted stable type name the same way the Rust emitter's `named_type_map` does, so the referenced name always matches the emitted definition. A small regression test that compiles the generated output (or at least asserts the reference name equals `_stable_type_name(...)` for a declared value type) would keep it fixed.
+
+**Showcase workaround:** `probes/go/` (Task 7.4) builds the five self-contained value-type source files verbatim into a throwaway module whose package layout lets them compile and be exercised (Go compiles whole packages, so the probe reassembles the value types into packages that contain only their own declarations - no generated file is edited or copied into git), and documents the rest as broken. See `probes/go/generated_test.go`'s header comment; `tests/integration/test_go_codegen.py` asserts the full-set failure explicitly so it flips when the emitter is fixed.
+
+---
+
+## 22. `compile --target go` never emits semantic types at all - every semantic-typed field is a compile error
+
+**Discovered:** Task 7.4 (Go probe), alongside finding #21.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  semantic ThingId: uuid(7) {
+    registry: true
+  }
+
+  entity Widget @ 1 (additive) {
+    @key
+    id: ThingId
+  }
+}
+```
+
+```bash
+modelable compile . --target go --out ./dist
+cd ./dist && go build ./...
+```
+
+**Observed:**
+
+```text
+$ ls ./dist/probe
+probe_widget_v1.go     # <- no probe_thing_id.go anywhere
+
+$ cat ./dist/probe/probe_widget_v1.go
+type ProbeWidgetV1 struct {
+    Id ThingId `json:"id"`
+}
+
+# probe/probe
+probe\probe_widget_v1.go:5:8: undefined: ThingId
+```
+
+`ThingId` is referenced but no definition file is ever emitted - unlike `emitters/rust.py`, which emits one `*_id.rs` file per `semantic` declaration (carrying the `REGISTRY_ID` constant). The Go emitter emits exactly one file per model/projection and nothing for semantic types. This affects essentially every entity/aggregate/event in a realistic workspace (this showcase's own `patient/patient_patient_v2.go` fails on its `@key patientId: PatientId`, `scheduling/scheduling_appointment_v1.go` on `AppointmentId`/`PractitionerId`, `clinical/clinical_encounter_db_v1.go` on `EncounterId`, `billing/billing_invoice_v2.go` on `InvoiceId`, `clinical/clinical_observation_v1.go` on `ObservationCode`). Cross-domain semantic references (`patientId: patient.PatientId` in clinical/billing) get spelled `PatientPatientId` - the whole dotted reference is pascalized in place - which is a second, equally-undefined name (`SchedulingPractitionerId` appears the same way).
+
+**Root cause (read from source, not guessed):** `emitters/go.py::emit_go` (lines 16-24) iterates only `domain.models` (entities/aggregates/events/values) and `domain.projections`. It never iterates `domain.semantic_types`, and unlike `emitters/rust.py::_emit_semantic_type` there is no Go semantic-type emitter at all - nothing produces a `ThingId` struct or resolves the reference structurally to the underlying `uuid.UUID`. The `named`-kind shape for a semantic-typed field therefore falls through to the same `_pascalize(shape.ref)` fallback as finding #21, yielding a bare undefined name. (`cli/tests/test_emit_go.py` never uses a `semantic` declaration, so upstream has no test that would catch it.)
+
+**Expected:** emit a semantic type for the Go target (e.g. a struct wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated file must not reference an undefined name, and `@key` fields on real entities must compile.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13/#15/#16/#17/#18. `probes/go/` deliberately does not compile any artifact containing a semantic-typed field and documents why; `tests/integration/test_go_codegen.py` asserts the current failure explicitly. Until one of these two findings is fixed upstream, the Go target cannot compile any realistic Modelable workspace.
