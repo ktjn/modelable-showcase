@@ -123,14 +123,8 @@ def test_clinical_core_builds_per_finding_14_fixed():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_billing_core_currently_fails_per_upstream_finding_26():
+def test_billing_core_builds_per_findings_26_35_36_fixed():
     result = cargo("check", cwd=RUST_DIR / "billing-core")
-    assert result.returncode != 0, (
-        "billing-core now builds - UPSTREAM_FINDINGS.md #26 appears fixed. "
-        "Update this test instead of leaving it green by accident.\n"
-        + result.stdout
-        + result.stderr
-    )
-    output = result.stdout + result.stderr
-    assert "ReportingOutstandingInvoicesV1Status" in output, output
-    assert "From<BillingInvoiceV2Status>" in output, output
+    # UPSTREAM_FINDINGS.md #26 (missing From impl), #35 (duplicate serde default),
+    # and #36 (cross-domain From imports via super::) are all fixed by v1.9.2.
+    assert result.returncode == 0, result.stdout + result.stderr
