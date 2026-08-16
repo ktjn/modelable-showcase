@@ -37,6 +37,7 @@
 | 21 | [`compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#21-compile---target-go-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 22 | [`compile --target go` never emits semantic types at all - every semantic-typed field is a compile error](#22-compile---target-go-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Open |
+| 24 | [`compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is](#24-compile---target-sql-postgres-emits-bare-secondary-index-names-that-collide-across-tables-in-the-shared-schema---the-full-graph-cannot-be-applied-as-is) | Silent data loss | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -51,6 +52,8 @@
 **#19–#22** (the Python and Go emitters, discovered together during Task 7.4) complete the same named-type/semantic-type picture for the last two first-class target languages. Both were verified against upstream `main` at the same commit `22eaf4c`: `emitters/python.py` and `emitters/go.py` are both byte-identical to the pinned `1.7.0` release there (both share the same #313 last-change history), so neither pair is fixed or touched upstream either. The Go pair (#21/#22) is a hard compile failure exactly like the C#/Java ones; the Python pair (#19/#20) is *latent* — because every generated module starts with `from __future__ import annotations`, the broken references are lazy string annotations, so modules import and dataclasses instantiate fine, and the breakage only surfaces when the annotations are actually resolved (`typing.get_type_hints` raises `NameError`) or consumed by any typed tooling. All four are logged as separate entries below (distinct bugs per emitter, distinct fixes), and none has been taken upstream yet.
 
 **#23** (the gRPC emitter, discovered during Task 7.5 while running the first real `protoc` over the whole `generated/grpc/` output) is a different bug class from #15–#22: no named-type or semantic-type reference is involved. It was verified against upstream `main` at the same commit `22eaf4c`: `emitters/grpc.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #172/#170), so it is not fixed or touched upstream either. It has not been taken upstream yet. The protobuf target is *not* affected — the full `generated/protobuf/` graph (44 files) compiles cleanly with `protoc`, and `modelable compile --descriptor-set` succeeds for both targets (it compiles each artifact individually, which is exactly the per-file mode #23 leaves working).
+
+**#24** (the sql-postgres emitter, discovered during Task 8.1 while applying the whole `generated/sql-postgres/` output to a real PostgreSQL and then verifying the resulting schema) is again a different bug class: nothing is undefined and nothing fails to compile or apply — every statement runs "successfully", and yet the *applied schema silently loses indexes*. It was verified against upstream `origin/main`: `emitters/sql.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #155, the same commit that *added* secondary-index support), so the bug shipped with the feature and is not fixed or touched upstream. It has not been taken upstream yet. The clickhouse target uses the same `_emit_secondary_index_ddl` code path (its secondary indexes are emitted with the same bare names, though ClickHouse's index name scoping rules differ) and was not separately probed in Task 8.1.
 
 ---
 
@@ -1258,3 +1261,76 @@ The protobuf target is not affected, and neither is the per-file consumption mod
 **Expected:** either emit the shared envelope/service surface once per `modelable.<domain>.<version>.scalable` package (e.g. a single shared service `.proto` file imported by per-model files that only add their own service/entity wiring), or give each model its own distinct package - either way, the full emitted graph for a realistic domain must compile with `protoc` in one invocation.
 
 **Showcase workaround:** `tests/integration/test_protobuf_codegen.py` (Task 7.5) compiles the full protobuf graph, the gRPC schema `.proto` set, and each gRPC service file individually (the documented per-service mode `--descriptor-set` also uses), and asserts the full-graph failure explicitly so it flips when the emitter is fixed. Until #23 is fixed upstream, a consumer cannot compile an entire `generated/grpc/` tree in one `protoc` invocation.
+
+## 24. `compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is
+
+**Discovered:** Task 8.1 (PostgreSQL schema application), applying every file in `generated/sql-postgres/` to a real PostgreSQL (docker-compose.yml, `postgres:17-alpine`) in sorted filename order and then verifying the resulting schema. The DDL applies cleanly — every statement succeeds — but the resulting database is missing most of the generated secondary indexes.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  entity Patient @ 1 (additive) {
+    @key id: uuid
+    legalName: string
+    dateOfBirth: date
+  }
+
+  entity Practitioner @ 1 (additive) {
+    @key id: uuid
+    legalName: string
+    dateOfBirth: date
+  }
+
+  index Patient @ 1 {
+    primary id
+    secondary byName {
+      key: [legalName]
+      sort: [dateOfBirth]
+    }
+  }
+
+  index Practitioner @ 1 {
+    primary id
+    secondary byName {
+      key: [legalName]
+      sort: [dateOfBirth]
+    }
+  }
+
+  auto projections Patient @ 1 {
+    db
+  }
+
+  auto projections Practitioner @ 1 {
+    db
+  }
+}
+```
+
+```bash
+modelable compile . --target sql-postgres --out ./dist
+docker compose up -d postgres
+uv run scripts/apply-postgres-ddl.py ./dist
+psql -h 127.0.0.1 -p 5433 -U showcase -d showcase -c \
+  "SELECT tablename, indexname FROM pg_indexes WHERE schemaname='public' ORDER BY tablename"
+```
+
+**Observed:**
+
+```text
+ tablename      | indexname
+----------------+-----------
+ patient_db     | by_name
+ practitioner_db|          <- emitted "CREATE INDEX IF NOT EXISTS by_name ON practitioner_db" but the index is silently absent
+```
+
+Both `.sql` files emit `CREATE INDEX IF NOT EXISTS by_name ON <own_table> (...)` — with no table/domain prefix — and PostgreSQL scopes index names *per schema*, not per table. The first statement to run takes the name; every later `CREATE INDEX IF NOT EXISTS by_name` then finds an index with that name already in the schema and silently no-ops. On this showcase's full `generated/sql-postgres/` output the same collision strips nearly every secondary index: the emitted set declares `by_name` on six tables (`patient_db`, `patient_event`, `patient_reply`, `patient_request`, `patient_fhir_view`, `patient_summary`), `by_patient`/`by_status` on five invoice-family tables plus `outstanding_invoices`, and `by_patient_day`/`by_practitioner_day`/`by_status` on the four scheduling tables — but the applied database ends up with `by_name` only on `patient_fhir_view`, `by_patient`/`by_status` only on `invoice_db`, `by_practitioner_day` only on `daily_schedule`, and `by_patient_day` only on `appointment_db` (i.e. the survivors are exactly the lexicographically-first applicant of each name). `patient_db`, the showcase's primary persistence table, ends up with *no* index at all. Because the collision is masked by `IF NOT EXISTS`, nothing reports it: applying the whole emitted graph looks successful and silently produces a schema that does not match what the DDL declares.
+
+**Root cause (read from source, not guessed):** `emitters/sql.py::_emit_secondary_index_ddl` renders `CREATE {UNIQUE }INDEX IF NOT EXISTS {index_name} ON {table_name} (...)` where `index_name = _snake_case(secondary.name)` (line 207) — the bare declared index name with no table or domain prefix, identical across every projection of the declaring model and across any other model/domain that declares the same name. The `IF NOT EXISTS` keyword (added so a single file can be re-applied) is precisely what turns the cross-table collision into a silent skip instead of a hard error, so the defect is invisible in any per-file test. Nothing upstream checks this: `cli/tests/test_emit_sql.py` asserts on single-file text substrings only and never applies a whole target's output to a real database.
+
+**Expected:** make the emitted index names unique across the schema — e.g. prefix them with the table name (`patient_db_by_name`) — or drop the explicit name and let PostgreSQL derive one from table+columns, or emit per-domain schemas. Any of these makes the full generated graph applyable in one pass with every declared index present.
+
+**Showcase workaround:** `tests/integration/test_postgres_generated_schema.py` (Task 8.1) applies the full generated set with `scripts/apply-postgres-ddl.py` (deterministic sorted filename order, statements executed verbatim), verifies every generated table, the representative patient/appointment/invoice columns and SQL types, and synthetic-row insert/read-back round-trips — all through psycopg — and pins the exact applied index reality (which index names survive the collision on `patient_db`/`appointment_db`/`invoice_db`) as explicit assertions that flip when the emitter is fixed. Until #24 is fixed upstream, a consumer cannot apply an entire `generated/sql-postgres/` tree and end up with the schema its DDL declares.

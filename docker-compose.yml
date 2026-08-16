@@ -1,0 +1,30 @@
+name: modelable-showcase
+# Development-only services for the showcase (IMPLEMENTATION_PLAN.md Phase 8).
+# The PostgreSQL service pins an explicit major version, binds to localhost
+# only, uses synthetic development credentials, keeps data in a named volume,
+# and is isolated on its own network.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: showcase
+      POSTGRES_PASSWORD: showcase
+      POSTGRES_DB: showcase
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U showcase -d showcase"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+
+networks:
+  showcase-net:
