@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ModelableShowcase.Probe</RootNamespace>
+    <AssemblyName>ModelableShowcase.Probe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Generated C# sources are linked from the disposable generated/ tree, never
+       copied into git (IMPLEMENTATION_PLAN.md Task 7.2). Only the five value-type
+       artifacts that compile as-is under the pinned 1.7.0 release are linked here.
+
+       Everything else the csharp target emits references a type name that does not
+       exist in the output, so it fails `dotnet build` with CS0246:
+         - value types are referenced by their short source name but defined under
+           the stable prefixed name (UPSTREAM_FINDINGS.md #15);
+         - semantic types are referenced but never emitted at all (#16).
+       ContactDetails/Address/TimeRange/InvoiceLine/Diagnosis here are the plain
+       `value` declarations with no named-type or semantic-typed fields, so they are
+       unaffected by either bug and compile as-is - they are still real generated
+       patient/billing/clinical domain data.
+
+       Revisit once Modelable is re-pinned past a release that fixes #15/#16
+       (tracked per project owner direction, same as #12/#13): the full
+       generated/csharp/ set should become linkable at that point.
+       tests/integration/test_csharp_codegen.py asserts the full-set failure
+       explicitly so it flips when the emitter is fixed upstream. -->
+  <ItemGroup>
+    <Compile Include="../../generated/csharp/patient.Address.v0.cs" Link="generated/patient.Address.v0.cs" />
+    <Compile Include="../../generated/csharp/patient.ContactDetails.v0.cs" Link="generated/patient.ContactDetails.v0.cs" />
+    <Compile Include="../../generated/csharp/scheduling.TimeRange.v0.cs" Link="generated/scheduling.TimeRange.v0.cs" />
+    <Compile Include="../../generated/csharp/billing.InvoiceLine.v0.cs" Link="generated/billing.InvoiceLine.v0.cs" />
+    <Compile Include="../../generated/csharp/clinical.Diagnosis.v0.cs" Link="generated/clinical.Diagnosis.v0.cs" />
+  </ItemGroup>
+
+</Project>
