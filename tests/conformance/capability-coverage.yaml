@@ -76,6 +76,9 @@ capabilities:
   target:csharp:
     coverage: probe
     test: tests/integration/test_csharp_codegen.py::test_compilable_subset_builds
+  target:java:
+    coverage: probe
+    test: tests/integration/test_java_codegen.py::test_compilable_subset_compiles
   target:typescript:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_arrays_of_inline_enums_compile_in_typescript
