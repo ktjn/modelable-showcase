@@ -2,24 +2,20 @@
 Go builds with a real `go build`, not a text grep.
 
 The go target emits one file per model/projection under
-generated/go/<domain>/<name>.go, packaged as the lowercase domain name. Go
-compiles whole packages. This file tests both halves of the current 1.8.0
-reality:
+generated/go/<domain>/<name>.go, packaged as the lowercase domain name, plus a
+go.mod declaring the module name (modelable/generated) its cross-domain imports
+reference. Go compiles whole packages. This file tests the current reality:
 
 - The patient and scheduling packages build cleanly - their value types,
-  semantic types, models, and projections all resolve within the same package
-  (the #21/#22 fix from #365) - plus the self-contained billing/clinical value
-  type files. These are reassembled verbatim into a throwaway module
+  semantic types, models, and projections all resolve within the same package -
+  plus the self-contained billing/clinical value type files
   (`test_compilable_subset_builds`), mirroring what probes/go/generated_test.go
   compiles, which carries the construction/serialization proof via `go test`.
 
-- The full generated set still does NOT build: references to types declared in
-  another package are emitted bare with no import
-  (`test_full_generated_set_currently_fails_cross_package_resolution`). That
-  is the residual half of #21/#22, logged as a new finding - UPSTREAM_FINDINGS.md
-  #31. This failure assertion is the flip signal: it must be updated (and
-  probes/go grown to build the full set) once Modelable is re-pinned past a
-  release that fixes #31.
+- The full generated set builds (`test_full_generated_set_builds`): cross-domain
+  references are reference-scoped imports and semantic refs inline to their
+  primitives. This reflects UPSTREAM_FINDINGS.md #31 being fixed by the #37
+  cross-domain import fix (landed upstream, present in the pinned release).
 """
 
 from __future__ import annotations
@@ -52,8 +48,17 @@ COMPILABLE_SUBSET = sorted(
 
 def _write_go_module(module_root: Path, files: list[tuple[Path, Path]]) -> None:
     """Lay out a throwaway Go module: go.mod plus the given (source, target)
-    file pairs copied verbatim (never edited)."""
-    (module_root / "go.mod").write_text("module probe\n\ngo 1.26\n", encoding="utf-8")
+    file pairs copied verbatim (never edited).
+
+    The emitter now ships a go.mod declaring the module name its cross-domain
+    imports reference (module modelable/generated); use that verbatim when
+    present so cross-package imports resolve, falling back to `module probe`
+    for the subset-only reassembly."""
+    emitted_go_mod = GO_DIR / "go.mod"
+    if emitted_go_mod.is_file():
+        shutil.copy2(emitted_go_mod, module_root / "go.mod")
+    else:
+        (module_root / "go.mod").write_text("module probe\n\ngo 1.26\n", encoding="utf-8")
     for src, target in files:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, target)
@@ -87,7 +92,7 @@ def test_compilable_subset_builds():
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_full_generated_set_currently_fails_cross_package_resolution():
+def test_full_generated_set_builds():
     assert GO_DIR.is_dir(), "run 'make generate' first"
     with tempfile.TemporaryDirectory() as tmp:
         module_root = Path(tmp)
@@ -98,22 +103,7 @@ def test_full_generated_set_currently_fails_cross_package_resolution():
         assert pairs, "generated/go is empty"
         _write_go_module(module_root, pairs)
         result = go_build(module_root)
-
-        assert result.returncode != 0, (
-            "generated/go/ now builds in full - UPSTREAM_FINDINGS.md #31 "
-            "appears fixed. Update this test and grow probes/go to the full set "
-            "instead of leaving it green by accident.\n"
-            + result.stdout
-            + result.stderr
-        )
-
-        output = result.stdout + result.stderr
-        # #31: references to types declared in another package are emitted bare
-        # with no import - the cross-domain names in this graph.
-        assert "undefined: PatientPatientId" in output, output
-        assert "undefined: SchedulingPractitionerId" in output, output
-        assert "undefined: SchedulingTimeRangeV0" in output, output
-
-        # The probe's own subset files must not be implicated in any error.
-        for rel in COMPILABLE_SUBSET:
-            assert Path(rel).name not in output, f"subset file {rel} unexpectedly reported an error:\n{output}"
+        # UPSTREAM_FINDINGS.md #31 (and the #37 cross-domain import fix): the
+        # full generated/go/ set now builds in one module. The emitter emits a
+        # go.mod (module modelable/generated); the throwaway module uses it.
+        assert result.returncode == 0, result.stdout + result.stderr
