@@ -12,23 +12,22 @@
 
 use std::str::FromStr;
 
-use axum::body::Bytes;
-use axum::extract::{FromRequest, Path, Query, Request, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use chrono::{DateTime, NaiveDate, Utc};
 use clinic_core::patient::patient_address_v0::PatientAddressV0;
 use clinic_core::patient::patient_contact_details_v0::PatientContactDetailsV0;
 use clinic_core::patient::patient_id::PatientId;
 use clinic_core::patient::patient_patient_db_v2::PatientPatientDbV2;
 use clinic_core::patient::patient_patient_reply_v2::PatientPatientReplyV2;
 use clinic_core::patient::patient_patient_request_v2::PatientPatientRequestV2;
-use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
 
+use crate::http::{self, ApiError, JsonBody};
 use crate::AppState;
 
 const PATIENT_COLUMNS: &str = "patient_id, legal_name, preferred_name, date_of_birth, contact, \
@@ -39,59 +38,6 @@ pub fn patient_routes() -> Router<AppState> {
     Router::new()
         .route("/api/patients", post(create_patient).get(list_patients))
         .route("/api/patients/{id}", get(get_patient))
-}
-
-// --- error type ---------------------------------------------------------------
-
-pub struct ApiError {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl ApiError {
-    fn bad_request(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::BAD_REQUEST, message: message.into() }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::NOT_FOUND, message: message.into() }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::CONFLICT, message: message.into() }
-    }
-
-    fn internal(message: impl Into<String>) -> Self {
-        tracing::error!("{}", message.into());
-        Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: "internal server error".into() }
-    }
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        (self.status, Json(serde_json::json!({ "error": self.message }))).into_response()
-    }
-}
-
-// --- body extractor with a deterministic 400 JSON rejection --------------------
-
-pub struct JsonBody<T>(pub T);
-
-impl<S, T> FromRequest<S> for JsonBody<T>
-where
-    S: Send + Sync,
-    T: serde::de::DeserializeOwned,
-{
-    type Rejection = ApiError;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let bytes = Bytes::from_request(req, state)
-            .await
-            .map_err(|err| ApiError::bad_request(format!("invalid request body: {err}")))?;
-        let value = serde_json::from_slice(&bytes)
-            .map_err(|err| ApiError::bad_request(format!("invalid request body: {err}")))?;
-        Ok(JsonBody(value))
-    }
 }
 
 // --- mapping helpers ------------------------------------------------------------
@@ -136,20 +82,6 @@ pub fn db_to_reply(db: PatientPatientDbV2) -> PatientPatientReplyV2 {
 fn parse_date(value: &str) -> Result<NaiveDate, ApiError> {
     NaiveDate::parse_from_str(value, "%Y-%m-%d")
         .map_err(|err| ApiError::bad_request(format!("invalid date '{value}': {err}")))
-}
-
-fn parse_timestamp(value: &str) -> Result<DateTime<Utc>, ApiError> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|dt| dt.with_timezone(&Utc))
-        .map_err(|err| ApiError::bad_request(format!("invalid timestamp '{value}': {err}")))
-}
-
-fn utc_now_rfc3339() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
-}
-
-fn json<T: serde::Serialize>(value: &T) -> Result<String, ApiError> {
-    serde_json::to_string(value).map_err(|err| ApiError::internal(format!("serialization failed: {err}")))
 }
 
 fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<PatientPatientReplyV2, ApiError> {
@@ -197,8 +129,8 @@ fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<PatientPatientReplyV2, Ap
         alternate_phone_numbers,
         notes,
         clinical_notes,
-        created_at: created_at.to_rfc3339_opts(SecondsFormat::Secs, true),
-        updated_at: updated_at.map(|value| value.to_rfc3339_opts(SecondsFormat::Secs, true)),
+        created_at: http::format_rfc3339(created_at),
+        updated_at: updated_at.map(http::format_rfc3339),
     })
 }
 
@@ -220,7 +152,7 @@ async fn create_patient(
         return Err(ApiError::conflict(format!("patient {patient_id} already exists")));
     }
 
-    let created_at = utc_now_rfc3339();
+    let created_at = http::utc_now_rfc3339();
     let db_row = request_to_db(&request, &created_at);
 
     let insert = sqlx::query(
@@ -232,13 +164,13 @@ async fn create_patient(
     .bind(&db_row.legal_name)
     .bind(db_row.preferred_name.clone())
     .bind(parse_date(&db_row.date_of_birth)?)
-    .bind(json(&db_row.contact)?)
-    .bind(db_row.address.as_ref().map(json).transpose()?)
+    .bind(http::json(&db_row.contact)?)
+    .bind(db_row.address.as_ref().map(http::json).transpose()?)
     .bind(&db_row.preferred_language)
     .bind(db_row.alternate_phone_numbers.clone())
     .bind(db_row.notes.clone())
     .bind(db_row.clinical_notes.clone())
-    .bind(parse_timestamp(&db_row.created_at)?)
+    .bind(http::parse_timestamp(&db_row.created_at)?)
     .bind(None::<DateTime<Utc>>)
     .execute(&state.pool)
     .await
