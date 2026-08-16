@@ -2,7 +2,7 @@
 
 This document collects feature requests for the **Modelable** generator (upstream,
 `https://github.com/ktjn/modelable`) derived from building the Modelable Showcase
-(acceptance product in this repository, pinned to `modelable==1.7.0`).
+(acceptance product in this repository, pinned to `modelable==1.8.0`).
 
 Each request names the concrete friction the showcase hit, maps it to the
 relevant task and/or `UPSTREAM_FINDINGS.md` entry, proposes a behavior, and gives
@@ -13,28 +13,41 @@ This log is maintained in lockstep with `UPSTREAM_FINDINGS.md` per
 document, and a finding that is fixed upstream updates the status of the FRs
 that cite it in the same commit.
 
-Status is informational for the upstream team; nothing here is fixed in the
-pinned 1.7.0 release.
+**v1.8.0 status note (2026-08):** the showcase's pin moved from `1.7.0` to
+`1.8.0`, and every FR below shipped in that release (via
+[#354](https://github.com/ktjn/modelable/pull/354),
+[#355](https://github.com/ktjn/modelable/pull/355),
+[#364](https://github.com/ktjn/modelable/pull/364),
+[#365](https://github.com/ktjn/modelable/pull/365), and
+[#366](https://github.com/ktjn/modelable/pull/366)). Most are fully implemented;
+FR-4 and FR-11 are only partially implemented because new findings in v1.8.0's
+output block full adoption. Status below is per-request and reflects the 1.8.0
+reality, which the showcase's flip tests pin exactly.
 
 | ID | Feature | Friction source | Status |
 |----|---------|-----------------|--------|
-| FR-1 | Emit `PRIMARY KEY`/`UNIQUE` from `@key` in generated DDL | Tasks 9.2/9.3 duplicate handling | Proposed |
-| FR-2 | Server-generated key fields (IDs dropped from the request projection) | Tasks 9.2/9.3 | Proposed |
-| FR-3 | Symmetric Rust serde attributes (`#[serde(default)]`) | Tasks 9.2/9.3 reply round-trip | Proposed |
-| FR-4 | Generated Rust compiles for every supported model | Finding #14 (clinical/billing) | Fixed upstream ([#355](https://github.com/ktjn/modelable/pull/355), merged); showcase adoption awaits release |
-| FR-5 | Legal ClickHouse rendering for optional arrays | Finding #25 | Proposed |
-| FR-6 | Globally unique deterministic index names | Finding #24 | Proposed |
-| FR-7 | Cwd-independent deterministic registry-id resolution | Task 9.0 OpenAPI probe | Proposed |
-| FR-8 | Ship `openapi` in a versioned release (with a real version string) | Task 9.0 | Proposed |
-| FR-9 | Canonical, round-trippable `time`/`duration` serialization | Task 9.3 | Proposed |
-| FR-10 | Value objects as `jsonb` (or generated query operators) | Tasks 9.2/9.3 search/ordering | Proposed |
-| FR-11 | Foreign keys from `ref<>` in generated DDL | Tasks 9.2/9.3 | Proposed |
-| FR-12 | Official event-sink/outbox materialising event projections | Task 9.5 plan | Proposed |
-| FR-13 | A generated registry/contract module | Task 9.1 `/health` | Proposed |
+| FR-1 | Emit `PRIMARY KEY`/`UNIQUE` from `@key` in generated DDL | Tasks 9.2/9.3 duplicate handling | Implemented in v1.8.0 (verified: `patient_id TEXT NOT NULL PRIMARY KEY`) |
+| FR-2 | Server-generated key fields (IDs dropped from the request projection) | Tasks 9.2/9.3 | Implemented in v1.8.0 |
+| FR-3 | Symmetric Rust serde attributes (`#[serde(default)]`) | Tasks 9.2/9.3 reply round-trip | Implemented in v1.8.0 (verified in `generated/rust`) |
+| FR-4 | Generated Rust compiles for every supported model | Finding #14 (clinical/billing) | Partially implemented in v1.8.0 — clinical-core compiles; billing-core still fails on new finding #26 |
+| FR-5 | Legal ClickHouse rendering for optional arrays | Finding #25 | Implemented in v1.8.0 (verified: full clickhouse set applies) |
+| FR-6 | Globally unique deterministic index names | Finding #24 | Implemented in v1.8.0 (verified: table-prefixed names) |
+| FR-7 | Cwd-independent deterministic registry-id resolution | Task 9.0 OpenAPI probe | Implemented in v1.8.0 (verified: ledger at `model/registry-ids.lock`) |
+| FR-8 | Ship `openapi` in a versioned release (with a real version string) | Task 9.0 | Implemented in v1.8.0 (verified: `modelable capabilities` includes openapi; `modelable --version` = 1.8.0) |
+| FR-9 | Canonical, round-trippable `time`/`duration` serialization | Task 9.3 | Implemented in v1.8.0 (verified: chrono types in generated Rust) |
+| FR-10 | Value objects as `jsonb` (or generated query operators) | Tasks 9.2/9.3 search/ordering | Implemented in v1.8.0 (verified: `contact JSONB NOT NULL` in DDL) |
+| FR-11 | Foreign keys from `ref<>` in generated DDL | Tasks 9.2/9.3 | Partially implemented in v1.8.0 — FKs emitted but broken on new finding #27 |
+| FR-12 | Official event-sink/outbox materialising event projections | Task 9.5 plan | Implemented in v1.8.0 (event-sink target ships) |
+| FR-13 | A generated registry/contract module | Task 9.1 `/health` | Implemented in v1.8.0 (verified: `generated/registry/registry.json`) |
 
 ---
 
 ## FR-1 — Emit `PRIMARY KEY` / `UNIQUE` from `@key` in generated DDL
+
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration:
+`generated/sql-postgres/patient.PatientDb.v2.sql` emits `patient_id TEXT NOT NULL
+PRIMARY KEY` and every generated table has its `@key` column set as `PRIMARY KEY`.
+The API duplicate-handling path can now use `INSERT ... ON CONFLICT`.
 
 **Friction.** Every generated SQL table has `@key` fields emitted only as
 `TEXT NOT NULL` with no primary-key or unique constraint. The API therefore
@@ -57,6 +70,10 @@ showcase can then implement create as an `INSERT ... ON CONFLICT DO NOTHING`
 
 ## FR-2 — Server-generated key fields (IDs dropped from the request projection)
 
+**Status:** Implemented in v1.8.0. The request projection now excludes key fields
+marked server-owned, so the generated request type omits the id and the API mints
+it.
+
 **Friction.** The generated `request` projection excludes `@server` fields but
 not key fields, so `patientId` and `appointmentId` must be supplied by the
 client (`SchedulingAppointmentRequestV1.appointment_id` is `AppointmentId`,
@@ -76,6 +93,11 @@ defensive edge case rather than the primary flow.
 ---
 
 ## FR-3 — Symmetric Rust serde attributes (`#[serde(default)]`)
+
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration:
+generated Rust structs now carry `#[serde(default)]` alongside
+`#[serde(skip_serializing_if = "Option::is_none")]`, so generated types are
+lossless in both directions.
 
 **Friction.** Generated Rust structs annotate every `Option` field with
 `#[serde(skip_serializing_if = "Option::is_none")]` but no `#[serde(default)]`.
@@ -97,6 +119,12 @@ succeeds; the showcase reply-shape tests collapse to a single round-trip check.
 
 ## FR-4 — Generated Rust compiles for every supported model
 
+**Status:** Partially implemented in v1.8.0. The #14 root cause shipped fixed in
+[#355](https://github.com/ktjn/modelable/pull/355), so `generated/rust/clinical-core`
+now compiles; but new finding [#26](UPSTREAM_FINDINGS.md#26) — the projection
+status-enum `From` impl is never generated — still breaks `generated/rust/billing-core`,
+so the "every supported model compiles" acceptance criterion is not yet met.
+
 **Friction.** Finding #14: `compile --target rust` loses named-type resolution
 for **optional array fields** specifically. On pinned 1.7.0 the generated
 `clinical` and `billing` Rust packages do not compile, so the API crate
@@ -116,6 +144,11 @@ showcase API can reference all generated packages.
 
 ## FR-5 — Legal ClickHouse rendering for optional arrays
 
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration:
+optional arrays are rendered as bare `Array(T)` (no `Nullable` wrapper), so the
+full `generated/sql-clickhouse/` set applies; the Task 8.2 flip test
+`test_full_generated_set_currently_fails_nullable_array` was updated accordingly.
+
 **Friction.** Finding #25: the SQL emitter renders an optional `array<T>` as
 `Nullable(Array(T))`, which ClickHouse rejects (`ILLEGAL_TYPE_OF_ARGUMENT`,
 "Array(String) cannot be inside Nullable"). The full generated graph cannot be
@@ -134,6 +167,11 @@ becomes a plain "applies cleanly" test.
 
 ## FR-6 — Globally unique deterministic index names
 
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration: index
+names are now table-prefixed (`appointment_db_by_practitioner_day`,
+`daily_schedule_by_practitioner_day`), so every declared index is created; the
+`#24` flip assertion was updated to the new names.
+
 **Friction.** Finding #24: distinct models/projections generate the same index
 name (`by_practitioner_day` is emitted for both `appointment_db` and
 `daily_schedule`). Because the DDL uses `CREATE INDEX IF NOT EXISTS`, the second
@@ -151,6 +189,14 @@ every declared index; `\di` shows both `by_practitioner_day` variants.
 
 ## FR-7 — Cwd-independent deterministic registry-id resolution
 
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration: the
+registry-id ledger is now resolved relative to the model root — it is written to
+`model/registry-ids.lock` (beside the workspace) rather than a cwd-relative
+`.modelable/registry-ids.lock`, and `modelable compile` is independent of the
+invocation directory. Note the ids were reallocated as part of the move
+(`billing.InvoiceId: 1`, `patient.PatientId: 2`), which the registry-id flip test
+was updated for.
+
 **Friction.** Registry-id assignment reads/writes `.modelable/registry-ids.lock`
 relative to the **current working directory**. Compiling the same model from a
 different cwd reassigns registry ids, which changes generated OpenAPI schema
@@ -167,6 +213,11 @@ working directories over the same model produces byte-identical output.
 ---
 
 ## FR-8 — Ship `openapi` in a versioned release (with a real version string)
+
+**Status:** Implemented in v1.8.0. `modelable capabilities` includes `openapi` on
+the pinned release, `modelable --version` reports `1.8.0`, and this showcase's
+`tests/integration/test_openapi_checkpoint.py` now runs and passes without the
+`requires_openapi` skip.
 
 **Friction.** Task 9.0 verified that the `openapi` target (Phase A component
 schemas + Phase B paths, upstream #350–#359) exists only on `origin/main`; the
@@ -186,6 +237,12 @@ a distinct value from the previous release.
 ---
 
 ## FR-9 — Canonical, round-trippable `time` / `duration` serialization
+
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration:
+`time` fields compile to `chrono::NaiveTime`/`chrono::DateTime<chrono::Utc>` and
+`duration` fields to `chrono::Duration` in generated Rust, and the SQL target
+renders them canonically, so the API can bind directly without casts or hand
+parsers.
 
 **Friction.** `time` and `duration` fields compile to opaque strings in Rust and
 `INTERVAL`/`TEXT` in SQL with no single canonical wire format. Task 9.3 had to:
@@ -208,6 +265,12 @@ workarounds are removed.
 
 ## FR-10 — Value objects as `jsonb` (or generated query operators)
 
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration:
+value-object fields now emit as `JSONB` columns
+(`contact JSONB NOT NULL`, `slot JSONB NOT NULL` in
+`generated/sql-postgres/patient.PatientDb.v2.sql` / `scheduling.AppointmentDb.v1.sql`),
+so the API can drop its hand-written `::text::jsonb` casts.
+
 **Friction.** Value objects (`PatientContactDetails`, `PatientAddress`,
 `TimeRange`) are stored as `TEXT` JSON columns. Searches and ordering over them
 require hand-written casts in the showcase: `contact::jsonb ->> 'email' ILIKE ...`
@@ -226,6 +289,11 @@ application code.
 
 ## FR-11 — Foreign keys from `ref<>` in generated DDL
 
+**Status:** Partially implemented in v1.8.0. FKs are now emitted for `ref<>`
+fields, but new finding [#27](UPSTREAM_FINDINGS.md#27) makes them unusable: the
+`REFERENCES` clause names the model (`REFERENCES patient (patient_id)`) instead
+of the bound table (`patient_db`), so the full generated DDL cannot be applied.
+
 **Friction.** Cross-model references (`appointment.patientId:
 ref<patient.Patient@2>`) compile to plain `TEXT NOT NULL` with no foreign key,
 so referential integrity is unenforced and the API must decide whether to
@@ -242,6 +310,10 @@ patient fails at the database rather than silently passing.
 ---
 
 ## FR-12 — Official event-sink/outbox materialising event projections
+
+**Status:** Implemented in v1.8.0. An `event-sink` compile target now ships
+(`modelable capabilities` lists it; `generated/event-sink/` is produced), giving
+consumers an official contract for materialising event projections.
 
 **Friction.** The plan for Task 9.5 explicitly falls back to hand-written
 SQL/API aggregation "rather than Modelable runtime materialisation": event
@@ -262,6 +334,12 @@ without bespoke insert code in the API.
 ---
 
 ## FR-13 — A generated registry/contract module
+
+**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration: the
+`registry` target produces `generated/registry/registry.json` enumerating each
+compiled model's registry id, schema version, and content signature, so the
+`/health` contract object can be built from generated data instead of
+hand-assembled constants.
 
 **Friction.** Task 9.1 built the `/health` contract linkage by hand-picking one
 model (`PatientPatientV2::SCHEMA_VERSION`, `PatientId::REGISTRY_ID`, content

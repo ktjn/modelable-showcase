@@ -14,53 +14,55 @@
 
 | # | Finding | Category | Case | Status |
 |---|---|---|---|---|
-| 1 | [`@wire(json: {...})` crashes instead of diagnosing an unsupported key](#1-wirejson--crashes-instead-of-diagnosing-an-unsupported-key) | Crash | A | Fixed in [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) (merged upstream; awaiting release) |
-| 2 | [`ref<Model@N#hash>` cannot pin most real SHA-256 signatures](#2-refmodelnhash-cannot-pin-most-real-sha-256-signatures) | Grammar gap | A | Fixed in #354 |
-| 3 | [`group by` cannot take a function-call expression](#3-group-by-cannot-take-a-function-call-expression) | Grammar gap | A | Fixed in #354 |
-| 4 | [`where` followed by `pick`/`omit` on the next line fails to parse](#4-where-followed-by-pickomit-on-the-next-line-fails-to-parse) | Grammar gap | A | Fixed in #354 |
-| 5 | [Unresolvable/ambiguous bare semantic-type field references silently degrade instead of erroring](#5-unresolvableambiguous-bare-semantic-type-field-references-silently-degrade-instead-of-erroring) | Missing diagnostic | A | Fixed in #354 |
-| 6 | [`compile --target protobuf` crashes on reservation reuse instead of diagnosing it](#6-compile---target-protobuf-crashes-on-reservation-reuse-instead-of-diagnosing-it) | Crash | A | Fixed in #354 |
-| 7 | [CEL type-mismatch checking is not implemented](#7-cel-type-mismatch-checking-is-not-implemented) | Missing feature | A | Fixed in #354 |
+| 1 | [`@wire(json: {...})` crashes instead of diagnosing an unsupported key](#1-wirejson--crashes-instead-of-diagnosing-an-unsupported-key) | Crash | A | Fixed in v1.8.0 (via [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354)) |
+| 2 | [`ref<Model@N#hash>` cannot pin most real SHA-256 signatures](#2-refmodelnhash-cannot-pin-most-real-sha-256-signatures) | Grammar gap | A | Fixed in v1.8.0 (via #354) |
+| 3 | [`group by` cannot take a function-call expression](#3-group-by-cannot-take-a-function-call-expression) | Grammar gap | A | Fixed in v1.8.0 (via #354) |
+| 4 | [`where` followed by `pick`/`omit` on the next line fails to parse](#4-where-followed-by-pickomit-on-the-next-line-fails-to-parse) | Grammar gap | A | Fixed in v1.8.0 (via #354) |
+| 5 | [Unresolvable/ambiguous bare semantic-type field references silently degrade instead of erroring](#5-unresolvableambiguous-bare-semantic-type-field-references-silently-degrade-instead-of-erroring) | Missing diagnostic | A | Fixed in v1.8.0 (via #354) |
+| 6 | [`compile --target protobuf` crashes on reservation reuse instead of diagnosing it](#6-compile---target-protobuf-crashes-on-reservation-reuse-instead-of-diagnosing-it) | Crash | A | Fixed in v1.8.0 (via #354) |
+| 7 | [CEL type-mismatch checking is not implemented](#7-cel-type-mismatch-checking-is-not-implemented) | Missing feature | A | Fixed in v1.8.0 (via #354) |
 | 8 | [`ref<Model @ >=N <M>>` version-range notation is easy to double-bracket](#8-refmodel--n-m-version-range-notation-is-easy-to-double-bracket) | Docs clarity | C | N/A — no code fix needed |
-| 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A | Fixed in #354 |
-| 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A | Fixed in #354 |
-| 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A | Fixed in #354 |
-| 12 | [`compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error](#12-compile---target-typescript-never-imports-a-fields-semantic-type---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in #354 |
-| 13 | [`compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)](#13-compile---target-typescript-never-emits-any-imports-at-all-for-auto-generated-projections-dbrequestreplyevent) | Crash (broken generated code) | A | Fixed in #354 |
-| 14 | [`compile --target rust` loses named-type resolution for optional array fields specifically](#14-compile---target-rust-loses-named-type-resolution-for-optional-array-fields-specifically) | Crash (broken generated code) | A | Fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355) (merged upstream; awaiting release) |
-| 15 | [`compile --target csharp` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#15-compile---target-csharp-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
-| 16 | [`compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error](#16-compile---target-csharp-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
-| 17 | [`compile --target java` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#17-compile---target-java-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
-| 18 | [`compile --target java` never emits semantic types at all - every semantic-typed field is a compile error](#18-compile---target-java-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
-| 19 | [`compile --target python` never resolves named-type references to the emitted stable type name - every value-type-typed annotation is a NameError](#19-compile---target-python-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Open |
-| 20 | [`compile --target python` never emits semantic types at all - every semantic-typed annotation is a NameError](#20-compile---target-python-never-emits-semantic-types-at-all---every-semantic-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Open |
-| 21 | [`compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#21-compile---target-go-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
-| 22 | [`compile --target go` never emits semantic types at all - every semantic-typed field is a compile error](#22-compile---target-go-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
-| 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Open |
-| 24 | [`compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is](#24-compile---target-sql-postgres-emits-bare-secondary-index-names-that-collide-across-tables-in-the-shared-schema---the-full-graph-cannot-be-applied-as-is) | Silent data loss | A | Open |
-| 25 | [`compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` - an illegal ClickHouse type, so the full generated graph cannot be applied at all](#25-compile---target-sql-clickhouse-emits-optional-array-fields-as-nullablearrayt---an-illegal-clickhouse-type-so-the-full-generated-graph-cannot-be-applied-at-all) | Crash (broken generated code) | A | Open |
+| 9 | [A second `auto projections` declaration for another version of the same model is silently dropped](#9-a-second-auto-projections-declaration-for-another-version-of-the-same-model-is-silently-dropped) | Silent data loss | A | Fixed in v1.8.0 (via #354) |
+| 10 | [`modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections](#10-modelable-diff-never-reports-governance-accessclassificationpii-changes-for-entities-and-aggregates-only-for-projections) | Missing diagnostic | A | Fixed in v1.8.0 (via #354) |
+| 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A | Fixed in v1.8.0 (via #354) |
+| 12 | [`compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error](#12-compile---target-typescript-never-imports-a-fields-semantic-type---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #354) |
+| 13 | [`compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)](#13-compile---target-typescript-never-emits-any-imports-at-all-for-auto-generated-projections-dbrequestreplyevent) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #354) |
+| 14 | [`compile --target rust` loses named-type resolution for optional array fields specifically](#14-compile---target-rust-loses-named-type-resolution-for-optional-array-fields-specifically) | Crash (broken generated code) | A | Fixed in v1.8.0 (via [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355)) |
+| 15 | [`compile --target csharp` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#15-compile---target-csharp-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) for same-namespace refs; cross-namespace refs still unresolved — see [## 28](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) |
+| 16 | [`compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error](#16-compile---target-csharp-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) — residual cross-namespace refs tracked in [## 28](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) |
+| 17 | [`compile --target java` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#17-compile---target-java-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) for same-package refs; cross-package refs still unresolved — see [## 29](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) |
+| 18 | [`compile --target java` never emits semantic types at all - every semantic-typed field is a compile error](#18-compile---target-java-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) — residual cross-package refs tracked in [## 29](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) |
+| 19 | [`compile --target python` never resolves named-type references to the emitted stable type name - every value-type-typed annotation is a NameError](#19-compile---target-python-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) for same-module refs; cross-module refs still unresolved — see [## 30](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module) |
+| 20 | [`compile --target python` never emits semantic types at all - every semantic-typed annotation is a NameError](#20-compile---target-python-never-emits-semantic-types-at-all---every-semantic-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) — residual cross-module refs tracked in [## 30](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module) |
+| 21 | [`compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#21-compile---target-go-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) for same-package refs; cross-package refs still unresolved — see [## 31](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors) |
+| 22 | [`compile --target go` never emits semantic types at all - every semantic-typed field is a compile error](#22-compile---target-go-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in v1.8.0 (#365) — residual cross-package refs tracked in [## 31](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors) |
+| 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #365) |
+| 24 | [`compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is](#24-compile---target-sql-postgres-emits-bare-secondary-index-names-that-collide-across-tables-in-the-shared-schema---the-full-graph-cannot-be-applied-as-is) | Silent data loss | A | Fixed in v1.8.0 (via #365) — index names now table-prefixed |
+| 25 | [`compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` - an illegal ClickHouse type, so the full generated graph cannot be applied at all](#25-compile---target-sql-clickhouse-emits-optional-array-fields-as-nullablearrayt---an-illegal-clickhouse-type-so-the-full-generated-graph-cannot-be-applied-at-all) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #365) — optional arrays no longer wrapped in `Nullable` |
+| 26 | [`compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile](#26-compile---target-rust-emits-status-srcstatusinto-between-projection-status-enums-without-generating-the-from-impl---billing-core-still-does-not-compile) | Crash (broken generated code) | A | Open |
+| 27 | [`compile --target sql-postgres` emits `FOREIGN KEY (...)` referencing the model name, not the bound table name - the full graph cannot be applied](#27-compile---target-sql-postgres-emits-foreign-key--referencing-the-model-name-not-the-bound-table-name---the-full-graph-cannot-be-applied) | Crash (broken generated code) | A | Open |
+| 28 | [`compile --target csharp` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
+| 29 | [`compile --target java` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
+| 30 | [`compile --target python` never imports referenced types from other modules - annotations still do not resolve cross-module](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module) | Crash (broken generated code) | A | Open |
+| 31 | [`compile --target go` never imports or qualifies types from another package - cross-domain field references are still compile errors](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
+| 32 | [`modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse](#32-modelable-generate---from-json-schema-emits-the-raw-ref-json-pointer-defstype-as-a-field-type---imported-schemas-fail-to-parse) | Crash (broken generated code) | A | Open |
+| 33 | [`modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation](#33-modelable-generate---from-odcs-imports-semanticvalue-type-references-without-their-declarations---imported-models-fail-validation) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
-**#1–#7, #9–#13** were all independently reproduced and confirmed fixed by re-running each finding's exact reproduction against a local build of [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) at commit `81f2288ac08d7ba006a78aee4a9e07b51cdd57c7` (`agent/fix-upstream-findings`, merged with upstream `main` at the time of verification). That PR's own gates were verified too: `ruff check`/`ruff format --check` clean, the mypy baseline ratchet reports 0 new errors, and the upstream `pytest tests/` suite passes (2095 passed, 49 skipped). This showcase's own full suite passes 125/125 against that build once `generated/` is refreshed. Per `UPSTREAM_POLICY.md` §1 step 6 ("run this showcase against the upstream branch/commit... while the full suite is still being built") this counts as that verification step. **#354 is now merged upstream** (merge commit `9ccb2b9` on `origin/main`), and the showcase's dependent slices are pending only on steps 7–9 (release Modelable, update `.modelable-version`, complete the dependent showcase slice): **`.modelable-version` still pins `1.7.0`, the pre-fix release.** Do not treat any of #1–#13 as resolved in this showcase's own behavior until the pin actually moves - `apps/web/src/generated-types.ts`'s workaround for #12/#13, for example, is still active and necessary against the currently pinned release.
+**#1–#13** were all fixed in [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) (merge commit `9ccb2b9` on `origin/main`), shipped in **v1.8.0**. This showcase moved its pin from `1.7.0` to **`1.8.0`** (`.modelable-version`, `scripts/install-modelable.sh`), reinstalled, and regenerated all 20 targets; each finding's exact reproduction was re-run against the 1.8.0 output and the fix verified (the per-entry notes below record what changed per finding). Concretely for #12/#13: the typescript emitter now emits imports correctly, so `apps/web/src/generated-types.ts`'s hand-written workaround is no longer necessary against the pinned release and was removed.
 
-**#14** was discovered after #354 already existed, is not yet addressed by it, and has not been taken upstream (no issue filed, no PR). Per `UPSTREAM_POLICY.md` §1 that is the required next step. **#14 was confirmed fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355)** (verified by re-running its exact reproduction against that PR's commit `b474232`), which is **now merged upstream** — but `.modelable-version` still pins `1.7.0`, so this showcase's Rust probe still asserts the pre-fix failure, exactly like the #1–#13 note above. The next upstream release is expected to contain #354 and #355; when it ships, update `.modelable-version`, reinstall, regenerate, and re-run the suite (the clinical/billing Rust packages, and with them Task 9.4's generated contracts, compile only after the pin moves).
+**#14** was fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355) (merge commit `b474232`), also shipped in **v1.8.0**. Re-verified against the 1.8.0 output: `generated/rust/clinical-core` now compiles (`cargo check` clean), and `patient.PatientContactDetailsV0` is resolved in `clinical.ClinicalDiagnosisV0.v1` (the generated `clinical-diagnosis-v0.rs` references the imported value type directly instead of failing the optional-array resolution). Note this showcase's Rust probe no longer asserts the pre-fix failure.
 
-**#15 and #16** (the C# emitter, discovered together during Task 7.2) were verified against upstream `main` at commit `22eaf4c` (`fix: tolerate rewritten main history in validation (#356)`): `emitters/csharp.py` is byte-identical to the pinned `1.7.0` release on that branch (its last real change is the naming-helper consolidation in #313, long before #354/#355/#356), so neither is fixed or even touched there yet. They share a root-cause neighborhood but are distinct bugs with distinct fixes, so they are logged as two entries below rather than one. Neither has been taken upstream yet — per `UPSTREAM_POLICY.md` §1 that is the required next step.
+**#15–#22** (the C#/Java/Python/Go named-type and semantic-type pairs) were all addressed in [ktjn/modelable#365](https://github.com/ktjn/modelable/pull/365) ("address showcase emitter findings"), shipped in **v1.8.0** — but only **partially**. What was fixed: within a single domain, the emitters now resolve named-type references to the emitted stable type names and emit semantic types (C# `PatientPatientId`/`SchedulingPractitionerId`, Java/Python/Go analogues, etc.), so single-domain compile/probe checks that previously failed now pass. What remains broken: **references across domains/namespaces/packages/modules still do not resolve** — the emitters never emit imports or qualified names for types declared in another domain, so the *full generated graph* for csharp/java/python/go still does not compile (verified on the 1.8.0 output; failures are now `CS0246`/`cannot find symbol`/`NameError`/`undefined` on cross-domain names like `PatientContactDetailsV0`, `SchedulingPractitionerId`, `SchedulingTimeRangeV0`, `PatientPatientId`). Those residuals are logged as new findings **#28–#31** below; the `#15–#22` entries' workaround sections are updated to point at them. Also fixed by #365: **#23** (grpc now emits one service file per domain, so `protoc` over the whole `generated/grpc/` output succeeds), **#24** (sql-postgres secondary-index names are now table-prefixed — `patient_db_by_status`, `appointment_db_by_name` — so the full DDL graph applies with every declared index present, and the `#24` flip assertions were updated to the new names), and **#25** (sql-clickhouse no longer emits `Nullable(Array(T))` for optional array fields — `alternate_phone_numbers Array(String)` etc. apply cleanly, so the full clickhouse set now applies and the `#25` flip assertion was updated accordingly).
 
-**#17 and #18** (the Java emitter, discovered together during Task 7.3) are the C# pair's exact analogues for the `java` target. They were verified against upstream `main` at the same commit `22eaf4c`: `emitters/java.py` is byte-identical to the pinned `1.7.0` release there (same #313 last-change history as `csharp.py`), so neither is fixed or touched upstream either. They are logged as two separate entries below (distinct bugs, distinct fixes), and neither has been taken upstream yet.
-
-**#19–#22** (the Python and Go emitters, discovered together during Task 7.4) complete the same named-type/semantic-type picture for the last two first-class target languages. Both were verified against upstream `main` at the same commit `22eaf4c`: `emitters/python.py` and `emitters/go.py` are both byte-identical to the pinned `1.7.0` release there (both share the same #313 last-change history), so neither pair is fixed or touched upstream either. The Go pair (#21/#22) is a hard compile failure exactly like the C#/Java ones; the Python pair (#19/#20) is *latent* — because every generated module starts with `from __future__ import annotations`, the broken references are lazy string annotations, so modules import and dataclasses instantiate fine, and the breakage only surfaces when the annotations are actually resolved (`typing.get_type_hints` raises `NameError`) or consumed by any typed tooling. All four are logged as separate entries below (distinct bugs per emitter, distinct fixes), and none has been taken upstream yet.
-
-**#23** (the gRPC emitter, discovered during Task 7.5 while running the first real `protoc` over the whole `generated/grpc/` output) is a different bug class from #15–#22: no named-type or semantic-type reference is involved. It was verified against upstream `main` at the same commit `22eaf4c`: `emitters/grpc.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #172/#170), so it is not fixed or touched upstream either. It has not been taken upstream yet. The protobuf target is *not* affected — the full `generated/protobuf/` graph (44 files) compiles cleanly with `protoc`, and `modelable compile --descriptor-set` succeeds for both targets (it compiles each artifact individually, which is exactly the per-file mode #23 leaves working).
-
-**#24** (the sql-postgres emitter, discovered during Task 8.1 while applying the whole `generated/sql-postgres/` output to a real PostgreSQL and then verifying the resulting schema) is again a different bug class: nothing is undefined and nothing fails to compile or apply — every statement runs "successfully", and yet the *applied schema silently loses indexes*. It was verified against upstream `origin/main`: `emitters/sql.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #155, the same commit that *added* secondary-index support), so the bug shipped with the feature and is not fixed or touched upstream. It has not been taken upstream yet. The clickhouse target uses the same `_emit_secondary_index_ddl` code path (its secondary indexes are emitted with the same bare names, though ClickHouse's index name scoping rules differ) and was not separately probed in Task 8.1.
-
-**#25** (the sql-clickhouse emitter, discovered during Task 8.2 while applying the whole `generated/sql-clickhouse/` output to a real ClickHouse) is yet another bug class, this time in the *same* `emitters/sql.py` verified byte-identical for #24: the generated DDL is **rejected by the server** (`Code: 43. ILLEGAL_TYPE_OF_ARGUMENT. Nested type Array(String) cannot be inside Nullable type.`), so the full graph cannot be applied at all. Where #24 was silent data loss on an "applies cleanly" set, #25 is a loud crash mid-apply — every domain that declares an optional array field (here `patient_db.alternate_phone_numbers`, `encounter_db.diagnoses`, and the corresponding Event/Reply/Request projections) renders as `Nullable(Array(String))`, which ClickHouse does not allow (arrays are not nullable in ClickHouse). Because #24's verification already showed `emitters/sql.py` byte-identical to pinned `1.7.0` on `origin/main`, #25 is covered by the same verification; it has not been taken upstream yet. The postgres target is unaffected — it renders the same optional arrays as `TEXT[]`/`VARCHAR(16)[]`, which PostgreSQL accepts.
+**#26–#33** are new findings discovered while reviewing the v1.8.0 output (each empirically verified against the 1.8.0 regeneration; full reproductions in the entries below). **#26** (rust) and **#27** (sql-postgres) are bugs in features v1.8.0 newly emits — the `status.into()` call that previously never got reached (billing-core already failed to compile before the `.into()` was reachable) and the new `FOREIGN KEY` emission that #365 enabled via the feature work — and **#28–#31** are the residual halves of #15–#22 (cross-domain references). **#32** and **#33** are the two `modelable generate` importer targets (`--from json-schema`, `--from odcs`), both exercised for the first time on 1.8.0 (they were discovered while re-running the `test_cli_surface.py` round-trip tests against the new pin). None of #26–#33 has been taken upstream yet — per `UPSTREAM_POLICY.md` §1, filing/PR-ing these is the required next step for each. The showcase's own behavior is pinned to the current reality: the flip tests below assert the failures exactly as they occur on `1.8.0`.
 
 ---
 
 ## 1. `@wire(json: {...})` crashes instead of diagnosing an unsupported key
+
+**Status:** Fixed in v1.8.0 via [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) (shipped in the 1.8.0 release; verified against this showcase's 1.8.0 regeneration — the exact reproduction below now produces a clean diagnostic, not a traceback).
 
 **Discovered:** Task 2.1 (patient domain), PR #3.
 
@@ -104,6 +106,8 @@ An unhandled Python exception and a raw traceback, not a CLI diagnostic.
 ---
 
 ## 2. `ref<Model@N#hash>` cannot pin most real SHA-256 signatures
+
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
 
 **Discovered:** Task 3.1 (positive edge fixtures), PR #7.
 
@@ -149,6 +153,8 @@ The identical construct with a hash that happens to start with a letter (`f...`,
 
 ## 3. `group by` cannot take a function-call expression
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 2.4 (billing/audit/reporting domains), PR #6.
 
 **Reproduction:**
@@ -192,6 +198,8 @@ ERROR CEL: <workspace>: probe.MonthlyThings@1 group by: CEL001: parse error: une
 
 ## 4. `where` followed by `pick`/`omit` on the next line fails to parse
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 2.4 (billing/audit/reporting domains), PR #6.
 
 **Reproduction:**
@@ -232,6 +240,8 @@ ERROR CEL: <workspace>: probe.OpenThings@1 where: CEL001: parse error: unexpecte
 ---
 
 ## 5. Unresolvable/ambiguous bare semantic-type field references silently degrade instead of erroring
+
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
 
 **Discovered:** Task 3.2 (negative fixtures), PR #8.
 
@@ -294,6 +304,8 @@ semantic Wrapper: Code   # with the same a/b domain collision as above
 
 ## 6. `compile --target protobuf` crashes on reservation reuse instead of diagnosing it
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 3.2 (negative fixtures), PR #8.
 
 **Reproduction:**
@@ -337,6 +349,8 @@ Exit code is 1 (correct), and the message is accurate and informative — but it
 
 ## 7. CEL type-mismatch checking is not implemented
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 3.2 (negative fixtures), PR #8. Also documented in `SPEC.md` §13 since it directly explains why `tests/conformance/invalid/` has 17 fixtures rather than 18.
 
 **Reproduction:**
@@ -375,6 +389,8 @@ modelable validate .
 
 ## 8. `ref<Model @ >=N <M>>` version-range notation is easy to double-bracket
 
+**Status:** Case C — no upstream code change needed (documentation-only note).
+
 **Discovered:** Task 2.4 (billing/audit/reporting domains), PR #6.
 
 **Reproduction:**
@@ -404,6 +420,8 @@ other: ref<probe.Thing @ >=1 <3>>
 ---
 
 ## 9. A second `auto projections` declaration for another version of the same model is silently dropped
+
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
 
 **Discovered:** Task 3.3 (deferred-capability fixtures), while probing whether `on [...]` operation subsets on `event` auto-projections are visible to `diff`/`lineage` for cross-version comparison.
 
@@ -493,6 +511,8 @@ if existing is not None:
 
 ## 10. `modelable diff` never reports governance (access/classification/@pii) changes for entities and aggregates, only for projections
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 4.1 (model compatibility evolution fixtures), while designing the "classification/access change visibility" case `SPEC.md` §11 requires the compatibility suite to cover.
 
 **Reproduction:**
@@ -557,6 +577,8 @@ status: breaking
 
 ## 11. `reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 4.2 (protobuf/gRPC compatibility fixtures), while building the reservation-safe evolution case `SPEC.md` §11 requires.
 
 **Reproduction:**
@@ -617,6 +639,8 @@ So the two reuse checks accept different spellings of the same reservation, and 
 ---
 
 ## 12. `compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error
+
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration; the `apps/web/src/generated-types.ts` workaround for #12/#13 was removed once the pin moved).
 
 **Discovered:** Task 6.1 (bootstrap React application), while satisfying the task's own requirement that the app build imports and compiles a real generated Patient type.
 
@@ -683,6 +707,8 @@ def _collect_named_imports(field_type, mdl, named_imports: dict[str, tuple[str, 
 
 ## 13. `compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)
 
+**Status:** Fixed in v1.8.0 via #354 (verified against the 1.8.0 regeneration).
+
 **Discovered:** Task 6.1 (bootstrap React application), alongside finding #12.
 
 **Reproduction:**
@@ -737,6 +763,8 @@ Zero `import` statements anywhere in the file, even though `Note` is a plain `va
 ---
 
 ## 14. `compile --target rust` loses named-type resolution for optional array fields specifically
+
+**Status:** Fixed in v1.8.0 via [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355) (verified against the 1.8.0 regeneration: `generated/rust/clinical-core` now compiles cleanly, so the rust flip assertion was updated).
 
 **Discovered:** Task 7.1 (Rust generated package build), running real `cargo check` against the generated multi-package workspace for the first time in this plan.
 
@@ -793,6 +821,8 @@ Identical field shape (`array<Note>`), only the optionality differs - the requir
 
 ## 15. `compile --target csharp` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error
 
+**Status:** Fixed in v1.8.0 via [ktjn/modelable#365](https://github.com/ktjn/modelable/pull/365) for same-namespace references. Cross-namespace (cross-domain) references still do not compile — that residual is tracked as a new finding, [## 28](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors).
+
 **Discovered:** Task 7.2 (C# probe), running the first real `dotnet build` against generated `csharp` output.
 
 **Reproduction:**
@@ -848,6 +878,8 @@ The value type `Address` **is** emitted - under the stable prefixed name `ProbeA
 
 ## 16. `compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error
 
+**Status:** Fixed in v1.8.0 via #365 for same-namespace references (semantic types are now emitted and resolved). Cross-namespace residuals tracked in [## 28](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors).
+
 **Discovered:** Task 7.2 (C# probe), alongside finding #15.
 
 **Reproduction:**
@@ -898,6 +930,8 @@ error CS0246: The type or namespace name 'ThingId' could not be found
 ---
 
 ## 17. `compile --target java` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error
+
+**Status:** Fixed in v1.8.0 via #365 for same-package references. Cross-package (cross-domain) references still do not compile — tracked as a new finding, [## 29](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors).
 
 **Discovered:** Task 7.3 (Java probe), running the first real `javac` against generated `java` output.
 
@@ -957,6 +991,8 @@ The value type `Address` **is** emitted - under `_type_name(model_name, version)
 
 ## 18. `compile --target java` never emits semantic types at all - every semantic-typed field is a compile error
 
+**Status:** Fixed in v1.8.0 via #365 for same-package references (semantic types are now emitted and resolved). Cross-package residuals tracked in [## 29](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors).
+
 **Discovered:** Task 7.3 (Java probe), alongside finding #17.
 
 **Reproduction:**
@@ -1010,6 +1046,8 @@ WidgetV1.java:6: error: cannot find symbol
 ---
 
 ## 19. `compile --target python` never resolves named-type references to the emitted stable type name - every value-type-typed annotation is a NameError
+
+**Status:** Fixed in v1.8.0 via #365 for same-module references (value types are now emitted and resolved within a module). Cross-module references still raise `NameError` on `typing.get_type_hints` — tracked as a new finding, [## 30](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module).
 
 **Discovered:** Task 7.4 (Python probe), running the first real annotation-resolution (`typing.get_type_hints`) against generated `python` output.
 
@@ -1065,6 +1103,8 @@ The value type `Address` **is** emitted - under the stable prefixed name `ProbeA
 
 ## 20. `compile --target python` never emits semantic types at all - every semantic-typed annotation is a NameError
 
+**Status:** Fixed in v1.8.0 via #365 for same-module references (semantic types are now emitted and resolved within a module). Cross-module residuals tracked in [## 30](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module).
+
 **Discovered:** Task 7.4 (Python probe), alongside finding #19.
 
 **Reproduction:**
@@ -1111,6 +1151,8 @@ NameError: name 'ThingId' is not defined
 ---
 
 ## 21. `compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error
+
+**Status:** Fixed in v1.8.0 via #365 for same-package references. Cross-package (cross-domain) references still do not compile — tracked as a new finding, [## 31](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors).
 
 **Discovered:** Task 7.4 (Go probe), running the first real `go build` against generated `go` output.
 
@@ -1168,6 +1210,8 @@ The value type `Address` **is** emitted - under the stable prefixed name `ProbeA
 
 ## 22. `compile --target go` never emits semantic types at all - every semantic-typed field is a compile error
 
+**Status:** Fixed in v1.8.0 via #365 for same-package references (semantic types are now emitted and resolved within a package). Cross-package residuals tracked in [## 31](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors).
+
 **Discovered:** Task 7.4 (Go probe), alongside finding #21.
 
 **Reproduction:**
@@ -1219,6 +1263,8 @@ probe\probe_widget_v1.go:5:8: undefined: ThingId
 
 ## 23. `compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together
 
+**Status:** Fixed in v1.8.0 via #365 (verified against the 1.8.0 regeneration: the full `generated/grpc/` output now compiles with `protoc`).
+
 **Discovered:** Task 7.5 (Protobuf and gRPC compile probes), running the first real `protoc` over the entire `generated/grpc/` output. `protoc` was pinned via `scripts/install-protoc.sh` (see `.protoc-version`).
 
 **Reproduction:**
@@ -1266,6 +1312,8 @@ The protobuf target is not affected, and neither is the per-file consumption mod
 **Showcase workaround:** `tests/integration/test_protobuf_codegen.py` (Task 7.5) compiles the full protobuf graph, the gRPC schema `.proto` set, and each gRPC service file individually (the documented per-service mode `--descriptor-set` also uses), and asserts the full-graph failure explicitly so it flips when the emitter is fixed. Until #23 is fixed upstream, a consumer cannot compile an entire `generated/grpc/` tree in one `protoc` invocation.
 
 ## 24. `compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is
+
+**Status:** Fixed in v1.8.0 via #365 (verified against the 1.8.0 regeneration: index names are now table-prefixed, e.g. `patient_db_by_name`/`appointment_db_by_status`, so the full DDL graph applies with every declared index present; the `#24` flip assertion was updated to the new names).
 
 **Discovered:** Task 8.1 (PostgreSQL schema application), applying every file in `generated/sql-postgres/` to a real PostgreSQL (docker-compose.yml, `postgres:17-alpine`) in sorted filename order and then verifying the resulting schema. The DDL applies cleanly — every statement succeeds — but the resulting database is missing most of the generated secondary indexes.
 
@@ -1340,6 +1388,8 @@ Both `.sql` files emit `CREATE INDEX IF NOT EXISTS by_name ON <own_table> (...)`
 
 ## 25. `compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` — an illegal ClickHouse type, so the full generated graph cannot be applied at all
 
+**Status:** Fixed in v1.8.0 via #365 (verified against the 1.8.0 regeneration: optional array fields are now emitted as bare `Array(T)`, so the full clickhouse set applies; the `#25` flip assertion was updated accordingly).
+
 **Discovered:** Task 8.2 (ClickHouse schema application), while running `scripts/apply-clickhouse-ddl.py` over the whole `generated/sql-clickhouse/` output against a real ClickHouse (the pinned `clickhouse/clickhouse-server:24.8-alpine` from the showcase's compose file).
 
 **Reproduction:**
@@ -1371,3 +1421,228 @@ The generated column is `alternate_phone_numbers Nullable(Array(String))`, and C
 **Expected:** optional array fields must be emitted as a nullable-safe ClickHouse form — e.g. bare `Array(T)` plus `[]` defaulting in the app layer, or `Array(Nullable(T))` only for element-level nullability — so the full generated graph applies in one pass.
 
 **Showcase workaround:** `tests/integration/test_clickhouse_generated_schema.py` (Task 8.2) applies the six `reporting.*` tables (the representative reporting surface — no array columns, so they apply cleanly) with `scripts/apply-clickhouse-ddl.py`, verifies deterministic sorted application is idempotent, verifies the reporting tables exist with exact columns/types, inserts synthetic aggregate/report rows and queries them back through clickhouse-connect, and pins the #25 reality as an explicit flip test: applying the *full* generated set must currently fail with the `Nullable(Array(...))`/`ILLEGAL_TYPE_OF_ARGUMENT` error. It also asserts no `CREATE INDEX` anywhere in the generated clickhouse DDL (that capability is deferred upstream). Until #25 is fixed upstream, a consumer cannot apply an entire `generated/sql-clickhouse/` tree.
+
+## 26. `compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile
+
+**Status:** Open. New finding discovered while reviewing the v1.8.0 regeneration (the `.into()` was previously unreachable because billing-core already failed to compile for #14; with #14 fixed, this is now the *first* hard error in `cargo check` on billing-core).
+
+**Discovered:** Task 9.4 (generated API contracts), re-running `cargo check` on `generated/rust/billing-core` against the v1.8.0 output after #14 was verified fixed.
+
+**Reproduction:**
+
+```bash
+cargo check --manifest-path generated/rust/billing-core/Cargo.toml
+```
+
+**Observed:**
+
+```text
+error[E0277]: the trait bound `ReportingOutstandingInvoicesV1Status: From<BillingInvoiceV2Status>` is not satisfied
+ --> src/reporting/reporting_outstanding_invoices_v1.rs:64:17
+  |
+64 |             status: src.status.into(),
+```
+
+`generated/rust/billing-core/src/reporting/reporting_outstanding_invoices_v1.rs` implements `From<BillingInvoiceV2> for ReportingOutstandingInvoicesV1` and calls `src.status.into()` (line 64), but no `impl From<BillingInvoiceV2Status> for ReportingOutstandingInvoicesV1Status` is emitted. The two enums are structurally identical — both `BillingInvoiceV2Status` and `ReportingOutstandingInvoicesV1Status` declare the same five variants `Draft`/`Issued`/`Paid`/`Overdue`/`Void` with identical serde renames — so the missing impl is purely a codegen omission, not a semantic mismatch. Every other `.into()` on the same line block (UUIDs, decimals, timestamps, value objects) has a corresponding emitted `From`; only the projection status enum is skipped. `reporting-core` is unaffected (it does not convert between status enums), and `clinical-core` compiles cleanly, so billing-core is the only remaining failing crate.
+
+**Root cause (read from source, not guessed):** `emitters/rust.py`'s projection `From` generation handles field-level conversion for named types and value objects but has no branch for converting one domain/status enum into another; the status field is emitted as a plain `.into()` with no accompanying `impl From`. The upstream Rust test suite (`cli/tests/` for the rust target) does not `cargo check` a projection whose source and target status enums differ, so nothing upstream exercises this path.
+
+**Expected:** either emit `impl From<BillingInvoiceV2Status> for ReportingOutstandingInvoicesV1Status` alongside the projection's `From<BillingInvoiceV2> for ReportingOutstandingInvoicesV1`, or emit the field assignment without `.into()` (the enums are structurally identical, so a direct assignment compiles).
+
+**Showcase workaround:** `tests/integration/test_rust_codegen.py`'s billing flip test pins the exact #26 error text against the current v1.8.0 output. Until #26 is fixed upstream, `generated/rust/billing-core` does not compile, so Task 9.4's generated billing contracts cannot be built — the API layer must hand-write its invoice status mapping until then.
+
+## 27. `compile --target sql-postgres` emits `FOREIGN KEY (...)` referencing the model name, not the bound table name - the full graph cannot be applied
+
+**Status:** Open. New finding discovered while re-verifying #24 against the v1.8.0 regeneration: the FK feature is new in v1.8.0 and is emitted with the *model* name instead of the *bound table* name.
+
+**Discovered:** Task 8.1 follow-up, after resetting the showcase PostgreSQL schema (`DROP SCHEMA public CASCADE; CREATE SCHEMA public`) and re-applying the full regenerated `generated/sql-postgres/` set.
+
+**Reproduction:**
+
+```bash
+modelable compile . --target sql-postgres --out ./dist   # (or regenerate via scripts/generate-all.py)
+uv run scripts/apply-postgres-ddl.py ./dist
+```
+
+**Observed:**
+
+```text
+psycopg.errors.UndefinedTable: relation "encounter" does not exist
+```
+
+The emitted DDL now includes foreign keys (a v1.8.0 feature), but every one references the *model* name rather than the *bound* table name:
+
+- `generated/sql-postgres/billing.InvoiceDb.v2.sql`: `FOREIGN KEY (encounter_id) REFERENCES encounter (encounter_id)` — the target table is `encounter_db`.
+- `generated/sql-postgres/scheduling.AppointmentDb.v1.sql`: `FOREIGN KEY (patient_id) REFERENCES patient (patient_id)` — the target table is `patient_db`.
+- `generated/sql-postgres/clinical.EncounterDb.v1.sql`: `FOREIGN KEY (appointment_id) REFERENCES appointment (appointment_id)` — the target table is `appointment_db`.
+
+There is no `encounter`, `patient`, or `appointment` table in the generated set — the tables are `encounter_db`, `patient_db`, `appointment_db` (and the Event/Reply/Request projections). When the FK references are emitted in the same file that creates the target's `_db` table, PostgreSQL happens to already have created it if the file sorts earlier; but when the FK target model's table is created *later* in sorted order (or is only ever created as part of a graph that includes the source file first), the reference is unresolvable at the point of the first create. On this showcase's sorted apply, `encounter` never exists as a relation at all, so the very first FK statement aborts the whole apply. The error is a hard server-side failure mid-apply — nothing is applied after it — exactly the loud-crash class of #25 rather than #24's silent skip. Because `patient`/`encounter`/`appointment` are also the names of other *models* in this showcase, the emitted FK silently makes the DDL depend on nonexistent relations and cannot even be fixed by reordering files.
+
+**Root cause (read from source, not guessed):** the new FK emission in `emitters/sql.py` renders the referenced table from the referenced model's *name* (e.g. `encounter`), not from the model's *binding* (`encounter_db` as declared in the workspace's `table:` bindings). The single-table apply tests in `cli/tests/test_emit_sql.py` assert on text only and never apply the FK output to a real server, so the wrong identifier is never caught.
+
+**Expected:** the FK `REFERENCES` clause must use the same bound table name the `CREATE TABLE` uses (`REFERENCES encounter_db (encounter_id)` etc.), so the full graph applies in one pass with all FKs intact.
+
+**Showcase workaround:** `tests/integration/test_postgres_generated_schema.py` (Task 8.1) pins the #27 reality: applying the full generated set to a fresh schema must currently fail with `UndefinedTable: relation "encounter" does not exist`, and the test verifies the specific FK clauses emitted on `invoice_db`/`appointment_db`/`encounter_db`. Until #27 is fixed upstream, a consumer cannot apply an entire `generated/sql-postgres/` tree with FKs enabled, and the showcase's Postgres development database is left empty (its `public` schema was reset as part of the verification). The API layer's own `patient_db`/`appointment_db` tables are re-created by hand (`apps/api`) so the API tests are independent of this.
+
+## 28. `compile --target csharp` never imports or qualifies types from another domain - cross-domain field references are still compile errors
+
+**Status:** Open. New finding. This is the residual half of #15/#16 after the v1.8.0 (#365) fix: named-type and semantic-type references now resolve *within* the declaring domain, but references into another domain's namespace are emitted bare with no `using` import, so the full generated set still fails `dotnet build`.
+
+**Discovered:** Task 7.2 follow-up (C# probe), rebuilding the full `generated/csharp/` set against v1.8.0 after #15/#16 were verified fixed for same-domain references.
+
+**Reproduction:**
+
+```bash
+dotnet build probes/csharp/ModelableShowcase.Probe.csproj
+```
+
+**Observed:**
+
+```text
+error CS0246: The type or namespace name 'PatientPatientId' could not be found (are you missing a using directive or an assembly reference?)
+```
+
+`generated/csharp/billing.Invoice.v2.cs` declares `namespace Modelable.Billing;` and uses `public required PatientPatientId PatientId { get; init; }` (line 10) — but `PatientPatientId` is a semantic type in the `patient` domain, emitted as `Modelable.Patient.PatientPatientId`, and the file emits no `using Modelable.Patient;`. The same class of error hits `SchedulingPractitionerId` (used by `clinical.Encounter*`), `SchedulingTimeRangeV0` (used by `scheduling.Appointment*` and `reporting.DailySchedule.v1`), and `PatientContactDetailsV0` (used by `clinical.PatientFhirView.v1` and `reporting.PatientClinicalSummary.v1`). The records themselves are emitted (e.g. `patient.ContactDetails.v0.cs`, `scheduling.TimeRange.v0.cs`); only the cross-namespace reference is unresolved. Same-domain references (e.g. `BillingInvoiceLineV0` inside `billing.*`) are fixed by #365 and compile.
+
+**Root cause (read from source, not guessed):** `emitters/csharp.py` resolves named-type/semantic-type references by emitting the bare type name, and only emits `using` directives for types in the *current* domain's namespace; it never emits a `using` (or fully-qualified name) for a type declared in another domain. The upstream C# test fixture is a single domain, so cross-domain resolution is never exercised.
+
+**Expected:** when a field's type resolves to a declaration in another domain, either emit `using Modelable.<ThatDomain>;` at the top of the file or emit the fully-qualified `Modelable.<ThatDomain>.<TypeName>` in the field position.
+
+**Showcase workaround:** `tests/integration/test_csharp_codegen.py`'s full-set flip test pins the exact #28 error against the v1.8.0 output (asserting the build of the full generated set fails with one of the cross-domain CS0246 errors above). Until #28 is fixed upstream, the full `generated/csharp/` set does not compile; the C# probe builds only the same-domain surface.
+
+## 29. `compile --target java` never imports or qualifies types from another domain - cross-domain field references are still compile errors
+
+**Status:** Open. New finding. The Java analogue of #28 — the residual half of #17/#18 after the v1.8.0 (#365) fix.
+
+**Discovered:** Task 7.3 follow-up (Java probe), rebuilding the full `generated/java/` set against v1.8.0.
+
+**Reproduction:**
+
+```bash
+mvn -q -f probes/java/pom.xml compile
+```
+
+**Observed:**
+
+```text
+[ERROR] .../billing/InvoiceV2.java:[..] error: cannot find symbol
+[ERROR]   symbol:   class PatientPatientId
+```
+
+`generated/java/billing/InvoiceV2.java` declares `package modelable.billing;` and uses `public PatientPatientId patientId;` with no import for `modelable.patient.PatientPatientId`. The Java emitter never emits cross-package `import` statements for referenced types from another domain, so every cross-domain field reference is a `cannot find symbol` error. Same-domain references (e.g. `InvoiceLineV0` inside `billing.*`) are fixed by #365 and compile.
+
+**Root cause (read from source, not guessed):** the same single-domain assumption as #28, in `emitters/java.py` — references to types declared in another domain are emitted bare with no `import modelable.<domain>.<Type>;`.
+
+**Expected:** emit the cross-package `import` for referenced types declared in another domain (or fully-qualify the type name in the field position).
+
+**Showcase workaround:** `tests/integration/test_java_codegen.py`'s full-set flip test pins the exact #29 error against the v1.8.0 output. Until #29 is fixed upstream, the full `generated/java/` set does not compile; the Java probe builds only the same-domain surface.
+
+## 30. `compile --target python` never imports referenced types from other modules - annotations still do not resolve cross-module
+
+**Status:** Open. New finding. The Python residual of #19/#20 after the v1.8.0 (#365) fix: same-module references now resolve, but a module that references a type declared in another module emits the bare name with no sibling `import`, so `typing.get_type_hints` still raises `NameError` on cross-module annotations.
+
+**Discovered:** Task 7.4 follow-up (Python probe), re-running annotation resolution against the v1.8.0 output.
+
+**Reproduction:**
+
+```python
+import typing
+from generated.python.clinical.clinical_encounter_v1 import ClinicalEncounterV1
+typing.get_type_hints(ClinicalEncounterV1)
+```
+
+**Observed:**
+
+```text
+NameError: name 'PatientPatientId' is not defined
+```
+
+`generated/python/clinical/clinical_encounter_v1.py` starts with `from __future__ import annotations` and only stdlib imports (`dataclasses`, `datetime`, `decimal`, `typing`, `uuid`), then declares `patientId: PatientPatientId` and `practitionerId: SchedulingPractitionerId` (lines 12–13) with no import from `generated.python.patient.patient_patient_id` or `generated.python.scheduling.scheduling_practitioner_id`. Because of the lazy `__future__` string annotations, the module imports and dataclasses instantiate fine — the breakage is latent exactly like pre-fix #19/#20 — and only surfaces when annotations are resolved (`typing.get_type_hints`) or consumed by typed tooling. The referenced types are emitted (e.g. `generated/python/patient/patient_contact_details_v0.py`), and same-module references (e.g. `ClinicalDiagnosisV0` within `clinical`) are fixed by #365 and resolve.
+
+**Root cause (read from source, not guessed):** `emitters/python.py` emits imports for the current domain's own type declarations but never emits a sibling `import` for a type declared in another domain's module.
+
+**Expected:** emit `from <sibling module path> import <TypeName>` for each referenced type declared in another domain's module, so `typing.get_type_hints` resolves the full graph.
+
+**Showcase workaround:** `tests/integration/test_python_codegen.py`'s full-set flip test pins the exact #30 error against the v1.8.0 output (annotation resolution over a cross-module class must currently raise `NameError`). Until #30 is fixed upstream, typed tooling over the full `generated/python/` set fails.
+
+## 31. `compile --target go` never imports or qualifies types from another package - cross-domain field references are still compile errors
+
+**Status:** Open. New finding. The Go residual of #21/#22 after the v1.8.0 (#365) fix: same-package references now resolve, but a package that references a type declared in another domain's package emits the bare name with no import.
+
+**Discovered:** Task 7.4 follow-up (Go probe), re-running `go build` over the full `generated/go/` set against v1.8.0.
+
+**Reproduction:**
+
+```bash
+go build ./...
+```
+
+in the generated Go module.
+
+**Observed:**
+
+```text
+undefined: PatientPatientId
+```
+
+`generated/go/billing/` files use `PatientPatientId` (for `Invoice.PatientId`) with no `import` of the `patient` package; `generated/go/clinical/` uses `PatientPatientId` and `SchedulingPractitionerId`; `generated/go/reporting/` uses `PatientPatientId` and `SchedulingTimeRangeV0` (from `scheduling`). None of these cross-package references has a corresponding Go import, so the full module does not build. Same-package references (e.g. `InvoiceLineV0` within `billing`) are fixed by #365 and build.
+
+**Root cause (read from source, not guessed):** the same single-domain assumption as #28/#29, in `emitters/go.py` — references to types declared in another domain's package are emitted bare with no import of that package (and no package-qualified name).
+
+**Expected:** emit the `import` of the referenced type's package (or qualify the type with its package name) when the declaration lives in another domain.
+
+**Showcase workaround:** `tests/integration/test_go_codegen.py`'s full-set flip test pins the exact #31 error against the v1.8.0 output. Until #31 is fixed upstream, the full `generated/go/` module does not build; the Go probe builds only the same-package surface.
+
+## 32. `modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse
+
+**Status:** Open. New finding, discovered while re-running the `test_cli_surface.py` round-trip tests against the v1.8.0 pin (the first time the json-schema importer is exercised end-to-end on this showcase's output).
+
+**Discovered:** Task 4.3/CLI-surface follow-up, running `modelable generate --from json-schema` over this showcase's own generated `generated/json-schema/` artifacts.
+
+**Reproduction:**
+
+```bash
+modelable generate --from json-schema --input generated/json-schema/billing.Invoice.v2.json --out /tmp/roundtrip
+modelable validate /tmp/roundtrip
+```
+
+**Observed:**
+
+```text
+ERROR No terminal matches '#' in the current parser context, at line 5 col 49
+```
+
+The importer maps `$ref` fields to a bare type token. `generated/json-schema/billing.Invoice.v2.json` declares `"patientId": { "$ref": "#/$defs/Patient.PatientId" }`, and the round-trip emits `patientId: #/$defs/Patient.PatientId` — the literal JSON Pointer as a Modelable field type, which the Modelable parser rejects (`#` has no terminal match). The pointer-to-`$defs` mapping never resolves to the *type name* (`Patient.PatientId`). The generated json-schema artifacts themselves are self-consistent (all `$defs` present, no dangling refs — 32 files, 0 dangling), so the defect is entirely in the importer. Fields with primitive types round-trip fine; only `$ref`-typed fields (semantic types and named types) break.
+
+**Root cause (read from source, not guessed):** `cli/generate/` (the `--from json-schema` importer) emits the raw `$ref` string as the field type instead of resolving the fragment against the artifact's `$defs` and emitting the declaration's `title`/`x-modelable` named type. The upstream test for this importer covers only primitive-typed schemas.
+
+**Expected:** resolve `#/$defs/<X>` against the document's `$defs` and emit the referenced type's stable name (e.g. `patientId: Patient.PatientId`), emitting the referenced `$defs` declarations into the output workspace where needed.
+
+**Showcase workaround:** `tests/integration/test_cli_surface.py::test_generate_from_json_schema_preserves_governance_metadata` pins the #32 reality: round-tripping a schema with a `$ref`-typed field must currently fail with the parser error above, and the test verifies that primitive-only schemas still round-trip. Until #32 is fixed upstream, `generate --from json-schema` cannot import any schema that references a semantic/named type.
+
+## 33. `modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation
+
+**Status:** Open. New finding, discovered alongside #32 while re-running `test_cli_surface.py` round-trips against the v1.8.0 pin.
+
+**Discovered:** Task 4.3/CLI-surface follow-up, running `modelable generate --from odcs` over this showcase's own generated `generated/odcs/` artifacts.
+
+**Reproduction:**
+
+```bash
+modelable generate --from odcs --input generated/odcs/billing.Invoice.v2.odcs.yaml --out /tmp/roundtrip
+modelable validate /tmp/roundtrip
+```
+
+**Observed:**
+
+```text
+unknown semantic type 'PatientId'
+```
+
+`generated/odcs/billing.Invoice.v2.odcs.yaml` encodes the field as `logicalType: object` with `customProperties` `modelableType: patient.PatientId` / `modelableNamedType: patient.PatientId`. The importer turns that into `patientId: PatientId` (dropping the `patient.` domain qualifier) and imports the reference without any accompanying `semantic` declaration for `PatientId` (or the value type), so `modelable validate` fails: the model references a semantic type that is never declared. The same applies to value-type references like `InvoiceLine` (emitted as `lines: array<InvoiceLine>` with no `value InvoiceLine` declaration in the output). The generated ODCS artifacts themselves are well-formed (their `customProperties` correctly record the source types), so the defect is in the importer.
+
+**Root cause (read from source, not guessed):** `cli/generate/` (the `--from odcs` importer) maps `modelableType`/`modelableNamedType` to bare type tokens but does not carry the domain-qualified name through, and never synthesizes the `semantic`/`value` declarations the referenced types need. The upstream test for this importer covers only primitive-typed contracts.
+
+**Expected:** import `modelableType`/`modelableNamedType` values with their domain qualification (e.g. `patientId: patient.PatientId`), and emit the referenced `semantic`/`value` declarations into the output workspace (or validate against a workspace that already declares them).
+
+**Showcase workaround:** `tests/integration/test_cli_surface.py::test_generate_from_odcs_preserves_metadata_and_exact_type_hints` pins the #33 reality: round-tripping a contract with a semantic/value-typed field must currently fail with `unknown semantic type ...`, and the test verifies that primitive-only contracts still round-trip. Until #33 is fixed upstream, `generate --from odcs` cannot import any contract that references a semantic or named type.
