@@ -38,6 +38,7 @@
 | 22 | [`compile --target go` never emits semantic types at all - every semantic-typed field is a compile error](#22-compile---target-go-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Open |
 | 24 | [`compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is](#24-compile---target-sql-postgres-emits-bare-secondary-index-names-that-collide-across-tables-in-the-shared-schema---the-full-graph-cannot-be-applied-as-is) | Silent data loss | A | Open |
+| 25 | [`compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` - an illegal ClickHouse type, so the full generated graph cannot be applied at all](#25-compile---target-sql-clickhouse-emits-optional-array-fields-as-nullablearrayt---an-illegal-clickhouse-type-so-the-full-generated-graph-cannot-be-applied-at-all) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -54,6 +55,8 @@
 **#23** (the gRPC emitter, discovered during Task 7.5 while running the first real `protoc` over the whole `generated/grpc/` output) is a different bug class from #15–#22: no named-type or semantic-type reference is involved. It was verified against upstream `main` at the same commit `22eaf4c`: `emitters/grpc.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #172/#170), so it is not fixed or touched upstream either. It has not been taken upstream yet. The protobuf target is *not* affected — the full `generated/protobuf/` graph (44 files) compiles cleanly with `protoc`, and `modelable compile --descriptor-set` succeeds for both targets (it compiles each artifact individually, which is exactly the per-file mode #23 leaves working).
 
 **#24** (the sql-postgres emitter, discovered during Task 8.1 while applying the whole `generated/sql-postgres/` output to a real PostgreSQL and then verifying the resulting schema) is again a different bug class: nothing is undefined and nothing fails to compile or apply — every statement runs "successfully", and yet the *applied schema silently loses indexes*. It was verified against upstream `origin/main`: `emitters/sql.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #155, the same commit that *added* secondary-index support), so the bug shipped with the feature and is not fixed or touched upstream. It has not been taken upstream yet. The clickhouse target uses the same `_emit_secondary_index_ddl` code path (its secondary indexes are emitted with the same bare names, though ClickHouse's index name scoping rules differ) and was not separately probed in Task 8.1.
+
+**#25** (the sql-clickhouse emitter, discovered during Task 8.2 while applying the whole `generated/sql-clickhouse/` output to a real ClickHouse) is yet another bug class, this time in the *same* `emitters/sql.py` verified byte-identical for #24: the generated DDL is **rejected by the server** (`Code: 43. ILLEGAL_TYPE_OF_ARGUMENT. Nested type Array(String) cannot be inside Nullable type.`), so the full graph cannot be applied at all. Where #24 was silent data loss on an "applies cleanly" set, #25 is a loud crash mid-apply — every domain that declares an optional array field (here `patient_db.alternate_phone_numbers`, `encounter_db.diagnoses`, and the corresponding Event/Reply/Request projections) renders as `Nullable(Array(String))`, which ClickHouse does not allow (arrays are not nullable in ClickHouse). Because #24's verification already showed `emitters/sql.py` byte-identical to pinned `1.7.0` on `origin/main`, #25 is covered by the same verification; it has not been taken upstream yet. The postgres target is unaffected — it renders the same optional arrays as `TEXT[]`/`VARCHAR(16)[]`, which PostgreSQL accepts.
 
 ---
 
@@ -1334,3 +1337,37 @@ Both `.sql` files emit `CREATE INDEX IF NOT EXISTS by_name ON <own_table> (...)`
 **Expected:** make the emitted index names unique across the schema — e.g. prefix them with the table name (`patient_db_by_name`) — or drop the explicit name and let PostgreSQL derive one from table+columns, or emit per-domain schemas. Any of these makes the full generated graph applyable in one pass with every declared index present.
 
 **Showcase workaround:** `tests/integration/test_postgres_generated_schema.py` (Task 8.1) applies the full generated set with `scripts/apply-postgres-ddl.py` (deterministic sorted filename order, statements executed verbatim), verifies every generated table, the representative patient/appointment/invoice columns and SQL types, and synthetic-row insert/read-back round-trips — all through psycopg — and pins the exact applied index reality (which index names survive the collision on `patient_db`/`appointment_db`/`invoice_db`) as explicit assertions that flip when the emitter is fixed. Until #24 is fixed upstream, a consumer cannot apply an entire `generated/sql-postgres/` tree and end up with the schema its DDL declares.
+
+## 25. `compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` — an illegal ClickHouse type, so the full generated graph cannot be applied at all
+
+**Discovered:** Task 8.2 (ClickHouse schema application), while running `scripts/apply-clickhouse-ddl.py` over the whole `generated/sql-clickhouse/` output against a real ClickHouse (the pinned `clickhouse/clickhouse-server:24.8-alpine` from the showcase's compose file).
+
+**Reproduction:**
+
+```mdl
+domain patient @ 1 (additive) {
+  @key id: uuid
+  alternatePhoneNumbers?: array<string>
+}
+```
+
+```bash
+modelable compile . --target sql-clickhouse --out ./dist
+docker compose up -d clickhouse
+uv run scripts/apply-clickhouse-ddl.py ./dist
+```
+
+**Observed:**
+
+```text
+error: failed to apply dist: DB::Exception: Nested type Array(String) cannot be inside Nullable type.
+(ILLEGAL_TYPE_OF_ARGUMENT) (version 24.8.14.39 (official build))
+```
+
+The generated column is `alternate_phone_numbers Nullable(Array(String))`, and ClickHouse rejects `Nullable` around any `Array` (arrays are not nullable in ClickHouse). On this showcase's full `generated/sql-clickhouse/` output, six tables declare an optional array field — `patient.PatientDb.v2`, `patient.PatientEvent.v2`, `patient.PatientReply.v2`, `patient.PatientRequest.v2`, `clinical.EncounterDb.v1`, `clinical.EncounterEvent.v1`, `clinical.EncounterReply.v1`, `clinical.EncounterRequest.v1` (`alternate_phone_numbers` / `diagnoses`) — so the sorted apply aborts at the first one (`clinical.EncounterDb.v1`): nothing after it is applied at all, and the failure is a hard server-side error, not a silent skip. Every domain with an optional array field cannot be applied. The postgres target is unaffected — it renders the same fields as `TEXT[]`/`VARCHAR(16)[]`, which PostgreSQL accepts.
+
+**Root cause (read from source, not guessed):** `emitters/sql.py::_ch_col_type` (line 387–389) renders any optional field as `f"Nullable({base})"` where `base` comes from `_ch_base_type`; when the field is an array, `_ch_base_type` returns `Array(<element>)` (line 373–375), so the optional branch produces `Nullable(Array(<element>))`. `Nullable` cannot wrap `Array` in ClickHouse (`ILLEGAL_TYPE_OF_ARGUMENT`), and because the wrapped form is not rejected at compile time, `modelable compile --target sql-clickhouse` succeeds while emitting DDL the server refuses. Nothing upstream checks this: `cli/tests/test_emit_sql.py` asserts on emitted text only and never applies a clickhouse target's output to a server.
+
+**Expected:** optional array fields must be emitted as a nullable-safe ClickHouse form — e.g. bare `Array(T)` plus `[]` defaulting in the app layer, or `Array(Nullable(T))` only for element-level nullability — so the full generated graph applies in one pass.
+
+**Showcase workaround:** `tests/integration/test_clickhouse_generated_schema.py` (Task 8.2) applies the six `reporting.*` tables (the representative reporting surface — no array columns, so they apply cleanly) with `scripts/apply-clickhouse-ddl.py`, verifies deterministic sorted application is idempotent, verifies the reporting tables exist with exact columns/types, inserts synthetic aggregate/report rows and queries them back through clickhouse-connect, and pins the #25 reality as an explicit flip test: applying the *full* generated set must currently fail with the `Nullable(Array(...))`/`ILLEGAL_TYPE_OF_ARGUMENT` error. It also asserts no `CREATE INDEX` anywhere in the generated clickhouse DDL (that capability is deferred upstream). Until #25 is fixed upstream, a consumer cannot apply an entire `generated/sql-clickhouse/` tree.
