@@ -1,0 +1,21 @@
+[package]
+name = "modelable-showcase-api"
+version = "0.1.0"
+edition = "2021"
+description = "Modelable Showcase HTTP API (IMPLEMENTATION_PLAN.md Task 9.1)"
+license = "MIT"
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "tls-rustls-ring"] }
+clickhouse = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clinic-core = { path = "../../generated/rust/clinic-core" }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
