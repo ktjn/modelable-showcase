@@ -27,16 +27,22 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Serialize;
+use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
+
+pub mod patient;
 
 pub type ReadyFn = Arc<
     dyn Fn() -> Pin<Box<dyn Future<Output = bool> + Send>> + Send + Sync,
 >;
 
-/// Readiness probe closures, injectable for hermetic tests.
+/// Readiness probe closures and the lazy persistence pool, injectable for
+/// hermetic tests.
 #[derive(Clone)]
 pub struct AppState {
     pub postgres_check: ReadyFn,
     pub clickhouse_check: ReadyFn,
+    pub pool: PgPool,
 }
 
 fn wrap_ready(
@@ -45,11 +51,24 @@ fn wrap_ready(
     Arc::new(f)
 }
 
+pub fn lazy_pool() -> PgPool {
+    let config = PostgresConfig::default();
+    let url = format!(
+        "postgresql://{}:{}@{}:{}/{}",
+        config.user, config.password, config.host, config.port, config.dbname
+    );
+    PgPoolOptions::new()
+        .max_connections(5)
+        .connect_lazy(&url)
+        .expect("malformed SHOWCASE_PG_* configuration - cannot build the Postgres pool")
+}
+
 impl Default for AppState {
     fn default() -> Self {
         Self {
             postgres_check: wrap_ready(|| Box::pin(postgres_is_reachable())),
             clickhouse_check: wrap_ready(|| Box::pin(clickhouse_is_reachable())),
+            pool: lazy_pool(),
         }
     }
 }
@@ -58,6 +77,7 @@ pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .merge(patient::patient_routes())
         .with_state(state)
 }
 
@@ -223,6 +243,7 @@ mod tests {
         AppState {
             postgres_check: stub_ready(postgres),
             clickhouse_check: stub_ready(clickhouse),
+            pool: lazy_pool(),
         }
     }
 
