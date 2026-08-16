@@ -27,13 +27,17 @@
 | 11 | [`reserved protobuf { names: [...] }` must use the generated snake_case Protobuf name, not the Modelable source field name, for cross-version reuse checks](#11-reserved-protobuf-names--must-use-the-generated-snake_case-protobuf-name-not-the-modelable-source-field-name-for-cross-version-reuse-checks) | Inconsistent behavior | A | Fixed in #354 |
 | 12 | [`compile --target typescript` never imports a field's semantic type - every semantic-typed field is a compile error](#12-compile---target-typescript-never-imports-a-fields-semantic-type---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Fixed in #354 |
 | 13 | [`compile --target typescript` never emits any imports at all for auto-generated projections (Db/Request/Reply/Event)](#13-compile---target-typescript-never-emits-any-imports-at-all-for-auto-generated-projections-dbrequestreplyevent) | Crash (broken generated code) | A | Fixed in #354 |
-| 14 | [`compile --target rust` loses named-type resolution for optional array fields specifically](#14-compile---target-rust-loses-named-type-resolution-for-optional-array-fields-specifically) | Crash (broken generated code) | A | Open |
+| 14 | [`compile --target rust` loses named-type resolution for optional array fields specifically](#14-compile---target-rust-loses-named-type-resolution-for-optional-array-fields-specifically) | Crash (broken generated code) | A | Fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355) (open, not yet merged/released) |
+| 15 | [`compile --target csharp` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#15-compile---target-csharp-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
+| 16 | [`compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error](#16-compile---target-csharp-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
 **#1–#7, #9–#13** were all independently reproduced and confirmed fixed by re-running each finding's exact reproduction against a local build of [ktjn/modelable#354](https://github.com/ktjn/modelable/pull/354) at commit `81f2288ac08d7ba006a78aee4a9e07b51cdd57c7` (`agent/fix-upstream-findings`, merged with upstream `main` at the time of verification). That PR's own gates were verified too: `ruff check`/`ruff format --check` clean, the mypy baseline ratchet reports 0 new errors, and the upstream `pytest tests/` suite passes (2095 passed, 49 skipped). This showcase's own full suite passes 125/125 against that build once `generated/` is refreshed. Per `UPSTREAM_POLICY.md` §1 step 6 ("run this showcase against the upstream branch/commit... while the full suite is still being built") this counts as that verification step — but steps 7–9 (merge/release Modelable, update `.modelable-version`, complete the dependent showcase slice) are still outstanding: **PR #354 is not yet merged, and `.modelable-version` still pins `1.7.0`, the pre-fix release.** Do not treat any of #1–#13 as resolved in this showcase's own behavior until the pin actually moves - `apps/web/src/generated-types.ts`'s workaround for #12/#13, for example, is still active and necessary against the currently pinned release.
 
-**#14** was discovered after #354 already existed, is not yet addressed by it, and has not been taken upstream (no issue filed, no PR). Per `UPSTREAM_POLICY.md` §1 that is the required next step.
+**#14** was discovered after #354 already existed, is not yet addressed by it, and has not been taken upstream (no issue filed, no PR). Per `UPSTREAM_POLICY.md` §1 that is the required next step. **#14 was confirmed fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355)** (verified by re-running its exact reproduction against that PR's commit `b474232`), which is open but not yet merged — so `.modelable-version` still pins `1.7.0` and this showcase's Rust probe still asserts the pre-fix failure, exactly like the #1–#13 note above.
+
+**#15 and #16** (the C# emitter, discovered together during Task 7.2) were verified against upstream `main` at commit `22eaf4c` (`fix: tolerate rewritten main history in validation (#356)`): `emitters/csharp.py` is byte-identical to the pinned `1.7.0` release on that branch (its last real change is the naming-helper consolidation in #313, long before #354/#355/#356), so neither is fixed or even touched there yet. They share a root-cause neighborhood but are distinct bugs with distinct fixes, so they are logged as two entries below rather than one. Neither has been taken upstream yet — per `UPSTREAM_POLICY.md` §1 that is the required next step.
 
 ---
 
@@ -765,3 +769,109 @@ Identical field shape (`array<Note>`), only the optionality differs - the requir
 **Expected:** the second `_shape_base_annotation` call in the optional-array branch should pass `named_type_map=named_type_map, enum_info=enum_info`, matching every other call site.
 
 **Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1). This blocks the `clinical-core`/`billing-core` `cargo check` half of Task 7.1's acceptance criteria until fixed upstream.
+
+---
+
+## 15. `compile --target csharp` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error
+
+**Discovered:** Task 7.2 (C# probe), running the first real `dotnet build` against generated `csharp` output.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  value Address {
+    street: string
+  }
+
+  entity Widget @ 1 (additive) {
+    @key id: uuid
+    addr?: Address
+  }
+}
+```
+
+```bash
+modelable compile . --target csharp --out ./dist
+dotnet build ./consumer   # a project that compiles every file in ./dist
+```
+
+**Observed:**
+
+```text
+// dist/probe.Address.v0.cs
+public sealed record ProbeAddressV0
+{
+    public required string Street { get; init; }
+}
+
+// dist/probe.Widget.v1.cs
+public sealed record ProbeWidgetV1
+{
+    public required Guid Id { get; init; }
+    public Address? Addr { get; init; }   // <- undefined, defined as ProbeAddressV0
+}
+
+error CS0246: The type or namespace name 'Address' could not be found
+```
+
+The value type `Address` **is** emitted - under the stable prefixed name `ProbeAddressV0` - but the entity field that references it emits the short source name `Address`. Same-namespace, same compile unit, and the two names never agree, so every field whose type is a `value` declaration is a compile error. This is the majority of the C# output: this showcase's own `patient.Patient.v2.cs` (`Address? Address`, `ContactDetails Contact`), `scheduling.Appointment.v1.cs` (`TimeRange Slot`), `billing.Invoice.v2.cs` (`List<InvoiceLine> Lines`), `clinical.EncounterDb.v1.cs` (`List<Diagnosis>? Diagnoses`), and every projection derived from them fail identically. Only self-contained value types with no references (`patient.Address.v0.cs`/`PatientAddressV0`, `scheduling.TimeRange.v0.cs`/`SchedulingTimeRangeV0`, `billing.InvoiceLine.v0.cs`/`BillingInvoiceLineV0`, `clinical.Diagnosis.v0.cs`/`ClinicalDiagnosisV0`, `patient.ContactDetails.v0.cs`/`PatientContactDetailsV0`) compile as-is.
+
+**Root cause (read from source, not guessed):** `emitters/csharp.py::_shape_base_to_csharp` renders every `named`-kind shape as `_pascalize(shape.ref or "Named")` (line 186) - the raw short source name from the `.mdl` file, with no lookup into what the emitter actually named the declaration. That differs from `emitters/rust.py`, which threads a `named_type_map` through its shape rendering so a reference is rewritten to the *emitted* stable name (`PatientAddressV0` etc.); the C# emitter has no equivalent map at all. The definitions are emitted correctly elsewhere (`_stable_type_name(domain, name, version)` produces `ProbeAddressV0`), so reference and definition simply disagree by construction. Cross-domain value references are worse in a different way (see finding #16's reproduction for the cross-domain spelling), and nothing upstream checks for this: `cli/tests/test_emit_csharp.py` asserts only on generated *text substrings* for primitives and inline `object {}` shapes and never compiles the output or references a declared `value`/`semantic` type, so the compile-breaking reference mismatch is invisible to the upstream suite.
+
+**Expected:** `_shape_base_to_csharp`'s `named` branch should resolve `shape.ref` to the emitted stable type name the same way the Rust emitter's `named_type_map` does, so the referenced name always matches the emitted definition. A small regression test that compiles the generated output (or at least asserts the reference name equals `_stable_type_name(...)` for a declared value type) would keep it fixed.
+
+**Showcase workaround:** `probes/csharp/` (Task 7.2) links only the five self-contained value types that compile as-is and documents the rest as broken - mirroring `apps/web/src/generated-types.ts`'s treatment of findings #12/#13. See `probes/csharp/ModelableShowcase.Probe.csproj`'s header comment; `tests/integration/test_csharp_codegen.py` asserts the full-set failure explicitly so it flips when the emitter is fixed.
+
+---
+
+## 16. `compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error
+
+**Discovered:** Task 7.2 (C# probe), alongside finding #15.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  semantic ThingId: uuid(7) {
+    registry: true
+  }
+
+  entity Widget @ 1 (additive) {
+    @key
+    id: ThingId
+  }
+}
+```
+
+```bash
+modelable compile . --target csharp --out ./dist
+dotnet build ./consumer   # a project that compiles every file in ./dist
+```
+
+**Observed:**
+
+```text
+$ ls ./dist
+probe.Widget.v1.cs   # <- the only file; no probe.ThingId.cs anywhere
+
+$ cat ./dist/probe.Widget.v1.cs
+public sealed record ProbeWidgetV1
+{
+    public required ThingId Id { get; init; }   // <- referenced, never declared or emitted
+}
+
+error CS0246: The type or namespace name 'ThingId' could not be found
+```
+
+`ThingId` is referenced but no definition file is ever emitted - unlike `emitters/rust.py`, which emits one `*_id.rs` file per `semantic` declaration (carrying the `REGISTRY_ID` constant). The C# emitter emits exactly one file per model/projection and nothing for semantic types. This affects essentially every entity/aggregate/event in a realistic workspace (this showcase's own `patient.Patient.v2.cs` fails on its `@key patientId: PatientId`, `scheduling.Appointment.v1.cs` on `PractitionerId`/`AppointmentId`, `clinical.EncounterDb.v1.cs` on `EncounterId`, `billing.Invoice.v2.cs` on `InvoiceId`, `clinical.Observation.v1.cs` on `ObservationCode`). Cross-domain semantic references (`patientId: patient.PatientId` in clinical/billing) get spelled `PatientPatientId` - the whole dotted reference is pascalized in place - which is a second, equally-undefined name.
+
+**Root cause (read from source, not guessed):** `emitters/csharp.py::emit_csharp` (lines 17-24) iterates only `domain.models` (entities/aggregates/events/values) and `domain.projections`. It never iterates `domain.semantic_types`, and unlike `emitters/rust.py::_emit_semantic_type` there is no C# semantic-type emitter at all - nothing produces a `ThingId` record or resolves the reference structurally to the underlying `Guid`. The `named`-kind shape for a semantic-typed field therefore falls through to the same `_pascalize(shape.ref)` fallback as finding #15, yielding a bare undefined name. (`cli/tests/test_emit_csharp.py` never uses a `semantic` declaration, so upstream has no test that would catch it.)
+
+**Expected:** emit a semantic type for the C# target (e.g. a record wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated file must not reference an undefined name, and `@key` fields on real entities must compile.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13. `probes/csharp/` deliberately does not link any artifact containing a semantic-typed field and documents why; `tests/integration/test_csharp_codegen.py` asserts the current failure explicitly. Until one of these two findings is fixed upstream, the C# target cannot compile any realistic Modelable workspace.

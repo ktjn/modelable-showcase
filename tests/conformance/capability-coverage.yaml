@@ -73,6 +73,9 @@ capabilities:
   target:rust:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_u128_i128_representable_in_rust
+  target:csharp:
+    coverage: probe
+    test: tests/integration/test_csharp_codegen.py::test_compilable_subset_builds
   target:typescript:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_arrays_of_inline_enums_compile_in_typescript
