@@ -39,7 +39,7 @@
 | 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #365) |
 | 24 | [`compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is](#24-compile---target-sql-postgres-emits-bare-secondary-index-names-that-collide-across-tables-in-the-shared-schema---the-full-graph-cannot-be-applied-as-is) | Silent data loss | A | Fixed in v1.8.0 (via #365) — index names now table-prefixed |
 | 25 | [`compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` - an illegal ClickHouse type, so the full generated graph cannot be applied at all](#25-compile---target-sql-clickhouse-emits-optional-array-fields-as-nullablearrayt---an-illegal-clickhouse-type-so-the-full-generated-graph-cannot-be-applied-at-all) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #365) — optional arrays no longer wrapped in `Nullable` |
-| 26 | [`compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile](#26-compile---target-rust-emits-status-srcstatusinto-between-projection-status-enums-without-generating-the-from-impl---billing-core-still-does-not-compile) | Crash (broken generated code) | A | Open |
+| 26 | [`compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile](#26-compile---target-rust-emits-status-srcstatusinto-between-projection-status-enums-without-generating-the-from-impl---billing-core-still-does-not-compile) | Crash (broken generated code) | A | Fixed in v1.9.0; usable from v1.9.2 (after #35/#36) |
 | 27 | [`compile --target sql-postgres` emits `FOREIGN KEY (...)` referencing the model name, not the bound table name - the full graph cannot be applied](#27-compile---target-sql-postgres-emits-foreign-key--referencing-the-model-name-not-the-bound-table-name---the-full-graph-cannot-be-applied) | Crash (broken generated code) | A | Open |
 | 28 | [`compile --target csharp` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
 | 29 | [`compile --target java` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
@@ -47,7 +47,9 @@
 | 31 | [`compile --target go` never imports or qualifies types from another package - cross-domain field references are still compile errors](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
 | 32 | [`modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse](#32-modelable-generate---from-json-schema-emits-the-raw-ref-json-pointer-defstype-as-a-field-type---imported-schemas-fail-to-parse) | Crash (broken generated code) | A | Open |
 | 33 | [`modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation](#33-modelable-generate---from-odcs-imports-semanticvalue-type-references-without-their-declarations---imported-models-fail-validation) | Crash (broken generated code) | A | Open |
-| 34 | [`compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`](#34-compile---target-rust-marks-every-option-field-serde-skip_serializing_if--optionis_none-without-serde-default---a-serialized-projection-cannot-be-deserialized-back-when-an-optional-is-none) | Crash (broken generated code) | A | Open |
+| 34 | [`compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`](#34-compile---target-rust-marks-every-option-field-serde-skip_serializing_if--optionis_none-without-serde-default---a-serialized-projection-cannot-be-deserialized-back-when-an-optional-is-none) | Crash (broken generated code) | A | Fixed in v1.9.0; usable from v1.9.1 |
+| 35 | [`compile --target rust` emits `#[serde(default)]` twice on every optional field that already carried it - a hard serde derive error, so all generated Rust crates fail to compile](#35-compile---target-rust-emits-serde-default-twice-on-every-optional-field-that-already-carried-it---a-hard-serde-derive-error-so-all-generated-rust-crates-fail-to-compile) | Crash (broken generated code) | A | Fixed in v1.9.1 (via [ktjn/modelable#387](https://github.com/ktjn/modelable/pull/387)) |
+| 36 | [`compile --target rust` emits cross-domain status-enum `From` impls importing via `super::{domain}::` - invalid for sibling top-level modules in the same package crate, so billing-core fails to compile](#36-compile---target-rust-emits-cross-domain-status-enum-from-impls-importing-via-superdomain---invalid-for-sibling-top-level-modules-in-the-same-package-crate-so-billing-core-fails-to-compile) | Crash (broken generated code) | A | Fixed in v1.9.2 (via [ktjn/modelable#389](https://github.com/ktjn/modelable/pull/389)) |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -57,9 +59,11 @@
 
 **#15–#22** (the C#/Java/Python/Go named-type and semantic-type pairs) were all addressed in [ktjn/modelable#365](https://github.com/ktjn/modelable/pull/365) ("address showcase emitter findings"), shipped in **v1.8.0** — but only **partially**. What was fixed: within a single domain, the emitters now resolve named-type references to the emitted stable type names and emit semantic types (C# `PatientPatientId`/`SchedulingPractitionerId`, Java/Python/Go analogues, etc.), so single-domain compile/probe checks that previously failed now pass. What remains broken: **references across domains/namespaces/packages/modules still do not resolve** — the emitters never emit imports or qualified names for types declared in another domain, so the *full generated graph* for csharp/java/python/go still does not compile (verified on the 1.8.0 output; failures are now `CS0246`/`cannot find symbol`/`NameError`/`undefined` on cross-domain names like `PatientContactDetailsV0`, `SchedulingPractitionerId`, `SchedulingTimeRangeV0`, `PatientPatientId`). Those residuals are logged as new findings **#28–#31** below; the `#15–#22` entries' workaround sections are updated to point at them. Also fixed by #365: **#23** (grpc now emits one service file per domain, so `protoc` over the whole `generated/grpc/` output succeeds), **#24** (sql-postgres secondary-index names are now table-prefixed — `patient_db_by_status`, `appointment_db_by_name` — so the full DDL graph applies with every declared index present, and the `#24` flip assertions were updated to the new names), and **#25** (sql-clickhouse no longer emits `Nullable(Array(T))` for optional array fields — `alternate_phone_numbers Array(String)` etc. apply cleanly, so the full clickhouse set now applies and the `#25` flip assertion was updated accordingly).
 
-**#26–#33** are new findings discovered while reviewing the v1.8.0 output (each empirically verified against the 1.8.0 regeneration; full reproductions in the entries below). **#26** (rust) and **#27** (sql-postgres) are bugs in features v1.8.0 newly emits — the `status.into()` call that previously never got reached (billing-core already failed to compile before the `.into()` was reachable) and the new `FOREIGN KEY` emission that #365 enabled via the feature work — and **#28–#31** are the residual halves of #15–#22 (cross-domain references). **#32** and **#33** are the two `modelable generate` importer targets (`--from json-schema`, `--from odcs`), both exercised for the first time on 1.8.0 (they were discovered while re-running the `test_cli_surface.py` round-trip tests against the new pin). None of #26–#34 has been taken upstream yet — per `UPSTREAM_POLICY.md` §1, filing/PR-ing these is the required next step for each. The showcase's own behavior is pinned to the current reality: the flip tests below assert the failures exactly as they occur on `1.8.0`.
+**#26–#33** are new findings discovered while reviewing the v1.8.0 output (each empirically verified against the 1.8.0 regeneration; full reproductions in the entries below). **#26** (rust) and **#27** (sql-postgres) are bugs in features v1.8.0 newly emits — the `status.into()` call that previously never got reached (billing-core already failed to compile before the `.into()` was reachable) and the new `FOREIGN KEY` emission that #365 enabled via the feature work — and **#28–#31** are the residual halves of #15–#22 (cross-domain references). **#32** and **#33** are the two `modelable generate` importer targets (`--from json-schema`, `--from odcs`), both exercised for the first time on 1.8.0 (they were discovered while re-running the `test_cli_surface.py` round-trip tests against the new pin). **#26** was fixed upstream (shipped v1.9.0); the pin bump that adopted it surfaced **#34** (fixed v1.9.0), **#35** (fixed v1.9.1 via #387), and **#36** (fixed v1.9.2 via #389). **#27–#33** remain open upstream. The showcase's own behavior is pinned to the current reality: the flip tests below assert the failures exactly as they occur on `1.9.2`.
 
-**#34** was discovered while redoing the generated Rust API layer (`apps/api`, Task 9.1–9.3) against the 1.8.0 output: the rust emitter marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` but never adds `#[serde(default)]`, so a *serialized* projection cannot be *deserialized* back into the same type whenever any optional field is `None` (serde demands the key unless `default` is present). The showcase API's own create/fetch round-trips therefore cannot round-trip a reply with a `None` optional through the generated type, and `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins that reality (it asserts the created reply's fields, and deserializes a hand-built full JSON with all optionals present rather than the API's own omitted-optional output).
+**#34** was discovered while redoing the generated Rust API layer (`apps/api`, Task 9.1–9.3) against the 1.8.0 output: the rust emitter marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` but never adds `#[serde(default)]`, so a *serialized* projection cannot be *deserialized* back into the same type whenever any optional field is `None` (serde demands the key unless `default` is present). The showcase API's own create/fetch round-trips therefore cannot round-trip a reply with a `None` optional through the generated type, and `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins that reality (it asserts the created reply's fields, and deserializes a hand-built full JSON with all optionals present rather than the API's own omitted-optional output). #34 was fixed upstream in **v1.9.0**, but that fix introduced **#35** (below).
+
+**#35** was discovered while re-pinning to 1.9.0 to adopt the #26 fix: 1.9.0's #34 fix writes `#[serde(default)]` a second time on every `Option` field that already carried one (the value-type projection files), a hard serde derive error that breaks all three generated Rust crates. Fixed upstream in **v1.9.1** via #387. **#36** was then discovered re-pinning to 1.9.1: the same emitter line's #26 fix emitted cross-domain status-enum `From` imports via `super::{domain}::`, invalid for sibling top-level modules in a package crate — fixed upstream in **v1.9.2** via #389. With the showcase pinned to **1.9.2**, all three generated Rust crates compile and Task 9.4's generated clinical/billing contracts are buildable.
 
 ---
 
@@ -1427,7 +1431,7 @@ The generated column is `alternate_phone_numbers Nullable(Array(String))`, and C
 
 ## 26. `compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile
 
-**Status:** Open. New finding discovered while reviewing the v1.8.0 regeneration (the `.into()` was previously unreachable because billing-core already failed to compile for #14; with #14 fixed, this is now the *first* hard error in `cargo check` on billing-core).
+**Status:** Fixed upstream, shipped in **v1.9.0** (verified: `cargo check` on billing-core no longer errors on the missing `From` impl), and fully usable from **v1.9.2** once the #35 and #36 regressions in the same emitter line were also fixed. New finding discovered while reviewing the v1.8.0 regeneration (the `.into()` was previously unreachable because billing-core already failed to compile for #14; with #14 fixed, this is now the *first* hard error in `cargo check` on billing-core).
 
 **Discovered:** Task 9.4 (generated API contracts), re-running `cargo check` on `generated/rust/billing-core` against the v1.8.0 output after #14 was verified fixed.
 
@@ -1652,7 +1656,7 @@ unknown semantic type 'PatientId'
 
 ## 34. `compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`
 
-**Status:** Open. New finding, discovered while redoing the showcase's generated Rust API layer (`apps/api`, IMPLEMENTATION_PLAN.md Task 9.1–9.3) against the v1.8.0 regeneration.
+**Status:** Fixed upstream, shipped in **v1.9.0** (the emitter now writes `#[serde(default)]`), and fully usable from **v1.9.1** once the regression it introduced (finding **#35**) was fixed. Verified on 1.9.2: every `Option` field now carries exactly one `#[serde(default)]` alongside `skip_serializing_if`.
 
 **Discovered:** Task 9.2/9.3 follow-up, when the API's created-reply JSON (which omits `None` optionals) was round-tripped through the generated reply type and serde rejected it.
 
@@ -1676,3 +1680,70 @@ The rust emitter renders every optional field as `#[serde(skip_serializing_if = 
 **Expected:** emit `#[serde(default)]` alongside `skip_serializing_if` on every `Option` field (as the emitter already does for value-type fields like `PatientContactDetailsV0.email`), so a serialized projection deserializes back into the same type regardless of which optionals are `None`.
 
 **Showcase workaround:** the showcase API persists and returns the generated reply types, whose own `skip_serializing_if` is authoritative, so the HTTP responses are correct and complete (omitted optionals are semantically `null`). What cannot happen is deserializing that same JSON back into the generated type. `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins the reality: it asserts the created reply's field set, and to exercise the generated type's deserializer it uses a hand-built full JSON with every optional present, rather than the API's own omitted-optional output. Until #34 is fixed upstream, any Rust consumer that serializes a projection with a `None` optional cannot feed that document back into the generated type.
+
+## 35. `compile --target rust` emits `#[serde(default)]` twice on every optional field that already carried it - a hard serde derive error, so all generated Rust crates fail to compile
+
+**Status:** Fixed upstream in **v1.9.1** via [ktjn/modelable#387](https://github.com/ktjn/modelable/pull/387) ("fix: deduplicate Rust serde defaults"). Regression introduced by the v1.9.0 fix for #34: adding `#[serde(default)]` to every `Option` field also re-adds it to the optional fields that already had one (the value-type projection files), producing a duplicate-attribute `error: duplicate serde attribute 'default'`. Because the affected value-type projection files are compiled as part of every generated crate, **all three** of `clinic-core`, `clinical-core`, and `billing-core` fail to compile on 1.9.0.
+
+**Discovered:** Task 9.4 (generated API contracts), running `cargo check` on `generated/rust/*` after re-pinning from 1.8.0 to 1.9.0 to adopt the #26 fix.
+
+**Reproduction:**
+
+```bash
+modelable compile . --target rust --out ./dist
+cargo check --manifest-path dist/clinic-core/Cargo.toml
+```
+
+**Observed:**
+
+```text
+error: duplicate serde attribute `default`
+ --> src/patient/patient_contact_details_v0.rs:7:13
+  |
+7 |     #[serde(default)]
+  |             ^^^^^^^
+```
+
+The 1.9.0 emitter renders every `Option` field as:
+
+```rust
+#[serde(default)]
+#[serde(skip_serializing_if = "Option::is_none")]
+#[serde(default)]
+pub preferred_name: Option<String>,
+```
+
+i.e. `#[serde(default)]` is written both as the #34 standalone addition *and* as the existing attribute already paired with `skip_serializing_if`. The duplicates occur only in the value-type projection files (`patient_contact_details_v0.rs`, `patient_patient_v1.rs`, `patient_patient_v2.rs`, `scheduling_appointment_v1.rs`, `scheduling_appointment_status_changed_v1.rs`, `clinical_encounter_v1.rs`, etc.) — exactly the files whose optional fields already carried `#[serde(default)]` before #34 — but those files are compiled by every downstream crate, so the entire Rust target is unusable on 1.9.0. (Required-field files like `clinical_encounter_db_v1.rs` get a single `default` and are fine; only files where `skip_serializing_if` was already paired with `default` double up.)
+
+**Root cause (read from source, not guessed):** `emitters/rust.py`'s #34 change writes `#[serde(default)]` before every `Option` field without checking whether the field already had a `default` attribute (value-type fields, and the optional-with-`skip_serializing_if` path, already emitted one). The upstream Rust codegen tests assert single-field serialization substrings, not a full `cargo check` of a generated crate, so the doubled attribute is not caught.
+
+**Expected:** emit `#[serde(default)]` exactly once per `Option` field — the standalone addition should not be written when the field already carries a `default` attribute (or the emitter should emit a single combined `#[serde(default, skip_serializing_if = "Option::is_none")]`), and an upstream `cargo check` over the generated crate should be part of the Rust emitter's gates.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1). The showcase remains pinned to **1.8.0** (`.modelable-version`) until #35 is fixed upstream and released, since 1.9.0's generated Rust does not compile at all. Task 9.4's generated-clinical/billing contracts cannot be built until then.
+
+## 36. `compile --target rust` emits cross-domain status-enum `From` impls importing via `super::{domain}::` - invalid for sibling top-level modules in the same package crate, so billing-core fails to compile
+
+**Status:** Fixed upstream in **v1.9.2** via [ktjn/modelable#389](https://github.com/ktjn/modelable/pull/389) ("fix: repair package-mode cross-domain Rust imports"). Regression introduced by the v1.9.0 fix for #26 (which first emitted cross-domain projection status-enum `From` impls): the appended `From` blocks import the source enum with `use super::{domain}::{module}`, but in package mode `billing` and `reporting` are sibling top-level modules of the same crate (`src/lib.rs` is `pub mod billing; pub mod reporting;`), so `super::reporting` from inside `src/billing/` resolves to `billing::reporting` (nonexistent). The normal named-type import path uses `_import_prefix` (correctly `crate::{domain}::`), but `_append_cross_enum_from_impls` hardcoded `super::` and was never told about package mode.
+
+**Discovered:** Task 9.4 (generated API contracts), running `cargo check` on `generated/rust/billing-core` after re-pinning to 1.9.1 to adopt the #26/#35 fixes.
+
+**Reproduction:**
+
+```bash
+modelable compile . --target rust --out ./dist
+cargo check --manifest-path dist/billing-core/Cargo.toml
+```
+
+**Observed:**
+
+```text
+error[E0433]: cannot find `reporting` in `super`
+ --> src/billing/billing_invoice_db_v2.rs:149:12
+149 | use super::reporting::reporting_outstanding_invoices_v1::ReportingOutstandingInvoicesV1Status;
+```
+
+**Root cause (read from source, not guessed):** `emitters/rust.py::_append_cross_enum_from_impls` computed the source import path as `super::{domain_mod}::{module}` when the source and target domains differed, without consulting `package_for_domain`. In package mode the two domains live in the same crate as sibling top-level modules, so the correct path is `crate::{domain_mod}::{module}`. The existing upstream tests covered cross-domain enum `From` impls in flat mode only (where `super::` is correct) or in cross-package mode (where a different projection-From path is used), so package-mode same-crate cross-domain status enums were never `cargo check`ed.
+
+**Expected:** `_append_cross_enum_from_impls` must use the same package-aware prefix as the normal import path (`_import_prefix`): same-domain `super::`, same-package-different-domain `crate::{domain}::`, cross-package `{crate}::{domain}::`. An upstream test should compile a same-package two-domain workspace with a cross-domain status-enum projection.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1). The showcase could not re-pin past 1.8.0 while 1.9.1's billing-core did not compile; the fix in #389 (shipped in v1.9.2) resolves it.
