@@ -96,10 +96,10 @@ capabilities:
     test: tests/integration/test_protobuf_codegen.py::test_grpc_schema_protos_compile
   target:sql-clickhouse:
     coverage: probe
-    test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
+    test: tests/integration/test_clickhouse_generated_schema.py::test_representative_reporting_tables_exist
   sql_dialect:clickhouse:
     coverage: probe
-    test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
+    test: tests/integration/test_clickhouse_generated_schema.py::test_representative_reporting_columns_and_types
   target:markdown:
     coverage: probe
     test: tests/integration/test_generated_artifacts.py::test_markdown_entity_doc_has_expected_metadata_and_fields
