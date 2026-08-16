@@ -65,7 +65,7 @@ def test_additive_field_addition_and_nullability_loosening_are_compatible():
     assert result.returncode == 0, result.stdout + result.stderr
     output = result.stdout
     assert "status: compatible" in output, output
-    assert "nullability_changed dateOfBirth: required -> optional" in output, output
+    assert "presence_changed dateOfBirth: required -> optional" in output, output
     assert "added_field preferredName" in output, output
 
 
@@ -99,7 +99,7 @@ def test_breaking_entity_reports_every_documented_change_category():
     assert "status: breaking" in output, output
     assert "removed_field legalName" in output, output
     assert "type_changed dateOfBirth" in output, output
-    assert "nullability_changed contactPhone: optional -> required" in output, output
+    assert "presence_changed contactPhone: optional -> required" in output, output
     assert "enum_changed status" in output, output
     assert "added_field insuranceId" in output, output
     # A bonus signal from the same command: it also flags which

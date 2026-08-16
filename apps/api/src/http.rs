@@ -6,7 +6,7 @@ use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use chrono::{SecondsFormat, Utc};
+use chrono::{Timelike, Utc};
 
 pub struct ApiError {
     pub status: StatusCode,
@@ -57,21 +57,37 @@ where
     }
 }
 
-pub fn utc_now_rfc3339() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+/// Current UTC instant for server-generated `createdAt`/`updatedAt`, truncated
+/// to whole seconds so the value serialized in the response matches exactly
+/// what is stored in (and read back from) the PostgreSQL `TIMESTAMPTZ` column.
+/// (Without truncation Postgres would add microsecond/nanosecond precision that
+/// breaks the create == fetch round-trip assertions.)
+pub fn utc_now() -> chrono::DateTime<chrono::Utc> {
+    let now = Utc::now();
+    chrono::DateTime::from_naive_utc_and_offset(
+        now.naive_utc().with_nanosecond(0).expect("timestamp has a nanosecond field"),
+        Utc,
+    )
 }
 
-pub fn json<T: serde::Serialize>(value: &T) -> Result<String, ApiError> {
-    serde_json::to_string(value)
-        .map_err(|err| ApiError::internal(format!("serialization failed: {err}")))
-}
-
-pub fn format_rfc3339(value: chrono::DateTime<chrono::Utc>) -> String {
-    value.to_rfc3339_opts(SecondsFormat::Secs, true)
-}
-
-pub fn parse_timestamp(value: &str) -> Result<chrono::DateTime<chrono::Utc>, ApiError> {
-    chrono::DateTime::parse_from_rfc3339(value)
-        .map(|dt| dt.with_timezone(&chrono::Utc))
-        .map_err(|err| ApiError::bad_request(format!("invalid timestamp '{value}': {err}")))
+/// Parse an ISO-8601 duration of the form chrono's `Duration::to_string()`
+/// emits (seconds-normalized, e.g. `PT900S`, `P0D`, `-PT45S`) back into a
+/// `chrono::Duration`. The generated `clinic-core` types serialize durations
+/// with exactly this representation, so this is the inverse of storing
+/// `duration.to_string()` in the `buffer_duration` TEXT column.
+pub fn parse_iso_duration(value: &str) -> Result<chrono::Duration, ApiError> {
+    let err = || ApiError::internal(format!("invalid stored duration '{value}'"));
+    let (negative, body) = value
+        .strip_prefix('-')
+        .map_or((false, value), |rest| (true, rest));
+    let body = body.strip_prefix('P').ok_or_else(err)?;
+    let seconds = if body == "0D" {
+        0
+    } else if let Some(n) = body.strip_suffix('S').and_then(|s| s.strip_prefix('T')) {
+        n.parse::<i64>().map_err(|_| err())?
+    } else {
+        return Err(err());
+    };
+    let duration = chrono::Duration::seconds(if negative { -seconds } else { seconds });
+    Ok(duration)
 }

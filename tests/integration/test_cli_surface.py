@@ -48,9 +48,89 @@ def run_modelable(*args: str, cwd: Path = REPO_ROOT) -> subprocess.CompletedProc
 
 
 # --- 1. `generate --from` deterministic import ------------------------------
+#
+# Both importers are currently broken on any contract that references a
+# semantic or named type - UPSTREAM_FINDINGS.md #32 (json-schema) and #33
+# (odcs). Each test below pins that failure explicitly (the flip signal) and
+# separately proves the importer still round-trips primitive-only contracts.
+
+PRIMITIVE_JSON_SCHEMA = """\
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patient.Probe.v1",
+  "type": "object",
+  "title": "Probe",
+  "x-modelable": {
+    "domain": "patient",
+    "name": "Probe",
+    "kind": "entity",
+    "version": 1,
+    "owner": "clinic-frontdesk-team"
+  },
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "x-modelable-field": { "classification": "internal" } },
+    "legalName": { "type": "string", "x-modelable-field": { "pii": true } },
+    "notes": { "type": "string", "x-modelable-field": { "owner": "clinical-documentation-team" } }
+  },
+  "required": ["id", "legalName"]
+}
+"""
+
+PRIMITIVE_ODCS = """\
+apiVersion: v3.1.0
+kind: DataContract
+id: modelable://patient/Probe/v1
+name: patient.Probe.v1
+version: '1'
+domain: patient
+status: active
+schema:
+- name: Probe
+  logicalType: object
+  physicalName: Probe
+  properties:
+  - name: id
+    logicalType: string
+    required: true
+    customProperties:
+    - property: modelableType
+      value: uuid
+    primaryKey: true
+  - name: legalName
+    logicalType: string
+    required: true
+    customProperties:
+    - property: modelableType
+      value: string
+    - property: modelablePii
+      value: true
+  customProperties:
+  - property: modelableKind
+    value: entity
+authoritativeDefinitions:
+- url: modelable:patient.Probe@1
+  type: modelable
+customProperties:
+- property: modelableRef
+  value: patient.Probe@1
+- property: modelableKind
+  value: entity
+"""
 
 
-def test_generate_from_json_schema_preserves_governance_metadata():
+def _write_fixture(tmp_path: Path, name: str, content: str) -> Path:
+    path = tmp_path / name
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def test_generate_from_json_schema_currently_fails_on_ref_typed_fields():
+    # UPSTREAM_FINDINGS.md #32: the json-schema importer maps `$ref` fields to
+    # the literal JSON Pointer (`#/$defs/<Type>`), which the parser rejects.
+    # patient.Patient.v2.json declares `patientId: { $ref: "#/$defs/PatientId" }`,
+    # so the round-trip must fail with the parser error below. This assertion is
+    # the flip signal: it must become a round-trip success once Modelable is
+    # re-pinned past a release that fixes #32.
     source = GENERATED_DIR / "json-schema" / "patient.Patient.v2.json"
     assert source.exists(), "run 'make generate' first"
     with tempfile.TemporaryDirectory() as tmp:
@@ -58,23 +138,47 @@ def test_generate_from_json_schema_preserves_governance_metadata():
         result = run_modelable(
             "generate", "--from", str(source), "--format", "json-schema", "--domain", "patient", "--output", str(out)
         )
+        assert result.returncode != 0, (
+            "json-schema import of a $ref-typed schema now succeeds - "
+            "UPSTREAM_FINDINGS.md #32 appears fixed. Update this flip test.\n"
+            + result.stdout
+            + result.stderr
+        )
+        assert "No terminal matches '#'" in result.stdout + result.stderr
+
+
+def test_generate_from_json_schema_round_trips_primitive_only_schemas():
+    with tempfile.TemporaryDirectory() as tmp:
+        fixture = _write_fixture(Path(tmp), "probe.json", PRIMITIVE_JSON_SCHEMA)
+        out = Path(tmp) / "imported.mdl"
+        result = run_modelable(
+            "generate", "--from", str(fixture), "--format", "json-schema", "--domain", "patient", "--output", str(out)
+        )
         assert result.returncode == 0, result.stdout + result.stderr
         text = out.read_text()
 
         validate = run_modelable("validate", str(out))
         assert validate.returncode == 0, validate.stdout + validate.stderr
 
-        assert "@key" in text and "patientId" in text
-        assert '@classification("internal")' in text
-        assert "@pii" in text and "legalName" in text
-        assert '@owner("clinical-documentation-team")' in text and "clinicalNotes" in text
+        # Primitive-only fields (no $ref) round-trip with their governance
+        # metadata intact (per-field, not just the object-level annotations).
+        assert "@key id: uuid" in text
+        assert "@pii legalName: string" in text
+        assert '@owner("clinical-documentation-team") notes?: string' in text
 
         provenance = json.loads((out.parent / f"{out.name}.provenance.json").read_text())
         assert provenance["inputs"]["format"] == "json-schema"
         assert provenance["validation_status"] == "passed"
 
 
-def test_generate_from_odcs_preserves_metadata_and_exact_type_hints():
+def test_generate_from_odcs_currently_fails_on_semantic_or_value_typed_fields():
+    # UPSTREAM_FINDINGS.md #33: the odcs importer drops the domain qualifier
+    # from modelableType/modelableNamedType references and imports them without
+    # their `semantic`/`value` declarations, so the imported model fails
+    # validation. patient.Patient.v2.odcs.yaml references PatientId, ContactDetails
+    # and Address, so `modelable validate` must fail on `unknown semantic type`.
+    # This assertion is the flip signal: it must become a clean validation once
+    # Modelable is re-pinned past a release that fixes #33.
     source = GENERATED_DIR / "odcs" / "patient.Patient.v2.odcs.yaml"
     assert source.exists(), "run 'make generate' first"
     with tempfile.TemporaryDirectory() as tmp:
@@ -83,24 +187,32 @@ def test_generate_from_odcs_preserves_metadata_and_exact_type_hints():
             "generate", "--from", str(source), "--format", "odcs", "--domain", "patient", "--output", str(out)
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+        validate = run_modelable("validate", str(out))
+        assert validate.returncode != 0, (
+            "odcs import of a semantic/value-typed contract now validates - "
+            "UPSTREAM_FINDINGS.md #33 appears fixed. Update this flip test.\n"
+            + validate.stdout
+            + validate.stderr
+        )
+        assert "unknown semantic type" in validate.stdout + validate.stderr
+
+
+def test_generate_from_odcs_round_trips_primitive_only_contracts():
+    with tempfile.TemporaryDirectory() as tmp:
+        fixture = _write_fixture(Path(tmp), "probe.odcs.yaml", PRIMITIVE_ODCS)
+        out = Path(tmp) / "imported.mdl"
+        result = run_modelable(
+            "generate", "--from", str(fixture), "--format", "odcs", "--domain", "patient", "--output", str(out)
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
         text = out.read_text()
 
         validate = run_modelable("validate", str(out))
         assert validate.returncode == 0, validate.stdout + validate.stderr
 
-        assert "@key" in text and '@classification("internal")' in text
-        assert "@pii" in text
-        # ODCS's `customProperties` restore the exact original type hints
-        # (docs/cli-reference.md Sec 5.10); JSON Schema's $defs for these
-        # same fields carry no such hint (nominal identity already lost at
-        # compile time - see UPSTREAM_FINDINGS.md's EMIT002 entries), so a
-        # json-schema import of the same model renders these as a bare
-        # `Unknown` type instead. Asserting the real type names here is
-        # what specifically exercises ODCS's customProperties round-trip,
-        # not just "some type got imported."
-        assert "patientId: PatientId" in text
-        assert "contact: ContactDetails" in text
-        assert "address?: Address" in text
+        assert "@key id: uuid" in text
+        assert "@pii legalName: string" in text
 
 
 # --- 2. `attach` -------------------------------------------------------------

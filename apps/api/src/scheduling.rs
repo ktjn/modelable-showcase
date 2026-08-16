@@ -2,15 +2,18 @@
 //!
 //! Uses the generated Appointment request/reply types at the API boundaries and
 //! persists to the generated `appointment_db` table. Per the model,
-//! `appointmentId` and `status` are client-supplied (the generated request
-//! projection only excludes `@server` fields), while `createdAt`/`updatedAt`
-//! are server-generated. The generated DDL carries no unique constraint on
-//! `appointment_id`, so duplicate booking is rejected with an explicit
-//! existence check (check-then-insert) returning 409.
+//! `appointmentId`, `status`, and the slot's `start`/`end` times are
+//! client-supplied (the generated request projection only excludes `@server`
+//! fields), while `createdAt`/`updatedAt` are server-generated. The generated
+//! DDL declares `appointment_id` as `PRIMARY KEY`, so duplicate booking is
+//! rejected atomically with `INSERT ... ON CONFLICT (appointment_id) DO NOTHING`
+//! returning 409.
 //!
 //! A simple no-overlap validation (per the task spec) rejects bookings that
 //! overlap another non-cancelled appointment for the same practitioner and
-//! day; the query exercises the generated `by_practitioner_day` index.
+//! day; the query exercises the generated `appointment_db_by_practitioner_day`
+//! index. Durations and slots round-trip through the generated types' ISO-8601
+//! and `HH:MM:SS` serializations respectively.
 
 use std::str::FromStr;
 
@@ -39,7 +42,7 @@ use crate::http::{self, ApiError, JsonBody};
 use crate::AppState;
 
 const APPOINTMENT_COLUMNS: &str = "appointment_id, patient_id, practitioner_id, scheduled_date, \
-     slot, buffer_duration::text AS buffer_duration, status, reason, notes, created_at, updated_at";
+     slot, buffer_duration, status, reason, notes, created_at, updated_at";
 
 pub fn scheduling_routes() -> Router<AppState> {
     Router::new()
@@ -72,49 +75,8 @@ fn db_status_to_reply(status: SchedulingAppointmentDbV1Status) -> SchedulingAppo
     }
 }
 
-fn status_str(status: &SchedulingAppointmentReplyV1Status) -> &'static str {
-    match status {
-        SchedulingAppointmentReplyV1Status::Requested => "requested",
-        SchedulingAppointmentReplyV1Status::Confirmed => "confirmed",
-        SchedulingAppointmentReplyV1Status::Cancelled => "cancelled",
-        SchedulingAppointmentReplyV1Status::Completed => "completed",
-        SchedulingAppointmentReplyV1Status::NoShow => "no_show",
-    }
-}
-
-fn parse_reply_status(value: &str) -> Result<SchedulingAppointmentReplyV1Status, ApiError> {
-    serde_json::from_str::<SchedulingAppointmentReplyV1Status>(&format!("\"{value}\""))
-        .map_err(|err| ApiError::internal(format!("invalid status '{value}' in appointment_db: {err}")))
-}
-
-fn parse_time(value: &str) -> Result<i32, ApiError> {
-    let parts: Vec<&str> = value.split(':').collect();
-    if !(2..=3).contains(&parts.len()) {
-        return Err(ApiError::bad_request(format!("invalid time '{value}'")));
-    }
-    let hour: i32 = parts[0]
-        .parse()
-        .map_err(|_| ApiError::bad_request(format!("invalid time '{value}'")))?;
-    let minute: i32 = parts[1]
-        .parse()
-        .map_err(|_| ApiError::bad_request(format!("invalid time '{value}'")))?;
-    let second: i32 = if parts.len() == 3 {
-        parts[2]
-            .parse()
-            .map_err(|_| ApiError::bad_request(format!("invalid time '{value}'")))?
-    } else {
-        0
-    };
-    if !(0..=23).contains(&hour) || !(0..=59).contains(&minute) || !(0..=59).contains(&second) {
-        return Err(ApiError::bad_request(format!("invalid time '{value}'")));
-    }
-    Ok(hour * 3600 + minute * 60 + second)
-}
-
 fn validate_slot(slot: &SchedulingTimeRangeV0) -> Result<(), ApiError> {
-    let start = parse_time(&slot.start)?;
-    let end = parse_time(&slot.end)?;
-    if end <= start {
+    if slot.end <= slot.start {
         return Err(ApiError::bad_request(format!(
             "slot end '{}' is not after start '{}'",
             slot.end, slot.start
@@ -126,8 +88,7 @@ fn validate_slot(slot: &SchedulingTimeRangeV0) -> Result<(), ApiError> {
 fn slots_overlap(a: &SchedulingTimeRangeV0, b: &SchedulingTimeRangeV0) -> Result<bool, ApiError> {
     validate_slot(a)?;
     validate_slot(b)?;
-    Ok(parse_time(&a.start)? < parse_time(&b.end)?
-        && parse_time(&b.start)? < parse_time(&a.end)?)
+    Ok(a.start < b.end && b.start < a.end)
 }
 
 fn parse_date(value: &str) -> Result<NaiveDate, ApiError> {
@@ -144,19 +105,19 @@ fn parse_uuid(value: &str, label: &str) -> Result<Uuid, ApiError> {
 
 fn request_to_db(
     request: &SchedulingAppointmentRequestV1,
-    created_at: &str,
+    created_at: DateTime<Utc>,
 ) -> SchedulingAppointmentDbV1 {
     SchedulingAppointmentDbV1 {
         appointment_id: request.appointment_id,
         patient_id: request.patient_id.clone(),
         practitioner_id: request.practitioner_id,
-        scheduled_date: request.scheduled_date.clone(),
+        scheduled_date: request.scheduled_date,
         slot: request.slot.clone(),
-        buffer_duration: request.buffer_duration.clone(),
+        buffer_duration: request.buffer_duration,
         status: request_status_to_db(request.status.clone()),
         reason: request.reason.clone(),
         notes: request.notes.clone(),
-        created_at: created_at.to_string(),
+        created_at,
         updated_at: None,
     }
 }
@@ -190,7 +151,7 @@ fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<SchedulingAppointmentRepl
     let scheduled_date: NaiveDate = row
         .try_get("scheduled_date")
         .map_err(|err| ApiError::internal(format!("decoding scheduled_date: {err}")))?;
-    let slot: String = row
+    let slot: sqlx::types::Json<SchedulingTimeRangeV0> = row
         .try_get("slot")
         .map_err(|err| ApiError::internal(format!("decoding slot: {err}")))?;
     let buffer_duration: Option<String> = row
@@ -212,9 +173,6 @@ fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<SchedulingAppointmentRepl
         .try_get("updated_at")
         .map_err(|err| ApiError::internal(format!("decoding updated_at: {err}")))?;
 
-    let slot = serde_json::from_str::<SchedulingTimeRangeV0>(&slot)
-        .map_err(|err| ApiError::internal(format!("slot column is not valid JSON: {err}")))?;
-
     Ok(SchedulingAppointmentReplyV1 {
         appointment_id: AppointmentId(
             Uuid::from_str(&appointment_id)
@@ -225,15 +183,22 @@ fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<SchedulingAppointmentRepl
             Uuid::from_str(&practitioner_id)
                 .map_err(|err| ApiError::internal(format!("practitioner_id is not a uuid: {err}")))?,
         ),
-        scheduled_date: scheduled_date.format("%Y-%m-%d").to_string(),
-        slot,
+        scheduled_date,
+        slot: slot.0,
         status: parse_reply_status(&status)?,
-        created_at: http::format_rfc3339(created_at),
-        buffer_duration,
+        created_at,
+        buffer_duration: buffer_duration
+            .map(|value| http::parse_iso_duration(&value))
+            .transpose()?,
         reason,
         notes,
-        updated_at: updated_at.map(http::format_rfc3339),
+        updated_at,
     })
+}
+
+fn parse_reply_status(value: &str) -> Result<SchedulingAppointmentReplyV1Status, ApiError> {
+    serde_json::from_str::<SchedulingAppointmentReplyV1Status>(&format!("\"{value}\""))
+        .map_err(|err| ApiError::internal(format!("invalid status '{value}' in appointment_db: {err}")))
 }
 
 // --- shared lookups ---------------------------------------------------------------
@@ -257,7 +222,7 @@ async fn fetch_appointment(
 async fn any_overlapping(
     pool: &sqlx::PgPool,
     practitioner_id: &str,
-    date: &str,
+    date: NaiveDate,
     slot: &SchedulingTimeRangeV0,
     exclude_appointment_id: Option<&str>,
 ) -> Result<bool, ApiError> {
@@ -271,8 +236,7 @@ async fn any_overlapping(
         sql.push_str(&format!(" AND appointment_id <> ${}", extra.len() + 2));
     }
 
-    let scheduled_date = parse_date(date)?;
-    let mut query = sqlx::query(&sql).bind(practitioner_id).bind(scheduled_date);
+    let mut query = sqlx::query(&sql).bind(practitioner_id).bind(date);
     for value in &extra {
         query = query.bind(value);
     }
@@ -282,12 +246,10 @@ async fn any_overlapping(
         .map_err(|err| ApiError::internal(format!("overlap check failed: {err}")))?;
 
     for row in &rows {
-        let slot_json: String = row
+        let slot_json: sqlx::types::Json<SchedulingTimeRangeV0> = row
             .try_get("slot")
             .map_err(|err| ApiError::internal(format!("decoding slot: {err}")))?;
-        let existing = serde_json::from_str::<SchedulingTimeRangeV0>(&slot_json)
-            .map_err(|err| ApiError::internal(format!("slot column is not valid JSON: {err}")))?;
-        if slots_overlap(&existing, slot)? {
+        if slots_overlap(&slot_json.0, slot)? {
             return Ok(true);
         }
     }
@@ -300,25 +262,15 @@ async fn create_appointment(
     State(state): State<AppState>,
     JsonBody(request): JsonBody<SchedulingAppointmentRequestV1>,
 ) -> Result<(StatusCode, Json<SchedulingAppointmentReplyV1>), ApiError> {
-    parse_date(&request.scheduled_date)?;
     validate_slot(&request.slot)?;
     parse_uuid(&request.patient_id, "patient id")?;
     let practitioner_id = request.practitioner_id.to_string();
     let appointment_id = request.appointment_id.to_string();
 
-    let exists = sqlx::query_scalar::<_, i32>("SELECT 1 FROM appointment_db WHERE appointment_id = $1")
-        .bind(&appointment_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|err| ApiError::internal(format!("duplicate check failed: {err}")))?;
-    if exists.is_some() {
-        return Err(ApiError::conflict(format!("appointment {appointment_id} already exists")));
-    }
-
     if any_overlapping(
         &state.pool,
         &practitioner_id,
-        &request.scheduled_date,
+        request.scheduled_date,
         &request.slot,
         None,
     )
@@ -330,34 +282,46 @@ async fn create_appointment(
         )));
     }
 
-    let created_at = http::utc_now_rfc3339();
-    let db_row = request_to_db(&request, &created_at);
+    let created_at = http::utc_now();
+    let db_row = request_to_db(&request, created_at);
 
+    // appointment_id is the generated PK; atomic duplicate detection.
     let insert = sqlx::query(
         "INSERT INTO appointment_db (appointment_id, patient_id, practitioner_id, scheduled_date, \
          slot, buffer_duration, status, reason, notes, created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, $5, CAST($6 AS interval), $7, $8, $9, $10, $11)",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+         ON CONFLICT (appointment_id) DO NOTHING",
     )
     .bind(db_row.appointment_id.to_string())
     .bind(&db_row.patient_id)
     .bind(db_row.practitioner_id.to_string())
-    .bind(parse_date(&db_row.scheduled_date)?)
-    .bind(http::json(&db_row.slot)?)
-    .bind(db_row.buffer_duration.clone())
-    .bind(status_str(&db_status_to_reply(db_row.status.clone())))
-    .bind(db_row.reason.clone())
-    .bind(db_row.notes.clone())
-    .bind(http::parse_timestamp(&db_row.created_at)?)
+    .bind(db_row.scheduled_date)
+    .bind(sqlx::types::Json(&db_row.slot))
+    .bind(db_row.buffer_duration.map(|duration| duration.to_string()))
+    .bind(db_status_to_str(&db_row.status))
+    .bind(&db_row.reason)
+    .bind(&db_row.notes)
+    .bind(db_row.created_at)
     .bind(None::<DateTime<Utc>>)
     .execute(&state.pool)
     .await
     .map_err(|err| ApiError::internal(format!("appointment insert failed: {err}")))?;
 
     if insert.rows_affected() != 1 {
-        return Err(ApiError::internal("appointment insert affected no rows"));
+        return Err(ApiError::conflict(format!("appointment {appointment_id} already exists")));
     }
 
     Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
+}
+
+fn db_status_to_str(status: &SchedulingAppointmentDbV1Status) -> &'static str {
+    match status {
+        SchedulingAppointmentDbV1Status::Requested => "requested",
+        SchedulingAppointmentDbV1Status::Confirmed => "confirmed",
+        SchedulingAppointmentDbV1Status::Cancelled => "cancelled",
+        SchedulingAppointmentDbV1Status::Completed => "completed",
+        SchedulingAppointmentDbV1Status::NoShow => "no_show",
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -384,8 +348,10 @@ async fn reschedule_appointment(
         return Err(ApiError::conflict(format!("appointment {id} is cancelled")));
     }
 
-    let scheduled_date = request.scheduled_date.as_deref().unwrap_or(&current.scheduled_date);
-    parse_date(scheduled_date)?;
+    let scheduled_date = match &request.scheduled_date {
+        Some(value) => parse_date(value)?,
+        None => current.scheduled_date,
+    };
     let slot = request.slot.clone().unwrap_or_else(|| current.slot.clone());
     validate_slot(&slot)?;
 
@@ -399,27 +365,30 @@ async fn reschedule_appointment(
     .await?
     {
         return Err(ApiError::conflict(format!(
-"reschedule overlaps an existing appointment for {} on {scheduled_date}",
+            "reschedule overlaps an existing appointment for {} on {scheduled_date}",
             *current.practitioner_id
         )));
     }
 
-    let buffer_duration = request.buffer_duration.clone().or(current.buffer_duration.clone());
+    let buffer_duration = match &request.buffer_duration {
+        Some(value) => Some(http::parse_iso_duration(value)?),
+        None => current.buffer_duration,
+    };
     let reason = request.reason.clone().or(current.reason.clone());
     let notes = request.notes.clone().or(current.notes.clone());
-    let updated_at = http::utc_now_rfc3339();
+    let updated_at = http::utc_now();
 
     let update = sqlx::query(
         "UPDATE appointment_db SET scheduled_date = $1, slot = $2, buffer_duration = \
-         CAST($3 AS interval), reason = $4, notes = $5, updated_at = $6 \
+         $3, reason = $4, notes = $5, updated_at = $6 \
          WHERE appointment_id = $7",
     )
-    .bind(parse_date(scheduled_date)?)
-    .bind(http::json(&slot)?)
-    .bind(buffer_duration.clone())
+    .bind(scheduled_date)
+    .bind(sqlx::types::Json(&slot))
+    .bind(buffer_duration.map(|duration| duration.to_string()))
     .bind(reason.clone())
     .bind(notes.clone())
-    .bind(http::parse_timestamp(&updated_at)?)
+    .bind(updated_at)
     .bind(&id)
     .execute(&state.pool)
     .await
@@ -455,7 +424,7 @@ async fn cancel_appointment(
         return Err(ApiError::conflict(format!("appointment {id} is already cancelled")));
     }
 
-    let updated_at = http::utc_now_rfc3339();
+    let updated_at = http::utc_now();
     let reason = request.reason.clone().or(current.reason.clone());
 
     let update = sqlx::query(
@@ -463,7 +432,7 @@ async fn cancel_appointment(
          WHERE appointment_id = $3",
     )
     .bind(reason.clone())
-    .bind(http::parse_timestamp(&updated_at)?)
+    .bind(updated_at)
     .bind(&id)
     .execute(&state.pool)
     .await
@@ -503,7 +472,7 @@ async fn daily_schedule(
         extra.push(practitioner.clone());
         sql.push_str(&format!(" AND practitioner_id = ${}", extra.len() + 1));
     }
-    sql.push_str(" ORDER BY (slot::jsonb ->> 'start'), appointment_id");
+    sql.push_str(" ORDER BY (slot ->> 'start'), appointment_id");
 
     let scheduled_date = parse_date(&query.date)?;
     let mut q = sqlx::query(&sql).bind(scheduled_date);
@@ -530,7 +499,7 @@ async fn patient_appointments(
 
     let rows = sqlx::query(&format!(
         "SELECT {APPOINTMENT_COLUMNS} FROM appointment_db WHERE patient_id = $1 \
-         ORDER BY scheduled_date, (slot::jsonb ->> 'start'), appointment_id"
+         ORDER BY scheduled_date, (slot ->> 'start'), appointment_id"
     ))
     .bind(&id)
     .fetch_all(&state.pool)

@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["status"], "ok");
         assert_eq!(body["contract"]["patient_schema_version"], 2);
-        assert_eq!(body["contract"]["patient_registry_id"], 1);
+        assert_eq!(body["contract"]["patient_registry_id"], 2);
         assert_eq!(
             body["contract"]["patient_content_signature"].as_array().unwrap().len(),
             32
@@ -322,6 +322,6 @@ mod tests {
     #[test]
     fn generated_contract_constants_match_pinned_showcase_reality() {
         assert_eq!(contract::PATIENT_SCHEMA_VERSION, 2);
-        assert_eq!(contract::PATIENT_REGISTRY_ID, 1);
+        assert_eq!(contract::PATIENT_REGISTRY_ID, 2);
     }
 }

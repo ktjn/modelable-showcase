@@ -3,26 +3,23 @@ Go builds with a real `go build`, not a text grep.
 
 The go target emits one file per model/projection under
 generated/go/<domain>/<name>.go, packaged as the lowercase domain name. Go
-compiles whole packages, and every domain package contains structs that
-reference undefined names under the pinned 1.7.0 release, so nothing in
-generated/go/ builds in its original layout. This file tests both halves of
-the current reality:
+compiles whole packages. This file tests both halves of the current 1.8.0
+reality:
 
-- The five value-type source files, reassembled verbatim into a throwaway
-  module whose packages contain only their own declarations, build cleanly
-  (`test_value_type_files_compile_in_isolation`). This mirrors what
-  `probes/go/generated_test.go` compiles, which carries the
-  construction/serialization proof via `go test`.
+- The patient and scheduling packages build cleanly - their value types,
+  semantic types, models, and projections all resolve within the same package
+  (the #21/#22 fix from #365) - plus the self-contained billing/clinical value
+  type files. These are reassembled verbatim into a throwaway module
+  (`test_compilable_subset_builds`), mirroring what probes/go/generated_test.go
+  compiles, which carries the construction/serialization proof via `go test`.
 
-- Everything else the go target emits does NOT build: value types are
-  referenced by their short source name while defined under the stable
-  <Domain><Name>V<version> name, and semantic types are referenced but never
-  emitted at all (`test_full_generated_set_currently_fails_named_type_resolution`).
-  Both are real, logged upstream findings - UPSTREAM_FINDINGS.md #21 and #22 -
-  broken on the pinned release AND on upstream `main` (verified there: the
-  emitter is byte-identical). This failure assertion is the flip signal: it
-  must be updated (and probes/go grown to build the full set) once Modelable
-  is re-pinned past a release that fixes either finding.
+- The full generated set still does NOT build: references to types declared in
+  another package are emitted bare with no import
+  (`test_full_generated_set_currently_fails_cross_package_resolution`). That
+  is the residual half of #21/#22, logged as a new finding - UPSTREAM_FINDINGS.md
+  #31. This failure assertion is the flip signal: it must be updated (and
+  probes/go grown to build the full set) once Modelable is re-pinned past a
+  release that fixes #31.
 """
 
 from __future__ import annotations
@@ -42,15 +39,15 @@ pytestmark = [
     pytest.mark.skipif(shutil.which("go") is None, reason="go toolchain is not on PATH"),
 ]
 
-# The five generated value-type files that are self-contained under the pinned
-# 1.7.0 release. Kept in sync with probes/go/generated_test.go's reassembly set.
-COMPILABLE_SUBSET = [
-    ("patient", "patient_address_v0.go"),
-    ("patient", "patient_contact_details_v0.go"),
-    ("scheduling", "scheduling_time_range_v0.go"),
-    ("billing", "billing_invoice_line_v0.go"),
-    ("clinical", "clinical_diagnosis_v0.go"),
-]
+# The generated packages/files that build under the pinned 1.8.0 release:
+# the whole patient and scheduling packages (all references resolve within the
+# same package - #21/#22 fixed) plus the self-contained billing/clinical value
+# type files. Kept in sync with probes/go/generated_test.go's reassembly set.
+COMPILABLE_SUBSET = sorted(
+    [str(p.relative_to(GO_DIR)) for p in GO_DIR.rglob("*.go")
+     if p.parts[-2] in ("patient", "scheduling")]
+    + ["billing/billing_invoice_line_v0.go", "clinical/clinical_diagnosis_v0.go"]
+)
 
 
 def _write_go_module(module_root: Path, files: list[tuple[Path, Path]]) -> None:
@@ -74,23 +71,23 @@ def go_build(module_root: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_value_type_files_compile_in_isolation():
+def test_compilable_subset_builds():
     assert GO_DIR.is_dir(), "run 'make generate' first"
-    missing = [f"{dom}/{name}" for dom, name in COMPILABLE_SUBSET if not (GO_DIR / dom / name).exists()]
+    missing = [rel for rel in COMPILABLE_SUBSET if not (GO_DIR / rel).exists()]
     assert not missing, f"generated/go missing expected files: {missing}"
 
     with tempfile.TemporaryDirectory() as tmp:
         module_root = Path(tmp)
         pairs = [
-            (GO_DIR / dom / name, module_root / dom / name)
-            for dom, name in COMPILABLE_SUBSET
+            (GO_DIR / rel, module_root / rel)
+            for rel in COMPILABLE_SUBSET
         ]
         _write_go_module(module_root, pairs)
         result = go_build(module_root)
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_full_generated_set_currently_fails_named_type_resolution():
+def test_full_generated_set_currently_fails_cross_package_resolution():
     assert GO_DIR.is_dir(), "run 'make generate' first"
     with tempfile.TemporaryDirectory() as tmp:
         module_root = Path(tmp)
@@ -103,24 +100,20 @@ def test_full_generated_set_currently_fails_named_type_resolution():
         result = go_build(module_root)
 
         assert result.returncode != 0, (
-            "generated/go/ now builds in full - UPSTREAM_FINDINGS.md #21/#22 "
-            "appear fixed. Update this test and grow probes/go to the full set "
+            "generated/go/ now builds in full - UPSTREAM_FINDINGS.md #31 "
+            "appears fixed. Update this test and grow probes/go to the full set "
             "instead of leaving it green by accident.\n"
             + result.stdout
             + result.stderr
         )
 
         output = result.stdout + result.stderr
-        # #22: semantic-typed @key fields reference types that are never emitted,
-        # including the cross-domain pascalized spelling.
-        assert "undefined: PatientId" in output, output
+        # #31: references to types declared in another package are emitted bare
+        # with no import - the cross-domain names in this graph.
         assert "undefined: PatientPatientId" in output, output
-        # #21: value-type references use the short source name, not the emitted
-        # stable name (Address is emitted as PatientAddressV0; TimeRange as
-        # SchedulingTimeRangeV0).
-        assert "undefined: Address" in output, output
-        assert "undefined: TimeRange" in output, output
+        assert "undefined: SchedulingPractitionerId" in output, output
+        assert "undefined: SchedulingTimeRangeV0" in output, output
 
         # The probe's own subset files must not be implicated in any error.
-        for dom, name in COMPILABLE_SUBSET:
-            assert name not in output, f"subset file {dom}/{name} unexpectedly reported an error:\n{output}"
+        for rel in COMPILABLE_SUBSET:
+            assert Path(rel).name not in output, f"subset file {rel} unexpectedly reported an error:\n{output}"

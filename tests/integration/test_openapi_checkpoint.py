@@ -11,12 +11,14 @@ State on each ref:
 - pinned `1.7.0` (`.modelable-version`): no `openapi` target at all -
   `modelable capabilities` omits it and `modelable compile --target` rejects
   it. All tests here skip, recording "missing on the pinned ref".
+- pinned `1.8.0` (current `.modelable-version`): `openapi` is an implemented
+  target (#353 Phase A component schemas, #357 Phase B paths and operations).
+  The probe below exercises an `api {}` block and asserts non-empty `paths`
+  with operationId/method/typed path parameters/requestBody/responses, so
+  Phase B is confirmed "available" as opposed to merely present in code.
 - upstream `ktjn/modelable@main` (canary, install via `MODELABLE_REF=<sha>
-  bash scripts/install-modelable.sh`): `openapi` is an implemented target
-  (#353 Phase A component schemas, #357 Phase B paths and operations). The
-  probe below exercises an `api {}` block and asserts non-empty `paths` with
-  operationId/method/typed path parameters/requestBody/responses, so Phase B
-  is confirmed "available" as opposed to merely present in code.
+  bash scripts/install-modelable.sh`): `openapi` remains implemented; the
+  same probe applies.
 
 This is the permanent record Task 9.0 step 4 asks for: later agents re-run
 this module against the installed ref instead of re-verifying from scratch.
@@ -102,9 +104,9 @@ def openapi_doc(tmp_path_factory):
 requires_openapi = pytest.mark.skipif(
     not OPENAPI_IMPLEMENTED,
     reason=(
-        "installed Modelable reports no implemented 'openapi' target (pinned "
-        "1.7.0). Task 9.0 checkpoint: verify with the upstream canary ref via "
-        "MODELABLE_REF=<sha> bash scripts/install-modelable.sh"
+        "installed Modelable reports no implemented 'openapi' target (older "
+        "pins than 1.8.0). Task 9.0 checkpoint: verify with the upstream "
+        "canary ref via MODELABLE_REF=<sha> bash scripts/install-modelable.sh"
     ),
 )
 
