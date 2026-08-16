@@ -1,0 +1,4 @@
+# Bash scripts must stay LF on all platforms: CRLF working copies break
+# `bash` (`set -euo pipefail\r` is an invalid option), and the Makefile sources
+# them with `. ./scripts/...`.
+*.sh text eol=lf
