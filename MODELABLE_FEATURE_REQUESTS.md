@@ -21,7 +21,7 @@ pinned 1.7.0 release.
 | FR-1 | Emit `PRIMARY KEY`/`UNIQUE` from `@key` in generated DDL | Tasks 9.2/9.3 duplicate handling | Proposed |
 | FR-2 | Server-generated key fields (IDs dropped from the request projection) | Tasks 9.2/9.3 | Proposed |
 | FR-3 | Symmetric Rust serde attributes (`#[serde(default)]`) | Tasks 9.2/9.3 reply round-trip | Proposed |
-| FR-4 | Generated Rust compiles for every supported model | Finding #14 (clinical/billing) | Proposed |
+| FR-4 | Generated Rust compiles for every supported model | Finding #14 (clinical/billing) | Fixed upstream ([#355](https://github.com/ktjn/modelable/pull/355), merged); showcase adoption awaits release |
 | FR-5 | Legal ClickHouse rendering for optional arrays | Finding #25 | Proposed |
 | FR-6 | Globally unique deterministic index names | Finding #24 | Proposed |
 | FR-7 | Cwd-independent deterministic registry-id resolution | Task 9.0 OpenAPI probe | Proposed |
