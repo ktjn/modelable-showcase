@@ -64,6 +64,7 @@ probes: generate
 	@cd probes/java && mvn -q test
 	@cd probes/python && uv run pytest -q
 	@cd probes/go && go test ./...
+	@cargo test --manifest-path apps/api/Cargo.toml
 
 compat:
 	@. ./scripts/modelable-env.sh; uv run pytest -q tests/conformance/test_model_compatibility.py $(wildcard tests/conformance/test_target_compatibility.py)
