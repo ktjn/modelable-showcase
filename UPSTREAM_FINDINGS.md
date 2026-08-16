@@ -36,6 +36,7 @@
 | 20 | [`compile --target python` never emits semantic types at all - every semantic-typed annotation is a NameError](#20-compile---target-python-never-emits-semantic-types-at-all---every-semantic-typed-annotation-is-a-nameerror) | Crash (broken generated code) | A | Open |
 | 21 | [`compile --target go` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#21-compile---target-go-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 22 | [`compile --target go` never emits semantic types at all - every semantic-typed field is a compile error](#22-compile---target-go-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
+| 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -48,6 +49,8 @@
 **#17 and #18** (the Java emitter, discovered together during Task 7.3) are the C# pair's exact analogues for the `java` target. They were verified against upstream `main` at the same commit `22eaf4c`: `emitters/java.py` is byte-identical to the pinned `1.7.0` release there (same #313 last-change history as `csharp.py`), so neither is fixed or touched upstream either. They are logged as two separate entries below (distinct bugs, distinct fixes), and neither has been taken upstream yet.
 
 **#19–#22** (the Python and Go emitters, discovered together during Task 7.4) complete the same named-type/semantic-type picture for the last two first-class target languages. Both were verified against upstream `main` at the same commit `22eaf4c`: `emitters/python.py` and `emitters/go.py` are both byte-identical to the pinned `1.7.0` release there (both share the same #313 last-change history), so neither pair is fixed or touched upstream either. The Go pair (#21/#22) is a hard compile failure exactly like the C#/Java ones; the Python pair (#19/#20) is *latent* — because every generated module starts with `from __future__ import annotations`, the broken references are lazy string annotations, so modules import and dataclasses instantiate fine, and the breakage only surfaces when the annotations are actually resolved (`typing.get_type_hints` raises `NameError`) or consumed by any typed tooling. All four are logged as separate entries below (distinct bugs per emitter, distinct fixes), and none has been taken upstream yet.
+
+**#23** (the gRPC emitter, discovered during Task 7.5 while running the first real `protoc` over the whole `generated/grpc/` output) is a different bug class from #15–#22: no named-type or semantic-type reference is involved. It was verified against upstream `main` at the same commit `22eaf4c`: `emitters/grpc.py` is byte-identical to the pinned `1.7.0` release there (its last real change is #172/#170), so it is not fixed or touched upstream either. It has not been taken upstream yet. The protobuf target is *not* affected — the full `generated/protobuf/` graph (44 files) compiles cleanly with `protoc`, and `modelable compile --descriptor-set` succeeds for both targets (it compiles each artifact individually, which is exactly the per-file mode #23 leaves working).
 
 ---
 
@@ -1205,3 +1208,53 @@ probe\probe_widget_v1.go:5:8: undefined: ThingId
 **Expected:** emit a semantic type for the Go target (e.g. a struct wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated file must not reference an undefined name, and `@key` fields on real entities must compile.
 
 **Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13/#15/#16/#17/#18. `probes/go/` deliberately does not compile any artifact containing a semantic-typed field and documents why; `tests/integration/test_go_codegen.py` asserts the current failure explicitly. Until one of these two findings is fixed upstream, the Go target cannot compile any realistic Modelable workspace.
+
+---
+
+## 23. `compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together
+
+**Discovered:** Task 7.5 (Protobuf and gRPC compile probes), running the first real `protoc` over the entire `generated/grpc/` output. `protoc` was pinned via `scripts/install-protoc.sh` (see `.protoc-version`).
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  entity Alpha @ 1 (additive) {
+    @key id: uuid
+    name: string
+  }
+
+  entity Beta @ 1 (additive) {
+    @key id: uuid
+    name: string
+  }
+}
+```
+
+```bash
+modelable compile . --target grpc --out ./dist
+protoc -I ./dist -I "$(protoc --prefix)/include" \
+  --descriptor_set_out=./probe.desc \
+  ./dist/probe/Alpha.v1/Alpha.v1.grpc.proto \
+  ./dist/probe/Beta.v1/Beta.v1.grpc.proto
+```
+
+**Observed:**
+
+```text
+probe/Beta.v1/Beta.v1.grpc.proto:8:10: "modelable.probe.v1.scalable.SchemaIdentity.model_id" is already defined in file "probe/Alpha.v1/Alpha.v1.grpc.proto".
+probe/Beta.v1/Beta.v1.grpc.proto:9:10: "modelable.probe.v1.scalable.SchemaIdentity.model_name" is already defined in file "probe/Alpha.v1/Alpha.v1.grpc.proto".
+...
+```
+
+Two entities in the same domain at the same version produce two `.grpc.proto` files that each redeclare the *entire* shared service surface - `SchemaIdentity`, `CommandEnvelope`, `CommandResultEnvelope`, `GetEntityRequest`, `ListEntitiesRequest`, `ListByIndexRequest`, `ReadResultEnvelope`, `ListResultEnvelope`, `IndexMetadata`, `ReadConsistency`, `CommandService`, `EntityReadService` - all in the same package `modelable.probe.v1.scalable`, so `protoc` rejects the second file as a redefinition. On this showcase's full `generated/grpc/` output (84 `.proto` files) the union fails with 98 `"..." is already defined` error lines, starting with `billing/InvoiceDb.v2/InvoiceDb.v2.grpc.proto` duplicating `billing/Invoice.v2/Invoice.v2.grpc.proto`. Any domain with more than one model or projection at a given version collides - billing.v2 (Invoice, InvoiceDb, InvoiceEvent, InvoiceReply, InvoiceRequest), clinical.v1 (Encounter + its Db/Event/Reply/Request/FhirView projections + Observation/ObservationFhirView/PatientFhirView), patient.v1/v2 (Patient + Db/Event/Reply/Request), scheduling.v1 (Appointment + Db/Event/Reply/Request/StatusChanged) - i.e. essentially every realistic domain.
+
+The protobuf target is not affected, and neither is the per-file consumption mode: `protoc` compiles any single `.grpc.proto` file standalone (exit 0), the 44 non-`.grpc` schema `.proto` files in `generated/grpc/` compile together (exit 0), and `modelable compile --target grpc --descriptor-set` succeeds because it compiles each artifact individually - but the *union of the emitted graph* cannot be compiled, which is exactly what a downstream consumer does when they point `protoc` (or a code generator like `grpc_tools`/`buf`) at the whole generated directory.
+
+**Root cause (read from source, not guessed):** `emitters/grpc.py::emit_grpc` writes one fully standalone service file per model *and* per projection, each via `_render_service_proto(package=f"{_package_name(domain, version)}.scalable")` (line 37) - the same package for every model at the same `domain`/`version`. `_render_service_proto` always emits the same boilerplate messages and services with no deduplication, no shared imported service module, and no per-model package distinction. There is nothing in the emitted output a consumer can use to combine multiple services of one domain version into a single deployable `.proto` set: the definitions simply collide. Nothing upstream checks for this: `cli/tests/test_emit_grpc.py` (if present) asserts on single-file text substrings only, and `--descriptor-set`'s per-file compilation sidesteps the collision rather than exposing it.
+
+**Expected:** either emit the shared envelope/service surface once per `modelable.<domain>.<version>.scalable` package (e.g. a single shared service `.proto` file imported by per-model files that only add their own service/entity wiring), or give each model its own distinct package - either way, the full emitted graph for a realistic domain must compile with `protoc` in one invocation.
+
+**Showcase workaround:** `tests/integration/test_protobuf_codegen.py` (Task 7.5) compiles the full protobuf graph, the gRPC schema `.proto` set, and each gRPC service file individually (the documented per-service mode `--descriptor-set` also uses), and asserts the full-graph failure explicitly so it flips when the emitter is fixed. Until #23 is fixed upstream, a consumer cannot compile an entire `generated/grpc/` tree in one `protoc` invocation.

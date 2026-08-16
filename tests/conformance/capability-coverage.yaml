@@ -90,7 +90,10 @@ capabilities:
     test: tests/conformance/test_valid_fixtures.py::test_arrays_of_inline_enums_compile_in_typescript
   target:protobuf:
     coverage: probe
-    test: tests/conformance/test_valid_fixtures.py::test_legal_maps_compile_in_protobuf
+    test: tests/integration/test_protobuf_codegen.py::test_full_protobuf_graph_compiles
+  target:grpc:
+    coverage: probe
+    test: tests/integration/test_protobuf_codegen.py::test_grpc_schema_protos_compile
   target:sql-clickhouse:
     coverage: probe
     test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
@@ -112,9 +115,6 @@ capabilities:
   target:odcs:
     coverage: probe
     test: tests/integration/test_generated_artifacts.py::test_odcs_contracts_have_identity_and_schema_fields
-  target:grpc:
-    coverage: probe
-    test: tests/integration/test_generated_artifacts.py::test_grpc_service_manifest_has_services_and_read_indexes
   deferred_feature:composite-keys:
     coverage: deferred
     test: tests/conformance/deferred/composite-keys.mdl

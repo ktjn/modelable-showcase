@@ -19,4 +19,20 @@ case ":${PATH}:" in
   *) export PATH="${_modelable_tool_bin}:${PATH}" ;;
 esac
 
+# Put a project-local pinned protoc (scripts/install-protoc.sh, .protoc-version)
+# on PATH the same way, so `modelable compile --descriptor-set` and the
+# protobuf/gRPC codegen probes can find it without a global install.
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_protoc_version="$(tr -d ' \t\n\r' < "${_script_dir}/../.protoc-version" 2>/dev/null || true)"
+if [ -n "${_protoc_version}" ] && [ -x "${_script_dir}/../tools/protoc-${_protoc_version}/bin/protoc" ]; then
+  _protoc_bin="$(cd "${_script_dir}/../tools/protoc-${_protoc_version}/bin" && pwd)"
+  case ":${PATH}:" in
+    *":${_protoc_bin}:"*) ;;
+    *) export PATH="${_protoc_bin}:${PATH}" ;;
+  esac
+fi
+
 unset _modelable_tool_bin
+unset _script_dir
+unset _protoc_version
+unset _protoc_bin
