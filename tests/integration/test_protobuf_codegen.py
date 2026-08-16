@@ -276,7 +276,17 @@ def test_schema_manifest_reservations_in_evolved_fixture():
     with tempfile.TemporaryDirectory() as tmp:
         cwd = Path(tmp)
         out = cwd / "out"
-        result = _modelable("compile", str(COMPAT_FIXTURE), "--target", "protobuf", "--out", str(out), cwd=cwd)
+        result = _modelable(
+            "compile",
+            str(COMPAT_FIXTURE),
+            "--target",
+            "protobuf",
+            "--out",
+            str(out),
+            "--registry-ids",
+            str(cwd / "registry-ids.lock"),
+            cwd=cwd,
+        )
         assert result.returncode == 0, result.stdout + result.stderr
 
         manifest = load_json(out / "compat" / "Patient.v1" / "schema-manifest.json")
