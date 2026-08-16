@@ -22,7 +22,7 @@ esac
 # Put a project-local pinned protoc (scripts/install-protoc.sh, .protoc-version)
 # on PATH the same way, so `modelable compile --descriptor-set` and the
 # protobuf/gRPC codegen probes can find it without a global install.
-_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 _protoc_version="$(tr -d ' \t\n\r' < "${_script_dir}/../.protoc-version" 2>/dev/null || true)"
 if [ -n "${_protoc_version}" ] && [ -x "${_script_dir}/../tools/protoc-${_protoc_version}/bin/protoc" ]; then
   _protoc_bin="$(cd "${_script_dir}/../tools/protoc-${_protoc_version}/bin" && pwd)"

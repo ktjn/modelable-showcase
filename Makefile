@@ -50,8 +50,20 @@ generate:
 validate:
 	$(call not_implemented,validate,"Task 17.1 - Finalize command facade")
 
-probes:
-	$(call not_implemented,probes,"Task 7.6 - Unified probe target")
+probes: generate
+	@. ./scripts/modelable-env.sh; \
+	uv run pytest -q \
+		tests/integration/test_rust_codegen.py \
+		tests/integration/test_csharp_codegen.py \
+		tests/integration/test_java_codegen.py \
+		tests/integration/test_python_codegen.py \
+		tests/integration/test_go_codegen.py \
+		tests/integration/test_protobuf_codegen.py
+	@cd apps/web && npm install && npm test -- --run && npm run build
+	@dotnet test probes/csharp
+	@cd probes/java && mvn -q test
+	@cd probes/python && uv run pytest -q
+	@cd probes/go && go test ./...
 
 compat:
 	@. ./scripts/modelable-env.sh; uv run pytest -q tests/conformance/test_model_compatibility.py $(wildcard tests/conformance/test_target_compatibility.py)
