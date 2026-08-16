@@ -303,11 +303,17 @@ def test_projection_event_operation_coverage_not_comparable():
 
 
 def test_registry_subcommand_does_not_exist():
+    # The `registry` command group now exists in v1.9.x (offline snapshot
+    # subcommands: resolve, status, verify, diff, prune, update, usage), so the
+    # SPEC.md Sec 14 federated-registry entry points remain the deferred half:
+    # `registry init`, `registry peer`, `registry graph`, and `registry sync`
+    # still do not exist as subcommands.
     for args in (["registry", "init"], ["registry", "peer", "add"], ["registry", "graph"], ["registry", "sync"]):
         result = run_modelable(*args)
         output = normalize(result.stdout + result.stderr)
         assert result.returncode == 2, f"modelable {' '.join(args)}: expected exit 2, got {result.returncode}\n{output}"
-        assert "No such command 'registry'" in output, output
+        deferred_subcommand = args[1]
+        assert f"No such command '{deferred_subcommand}'" in output, output
 
 
 def test_dependents_subcommand_does_not_exist():
