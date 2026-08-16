@@ -30,6 +30,8 @@
 | 14 | [`compile --target rust` loses named-type resolution for optional array fields specifically](#14-compile---target-rust-loses-named-type-resolution-for-optional-array-fields-specifically) | Crash (broken generated code) | A | Fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355) (open, not yet merged/released) |
 | 15 | [`compile --target csharp` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#15-compile---target-csharp-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 | 16 | [`compile --target csharp` never emits semantic types at all - every semantic-typed field is a compile error](#16-compile---target-csharp-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
+| 17 | [`compile --target java` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error](#17-compile---target-java-never-resolves-named-type-references-to-the-emitted-stable-type-name---every-value-type-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
+| 18 | [`compile --target java` never emits semantic types at all - every semantic-typed field is a compile error](#18-compile---target-java-never-emits-semantic-types-at-all---every-semantic-typed-field-is-a-compile-error) | Crash (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -38,6 +40,8 @@
 **#14** was discovered after #354 already existed, is not yet addressed by it, and has not been taken upstream (no issue filed, no PR). Per `UPSTREAM_POLICY.md` §1 that is the required next step. **#14 was confirmed fixed in [ktjn/modelable#355](https://github.com/ktjn/modelable/pull/355)** (verified by re-running its exact reproduction against that PR's commit `b474232`), which is open but not yet merged — so `.modelable-version` still pins `1.7.0` and this showcase's Rust probe still asserts the pre-fix failure, exactly like the #1–#13 note above.
 
 **#15 and #16** (the C# emitter, discovered together during Task 7.2) were verified against upstream `main` at commit `22eaf4c` (`fix: tolerate rewritten main history in validation (#356)`): `emitters/csharp.py` is byte-identical to the pinned `1.7.0` release on that branch (its last real change is the naming-helper consolidation in #313, long before #354/#355/#356), so neither is fixed or even touched there yet. They share a root-cause neighborhood but are distinct bugs with distinct fixes, so they are logged as two entries below rather than one. Neither has been taken upstream yet — per `UPSTREAM_POLICY.md` §1 that is the required next step.
+
+**#17 and #18** (the Java emitter, discovered together during Task 7.3) are the C# pair's exact analogues for the `java` target. They were verified against upstream `main` at the same commit `22eaf4c`: `emitters/java.py` is byte-identical to the pinned `1.7.0` release there (same #313 last-change history as `csharp.py`), so neither is fixed or touched upstream either. They are logged as two separate entries below (distinct bugs, distinct fixes), and neither has been taken upstream yet.
 
 ---
 
@@ -875,3 +879,115 @@ error CS0246: The type or namespace name 'ThingId' could not be found
 **Expected:** emit a semantic type for the C# target (e.g. a record wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated file must not reference an undefined name, and `@key` fields on real entities must compile.
 
 **Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13. `probes/csharp/` deliberately does not link any artifact containing a semantic-typed field and documents why; `tests/integration/test_csharp_codegen.py` asserts the current failure explicitly. Until one of these two findings is fixed upstream, the C# target cannot compile any realistic Modelable workspace.
+
+---
+
+## 17. `compile --target java` never resolves named-type references to the emitted stable type name - every value-type-typed field is a compile error
+
+**Discovered:** Task 7.3 (Java probe), running the first real `javac` against generated `java` output.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  value Address {
+    street: string
+  }
+
+  entity Widget @ 1 (additive) {
+    @key id: uuid
+    addr?: Address
+  }
+}
+```
+
+```bash
+modelable compile . --target java --out ./dist
+javac --release 21 -d ./classes dist/**/*.java
+```
+
+**Observed:**
+
+```text
+// dist/probe/AddressV0.java
+public record AddressV0(
+    String street
+) {
+}
+
+// dist/probe/WidgetV1.java
+public record WidgetV1(
+    UUID id,
+    Optional<Address> addr      // <- undefined, defined as AddressV0
+) {
+}
+
+WidgetV1.java:9: error: cannot find symbol
+    Optional<Address> addr,
+                  ^
+  symbol:   class Address
+```
+
+The value type `Address` **is** emitted - under `_type_name(model_name, version)` = `AddressV0` - but the entity field that references it emits the short source name `Address`. Same package, same compile unit, and the two names never agree, so every field whose type is a `value` declaration is a compile error. This is the majority of the Java output: `javac` over this showcase's full `generated/java/` reports `cannot find symbol` for `Address`, `ContactDetails`, `TimeRange`, `InvoiceLine`, and `Diagnosis` (436 total error lines). Only self-contained value types with no references (`patient/AddressV0.java`, `patient/ContactDetailsV0.java`, `scheduling/TimeRangeV0.java`, `billing/InvoiceLineV0.java`, `clinical/DiagnosisV0.java`) compile as-is.
+
+**Root cause (read from source, not guessed):** `emitters/java.py::_shape_base_to_java` renders every `named`-kind shape as `_pascalize(shape.ref or "Named")` (line 207) - the raw short source name from the `.mdl` file, with no lookup into what the emitter actually named the declaration. That differs from `emitters/rust.py`, which threads a `named_type_map` through its shape rendering so a reference is rewritten to the *emitted* stable name (`PatientAddressV0` etc.); the Java emitter has no equivalent map at all. The definitions are emitted correctly elsewhere (`_type_name(model_name, version)` produces `AddressV0`), so reference and definition simply disagree by construction. Nothing upstream checks for this: `cli/tests/test_emit_java.py` asserts only on generated *text substrings* for primitives, inline `object {}` shapes (which the emitter names after the field and emits as a nested record inside the same file, so they agree), and decimal/binary/temporal types - it never compiles the output or references a declared `value` type, so the compile-breaking reference mismatch is invisible to the upstream suite.
+
+**Expected:** `_shape_base_to_java`'s `named` branch should resolve `shape.ref` to the emitted stable type name the same way the Rust emitter's `named_type_map` does, so the referenced name always matches the emitted definition. A small regression test that compiles the generated output (or at least asserts the reference name equals `_type_name(name, version)` for a declared value type) would keep it fixed.
+
+**Showcase workaround:** `probes/java/` (Task 7.3) compiles only the five self-contained value types that work as-is and documents the rest as broken - mirroring `probes/csharp/`'s treatment of findings #15/#16 and `apps/web/src/generated-types.ts`'s treatment of #12/#13. See `probes/java/pom.xml`'s header comment; `tests/integration/test_java_codegen.py` asserts the full-set failure explicitly so it flips when the emitter is fixed.
+
+---
+
+## 18. `compile --target java` never emits semantic types at all - every semantic-typed field is a compile error
+
+**Discovered:** Task 7.3 (Java probe), alongside finding #17.
+
+**Reproduction:**
+
+```mdl
+domain probe {
+  owner: "test"
+
+  semantic ThingId: uuid(7) {
+    registry: true
+  }
+
+  entity Widget @ 1 (additive) {
+    @key
+    id: ThingId
+  }
+}
+```
+
+```bash
+modelable compile . --target java --out ./dist
+javac --release 21 -d ./classes dist/**/*.java
+```
+
+**Observed:**
+
+```text
+$ ls ./dist/probe
+WidgetV1.java        # <- the only file; no ThingId.java anywhere
+
+$ cat ./dist/probe/WidgetV1.java
+public record WidgetV1(
+    ThingId id,       // <- referenced, never declared or emitted
+) {
+}
+
+WidgetV1.java:6: error: cannot find symbol
+    ThingId id,
+    ^
+  symbol:   class ThingId
+```
+
+`ThingId` is referenced but no definition file is ever emitted - unlike `emitters/rust.py`, which emits one `*_id.rs` file per `semantic` declaration (carrying the `REGISTRY_ID` constant). The Java emitter emits exactly one file per model/projection and nothing for semantic types. This affects essentially every entity/aggregate/event in a realistic workspace (this showcase's own `patient/PatientV2.java` fails on its `@key patientId: PatientId`, `scheduling/AppointmentV1.java` on `AppointmentId`/`PractitionerId`, `clinical/EncounterDbV1.java` on `EncounterId`, `billing/InvoiceV2.java` on `InvoiceId`, `clinical/ObservationV1.java` on `ObservationCode`). Cross-domain semantic references (`patientId: patient.PatientId` in clinical/billing) get spelled `PatientPatientId` - the whole dotted reference is pascalized in place - which is a second, equally-undefined name (`SchedulingPractitionerId` appears the same way).
+
+**Root cause (read from source, not guessed):** `emitters/java.py::emit_java` (lines 16-23) iterates only `domain.models` (entities/aggregates/events/values) and `domain.projections`. It never iterates `domain.semantic_types`, and unlike `emitters/rust.py::_emit_semantic_type` there is no Java semantic-type emitter at all - nothing produces a `ThingId` record or resolves the reference structurally to the underlying `UUID`. The `named`-kind shape for a semantic-typed field therefore falls through to the same `_pascalize(shape.ref)` fallback as finding #17, yielding a bare undefined name. (`cli/tests/test_emit_java.py` never uses a `semantic` declaration, so upstream has no test that would catch it.)
+
+**Expected:** emit a semantic type for the Java target (e.g. a record wrapping the underlying type, mirroring Rust's per-semantic-type artifact, or at minimum the underlying primitive inline with the `EMIT002` "cannot be represented without loss" warning) and resolve field references to it - the generated file must not reference an undefined name, and `@key` fields on real entities must compile.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1), same as findings #12/#13/#15/#16. `probes/java/` deliberately does not compile any artifact containing a semantic-typed field and documents why; `tests/integration/test_java_codegen.py` asserts the current failure explicitly. Until one of these two findings is fixed upstream, the Java target cannot compile any realistic Modelable workspace.

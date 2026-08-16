@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Java probe for Modelable-generated types (IMPLEMENTATION_PLAN.md Task 7.3):
+  compile the generated artifacts and run construction/equality tests. Maven is
+  used rather than Gradle because no Gradle wrapper is committed here and the
+  repository policy does not otherwise require one (IMPLEMENTATION_PLAN.md 7.3
+  explicitly allows "documented Maven equivalent").
+
+  Generated Java sources are compiled in place from the disposable
+  generated/ tree via <sourceDirectory> - nothing is copied into git.
+
+  Only the five value-type artifacts that compile as-is under the pinned 1.7.0
+  release are included here:
+    - value types are referenced by their short source name but defined under
+      the stable <Name>V<version> name (UPSTREAM_FINDINGS.md #17);
+    - semantic types are referenced but never emitted at all (#18).
+  AddressV0/ContactDetailsV0/TimeRangeV0/InvoiceLineV0/DiagnosisV0 are the
+  plain `value` declarations with no named-type or semantic-typed fields, so
+  they are unaffected by either bug and compile as-is - they are still real
+  generated patient/billing/clinical domain data.
+
+  Revisit once Modelable is re-pinned past a release that fixes #17/#18
+  (tracked per project owner direction, same as #12/#13/#15/#16): the full
+  generated/java/ set should become compilable at that point.
+  tests/integration/test_java_codegen.py asserts the full-set failure
+  explicitly so it flips when the emitter is fixed upstream.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>showcase.modelable</groupId>
+  <artifactId>modelable-showcase-java-probe</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>21</maven.compiler.release>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <!-- Compile the generated Java sources in place; <includes> restricts the
+       set to the value types that compile under the pinned release (see the
+       header comment). Paths are relative to this sourceDirectory. -->
+  <build>
+    <sourceDirectory>../../generated/java</sourceDirectory>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <release>21</release>
+          <includes>
+            <include>patient/AddressV0.java</include>
+            <include>patient/ContactDetailsV0.java</include>
+            <include>scheduling/TimeRangeV0.java</include>
+            <include>billing/InvoiceLineV0.java</include>
+            <include>clinical/DiagnosisV0.java</include>
+          </includes>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>
