@@ -23,8 +23,28 @@ services:
       - showcase-net
     restart: unless-stopped
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    environment:
+      CLICKHOUSE_USER: showcase
+      CLICKHOUSE_PASSWORD: showcase
+      CLICKHOUSE_DB: showcase
+    ports:
+      - "127.0.0.1:8123:8123"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "showcase", "--password", "showcase", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
 volumes:
   postgres-data:
+  clickhouse-data:
 
 networks:
   showcase-net:
