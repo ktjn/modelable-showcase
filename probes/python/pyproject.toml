@@ -1,0 +1,23 @@
+[project]
+name = "modelable-showcase-python-probe"
+version = "0.0.0"
+description = "Python probe for Modelable-generated dataclasses (IMPLEMENTATION_PLAN.md Task 7.4). Not a distributable package."
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+# Generated Python modules are imported deliberately from the disposable
+# generated/ tree: generated/python has no __init__.py files, and each module
+# is imported by its own filename as a PEP 420 namespace package, so the
+# generated/python directory itself goes on sys.path (nothing is copied into
+# git).
+pythonpath = ["../../generated/python"]

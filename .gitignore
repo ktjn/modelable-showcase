@@ -4,6 +4,7 @@ dist/
 node_modules/
 target/
 .venv/
+uv.lock
 __pycache__/
 .pytest_cache/
 playwright-report/

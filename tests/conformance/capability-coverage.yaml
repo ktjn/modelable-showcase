@@ -79,6 +79,12 @@ capabilities:
   target:java:
     coverage: probe
     test: tests/integration/test_java_codegen.py::test_compilable_subset_compiles
+  target:go:
+    coverage: probe
+    test: tests/integration/test_go_codegen.py::test_value_type_files_compile_in_isolation
+  target:python:
+    coverage: probe
+    test: tests/integration/test_python_codegen.py::test_value_type_annotations_resolve
   target:typescript:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_arrays_of_inline_enums_compile_in_typescript
