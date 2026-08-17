@@ -16,6 +16,35 @@ vi.mock('./api/patients', () => ({
   }),
   createPatient: vi.fn(),
 }))
+vi.mock('./api/summary', () => ({
+  getPatientSummary: vi.fn().mockResolvedValue({
+    patientId: 'patient-123',
+    legalName: 'Ada Lovelace',
+    preferredName: null,
+    dateOfBirth: '1815-12-10',
+    preferredLanguage: 'en',
+    appointmentCount: 0,
+    encounterCount: 0,
+    observationCount: 0,
+    invoiceCount: 0,
+    totalInvoiced: null,
+    totalPaid: null,
+    outstanding: null,
+    lastEncounterAt: null,
+  }),
+}))
+vi.mock('./api/billing', () => ({
+  createInvoice: vi.fn(),
+  addPayment: vi.fn(),
+}))
+vi.mock('./api/analytics', () => ({
+  getClinicAnalytics: vi.fn().mockResolvedValue({
+    appointmentsPerDay: [],
+    billedTotal: '0.00',
+    paidTotal: '0.00',
+    practitionerAppointmentCounts: [],
+  }),
+}))
 
 function renderApp(initialPath = '/') {
   const queryClient = new QueryClient()
