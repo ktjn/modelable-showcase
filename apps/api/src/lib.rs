@@ -30,6 +30,7 @@ use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
+pub mod analytics;
 pub mod billing;
 pub mod clinical;
 pub mod http;
@@ -48,6 +49,7 @@ pub struct AppState {
     pub postgres_check: ReadyFn,
     pub clickhouse_check: ReadyFn,
     pub pool: PgPool,
+    pub clickhouse: clickhouse::Client,
 }
 
 fn wrap_ready(
@@ -68,12 +70,28 @@ pub fn lazy_pool() -> PgPool {
         .expect("malformed SHOWCASE_PG_* configuration - cannot build the Postgres pool")
 }
 
+pub fn lazy_clickhouse() -> clickhouse::Client {
+    let config = ClickHouseConfig::default();
+    clickhouse::Client::default()
+        .with_url(format!("http://{}:{}", config.host, config.port))
+        .with_user(config.user)
+        .with_password(config.password)
+        .with_database(config.dbname)
+        // The analytics module (Task 9.5) writes a deliberate column subset
+        // to each generated event table (e.g. omitting `notes`/`reason`);
+        // server-side defaults fill the rest. The crate's schema-validated
+        // insert path rejects any column absent from the Rust row type, even
+        // if it is Nullable, so validation is disabled for these writes.
+        .with_validation(false)
+}
+
 impl Default for AppState {
     fn default() -> Self {
         Self {
             postgres_check: wrap_ready(|| Box::pin(postgres_is_reachable())),
             clickhouse_check: wrap_ready(|| Box::pin(clickhouse_is_reachable())),
             pool: lazy_pool(),
+            clickhouse: lazy_clickhouse(),
         }
     }
 }
@@ -87,6 +105,7 @@ pub fn app(state: AppState) -> Router {
         .merge(clinical::clinical_routes())
         .merge(billing::billing_routes())
         .merge(summary::summary_routes())
+        .merge(analytics::analytics_routes())
         .with_state(state)
 }
 
@@ -253,6 +272,7 @@ mod tests {
             postgres_check: stub_ready(postgres),
             clickhouse_check: stub_ready(clickhouse),
             pool: lazy_pool(),
+            clickhouse: lazy_clickhouse(),
         }
     }
 
