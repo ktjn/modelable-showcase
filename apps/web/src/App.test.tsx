@@ -1,8 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import App from './App'
+
+vi.mock('./api/patients', () => ({
+  searchPatients: vi.fn().mockResolvedValue([]),
+  getPatient: vi.fn().mockResolvedValue({
+    patientId: 'patient-123',
+    legalName: 'Ada Lovelace',
+    dateOfBirth: '1815-12-10',
+    contact: {},
+    preferredLanguage: 'en',
+    createdAt: '2026-01-01T00:00:00Z',
+  }),
+  createPatient: vi.fn(),
+}))
 
 function renderApp(initialPath = '/') {
   const queryClient = new QueryClient()
@@ -29,15 +42,15 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { name: 'Modelable Clinic' })).toBeInTheDocument()
   })
 
-  it('renders the patients route, which is built on the generated Patient-domain types', () => {
+  it('renders the patients route, which searches the generated Patient-domain API', () => {
     renderApp('/patients')
     expect(screen.getByRole('heading', { name: 'Patients' })).toBeInTheDocument()
-    expect(screen.getByText(/front-desk@modelable-clinic.example/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'New patient' })).toHaveAttribute('href', '/patients/new')
   })
 
-  it('renders the patient detail route with a route param', () => {
+  it('renders the patient detail route with a route param', async () => {
     renderApp('/patients/patient-123')
-    expect(screen.getByRole('heading', { name: 'Patient patient-123' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument()
   })
 
   it('renders the schedule route', () => {

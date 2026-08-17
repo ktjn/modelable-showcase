@@ -50,6 +50,7 @@
 | 34 | [`compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`](#34-compile---target-rust-marks-every-option-field-serde-skip_serializing_if--optionis_none-without-serde-default---a-serialized-projection-cannot-be-deserialized-back-when-an-optional-is-none) | Crash (broken generated code) | A | Open |
 | 35 | [`compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable](#35-compile---target-openapi-emits-a-ref-to-the-bare-source-entity-for-refdomainentityn-fields-but-no-component-schema-exists-for-a-bare-entity---the-reference-is-unresolvable) | Invalid generated output | A | Open |
 | 36 | [`compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract](#36-compile---target-openapi-emits-modelable-source-camelcase-property-names-while-compile---target-rust-emits-the-language-idiomatic-snake_case-field-names-as-is-on-the-wire---the-two-targets-disagree-about-the-same-models-json-contract) | Inconsistent behavior | A | Open |
+| 37 | [`compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields](#37-compile---target-typescript-never-marks-an-optional-field--every-field-is-emitted-as-required-even-server-fields-and-explicit--fields) | Missing feature (broken generated code) | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -1738,4 +1739,41 @@ pub patient_id: PatientId,
 **Expected:** the two targets should agree on the wire representation of the same field. Either (a) `emitters/rust.py` should emit `#[serde(rename = "<camelCase source name>")]` so the Rust wire format matches the OpenAPI (and TypeScript/JSON Schema) convention, or (b) `emitters/openapi.py` should render `properties` keys in the same casing the language target it is meant to document actually puts on the wire (which is target-dependent and therefore not a single answer) - (a) is the only option that keeps one canonical wire contract across every target.
 
 **Showcase workaround:** `apps/api/tests/openapi_contract.rs` converts the running Axum API's actual snake_case JSON response keys to camelCase before comparing them against the OpenAPI schema's declared `properties`/`required` key sets, and documents that conversion as a direct consequence of #36 rather than a generic normalization step. Until #36 is fixed upstream, the generated OpenAPI document's property names cannot be used verbatim against the generated Rust API's actual JSON wire format.
+
+## 37. `compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields
+
+**Status:** Open. New finding, discovered while implementing IMPLEMENTATION_PLAN.md Task 10.1 (React patient pages) against the v1.8.0 regeneration.
+
+**Discovered:** Task 10.1, building a patient create form against `generated/typescript/patient.PatientRequest.v2.ts` and finding the TypeScript compiler accepted a call site that omitted `preferredName` (a genuinely optional field) with no error, then separately noticing every field in every generated `.ts` interface lacks `?:` regardless of source optionality.
+
+**Reproduction:**
+
+```bash
+sed -n '1,25p' generated/typescript/patient.PatientRequest.v2.ts
+```
+
+**Observed:**
+
+```typescript
+export interface PatientPatientRequestV2 {
+  patientId: string;
+  legalName: string;
+  preferredName: string;   // model/patient.mdl: preferredName?: string
+  dateOfBirth: string;
+  contact: ContactDetails;
+  address: Address;        // model/patient.mdl: address?: Address
+  preferredLanguage: string;
+  alternatePhoneNumbers: string[];
+  notes: string;           // model/patient.mdl: notes?: string
+  clinicalNotes: string;   // model/patient.mdl: clinicalNotes?: string
+}
+```
+
+Every optional field (`?` in `.mdl`, including every `@server` field like `createdAt`/`updatedAt` which are never client-supplied) is rendered as a required TypeScript property. This is not limited to `patient.PatientRequest.v2` - the same pattern holds across every generated `.ts` file in this showcase (`scheduling.AppointmentReply.v1.bufferDuration`/`reason`/`notes`/`updatedAt`, `clinical.EncounterReply.v1.appointmentId`/`endedAt`/`diagnoses`, `billing.InvoiceReply.v2.encounterId`/`currency`/`dueDate`, ...).
+
+**Root cause (read from source, not guessed):** `emitters/typescript.py`'s field-emission path renders every field's type via `_type_to_ts` but never inspects the field's `optional` flag to decide whether to emit a `?` before the `:`. Every other implemented target that has a language-level optional/nullable concept (`rust`'s `Option<T>`, `python`'s `T | None`, `csharp`'s `T?`, `java`'s boxed/`@Nullable`) does read this flag; only the TypeScript emitter drops it.
+
+**Expected:** emit `fieldName?: T` for any field whose Modelable declaration is optional (including every `@server` field on a `request` projection, which `auto projections ... request exclude [@server]` already excludes entirely - but a hand-written `api {}`/custom projection that keeps an optional `@server` field should still get `?:`), matching the same optionality every other typed target already preserves.
+
+**Showcase workaround:** `apps/web`'s patient create form (Task 10.1) treats every generated request/reply field as potentially absent at runtime regardless of what the generated `.ts` type claims - reading with optional chaining (`patient.address?.street`) and constructing request bodies by omitting genuinely-optional fields explicitly rather than trusting the compiler to catch a missing required field. Until #37 is fixed upstream, the generated TypeScript types cannot be trusted to distinguish a required field from an optional one, and the compiler cannot catch either a wrongly-omitted required field or a wrongly-assumed-present optional field.
 
