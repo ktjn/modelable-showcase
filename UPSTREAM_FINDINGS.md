@@ -48,6 +48,8 @@
 | 32 | [`modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse](#32-modelable-generate---from-json-schema-emits-the-raw-ref-json-pointer-defstype-as-a-field-type---imported-schemas-fail-to-parse) | Crash (broken generated code) | A | Open |
 | 33 | [`modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation](#33-modelable-generate---from-odcs-imports-semanticvalue-type-references-without-their-declarations---imported-models-fail-validation) | Crash (broken generated code) | A | Open |
 | 34 | [`compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`](#34-compile---target-rust-marks-every-option-field-serde-skip_serializing_if--optionis_none-without-serde-default---a-serialized-projection-cannot-be-deserialized-back-when-an-optional-is-none) | Crash (broken generated code) | A | Open |
+| 35 | [`compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable](#35-compile---target-openapi-emits-a-ref-to-the-bare-source-entity-for-refdomainentityn-fields-but-no-component-schema-exists-for-a-bare-entity---the-reference-is-unresolvable) | Invalid generated output | A | Open |
+| 36 | [`compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract](#36-compile---target-openapi-emits-modelable-source-camelcase-property-names-while-compile---target-rust-emits-the-language-idiomatic-snake_case-field-names-as-is-on-the-wire---the-two-targets-disagree-about-the-same-models-json-contract) | Inconsistent behavior | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -1676,3 +1678,64 @@ The rust emitter renders every optional field as `#[serde(skip_serializing_if = 
 **Expected:** emit `#[serde(default)]` alongside `skip_serializing_if` on every `Option` field (as the emitter already does for value-type fields like `PatientContactDetailsV0.email`), so a serialized projection deserializes back into the same type regardless of which optionals are `None`.
 
 **Showcase workaround:** the showcase API persists and returns the generated reply types, whose own `skip_serializing_if` is authoritative, so the HTTP responses are correct and complete (omitted optionals are semantically `null`). What cannot happen is deserializing that same JSON back into the generated type. `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins the reality: it asserts the created reply's field set, and to exercise the generated type's deserializer it uses a hand-built full JSON with every optional present, rather than the API's own omitted-optional output. Until #34 is fixed upstream, any Rust consumer that serializes a projection with a `None` optional cannot feed that document back into the generated type.
+
+## 35. `compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable
+
+**Status:** Open. New finding, discovered while implementing IMPLEMENTATION_PLAN.md Task 9.6 (OpenAPI contract generation and consumption) against the v1.8.0 regeneration.
+
+**Discovered:** Task 9.6, independently validating `generated/openapi/openapi.json` with `openapi-spec-validator` (a parser separate from Modelable's own test suite, per `UPSTREAM_POLICY.md` §4.4/§5.3) after adding the showcase's first real `api {}` declarations.
+
+**Reproduction:**
+
+```bash
+uv run python -c "
+from openapi_spec_validator import validate
+import json
+validate(json.load(open('generated/openapi/openapi.json')))
+"
+```
+
+**Observed:**
+
+```text
+referencing.exceptions.PointerToNowhere: '/components/schemas/patient.Patient.v2' does not exist
+```
+
+`scheduling.mdl` declares `Appointment.patientId: ref<patient.Patient@2>` (a cross-domain model reference, not a semantic-identifier reference like `practitionerId`). The openapi emitter renders every projection of `Appointment` (`AppointmentEvent`, `AppointmentReply`, `AppointmentRequest`) with `"patientId": {"$ref": "#/components/schemas/patient.Patient.v2"}` - but `components.schemas` only ever contains `patient.Patient{Db,Request,Reply,Event}.v2` (the auto-generated *projections*) and the value/semantic-type schemas (`PatientId`, `ContactDetails`, ...); the bare entity `patient.Patient.v2` itself is never emitted as a component. The same pattern repeats for every `ref<>` field in this showcase's model: `clinical.mdl`'s `Encounter.appointmentId: ref<scheduling.Appointment@1>` and `Observation.encounterId: ref<clinical.Encounter@1>` both emit dangling `$ref`s to `scheduling.Appointment.v1`/`clinical.Encounter.v1`; `billing.mdl`'s `Invoice.encounterId: ref<clinical.Encounter@1>` emits the same dangling `clinical.Encounter.v1` ref. 11 occurrences total across `InvoiceDb`/`InvoiceReply`/`InvoiceRequest`, `EncounterEvent`/`EncounterReply`/`EncounterRequest`, `ObservationFhirView`, `OutstandingInvoices`, and `AppointmentEvent`/`AppointmentReply`/`AppointmentRequest`. Semantic-identifier references (`practitionerId: PractitionerId`) are unaffected - they correctly `$ref` the semantic type's own component.
+
+**Root cause (read from source, not guessed):** the openapi emitter's field-schema resolver renders a `ref<Domain.Entity@N>` field as a `$ref` to `<Domain>.<Entity>.v<N>` - the component-naming convention used for a *projection* (e.g. `patient.PatientReply.v2`) - but a bare entity/aggregate declaration is never itself emitted as a `components.schemas` entry, only its projections are. The upstream OpenAPI emitter test suite apparently never exercises a `ref<>` field, so the dangling reference is never caught by a real validator.
+
+**Expected:** either emit a component schema for the bare source entity (so the `$ref` resolves), or - more consistent with how other generated targets already treat `ref<>` (e.g. `sql-postgres` emits a `FOREIGN KEY` to the referenced *table*, not the model) - resolve the `$ref` to that entity's `@key` field type (here, the referenced entity's identifier semantic type, e.g. `PatientId`), which is what a `ref<>` field actually carries on the wire.
+
+**Showcase workaround:** the showcase's Task 9.6 `api {}` declarations are POST-create operations only (`createPatient`, `createAppointment`, `createEncounter`, `createInvoice`); three of the four response schemas (`AppointmentReply`, `EncounterReply`, `InvoiceReply`) carry a `ref<>` field and are therefore affected. `tests/integration/test_openapi_contract.py::test_full_document_currently_fails_independent_validation` pins the #35 reality: full-document `openapi-spec-validator` validation is asserted to fail with exactly this `PointerToNowhere` error against the known dangling refs, rather than silently skipping validation. The Rust HTTP contract tests (`apps/api/tests/openapi_contract.rs`) work around it by asserting the actual response body's property set and required-field set against the OpenAPI schema's `properties`/`required` lists directly (which are present and correct even though one property's `$ref` target is unresolvable), instead of resolving/validating the full JSON Schema. Until #35 is fixed upstream, no `ref<>`-bearing projection's OpenAPI schema can be resolved by a standard validator.
+
+## 36. `compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract
+
+**Status:** Open. New finding, discovered while implementing IMPLEMENTATION_PLAN.md Task 9.6 (OpenAPI contract generation and consumption) against the v1.8.0 regeneration.
+
+**Discovered:** Task 9.6, writing an HTTP contract test that compares the running Axum API's actual JSON response field names against the generated OpenAPI schema's declared `properties` for the same model.
+
+**Reproduction:**
+
+```bash
+modelable compile ./model --target rust --out /tmp/rs
+modelable compile ./model --target openapi --out /tmp/oa
+grep -n "pub patient_id" /tmp/rs/clinic-core/src/patient/patient_patient_request_v2.rs
+python -c "import json; print(list(json.load(open('/tmp/oa/openapi.json'))['components']['schemas']['patient.PatientRequest.v2']['properties']))"
+```
+
+**Observed:**
+
+```text
+pub patient_id: PatientId,
+['patientId', 'legalName', 'preferredName', 'dateOfBirth', 'contact', 'address', 'preferredLanguage', 'alternatePhoneNumbers', 'notes', 'clinicalNotes']
+```
+
+`model/patient.mdl` declares fields in Modelable's normal camelCase convention (`patientId`, `legalName`, ...). The `openapi` target's `components.schemas` properties keep that camelCase spelling verbatim. The `rust` target renders the same fields as idiomatic Rust snake_case struct members (`patient_id`, `legal_name`, ...) with no `#[serde(rename = "...")]`/`#[serde(rename_all = "camelCase")]` attribute (confirmed by reading `generated/rust/clinic-core/src/patient/patient_patient_request_v2.rs` - `#[derive(..., serde::Serialize, serde::Deserialize)]` with zero rename attributes), so `serde_json` serializes and deserializes the *wire* JSON in snake_case, not camelCase. A consumer of the generated OpenAPI document (a client generator, a contract-test harness, API documentation) sees `patientId`, but the generated Rust API's actual request/response bodies use `patient_id`. The two targets are both "correct" in isolation and mutually contradictory as a description of one HTTP contract.
+
+**Root cause (read from source, not guessed):** `emitters/openapi.py` copies the Modelable source field spelling directly into the JSON Schema `properties` key. `emitters/rust.py` converts every field name to snake_case for the Rust identifier and, in the same step, uses that same snake_case string as the `serde` wire name (no explicit rename emitted, so serde's default - the Rust identifier itself - becomes the JSON key). Neither emitter is aware of the other's wire-casing choice; there is no cross-target wire-format contract for field-name casing in the normalized graph.
+
+**Expected:** the two targets should agree on the wire representation of the same field. Either (a) `emitters/rust.py` should emit `#[serde(rename = "<camelCase source name>")]` so the Rust wire format matches the OpenAPI (and TypeScript/JSON Schema) convention, or (b) `emitters/openapi.py` should render `properties` keys in the same casing the language target it is meant to document actually puts on the wire (which is target-dependent and therefore not a single answer) - (a) is the only option that keeps one canonical wire contract across every target.
+
+**Showcase workaround:** `apps/api/tests/openapi_contract.rs` converts the running Axum API's actual snake_case JSON response keys to camelCase before comparing them against the OpenAPI schema's declared `properties`/`required` key sets, and documents that conversion as a direct consequence of #36 rather than a generic normalization step. Until #36 is fixed upstream, the generated OpenAPI document's property names cannot be used verbatim against the generated Rust API's actual JSON wire format.
+

@@ -92,4 +92,20 @@ domain billing {
     reply
     event
   }
+
+  // Task 9.6: only the create operation is declared here - the payment
+  // endpoint (apps/api/src/billing.rs) takes a hand-written request body
+  // (PaymentReceived has no auto projections block to generate a request
+  // type from), an intentional OpenAPI coverage gap (UPSTREAM_FINDINGS.md,
+  // Task 9.6 note).
+  api Invoice @ 2 {
+    operation "createInvoice" {
+      method: POST
+      path: "/api/invoices"
+      request: InvoiceRequest @ 2
+      responses {
+        201: InvoiceReply @ 2
+      }
+    }
+  }
 }

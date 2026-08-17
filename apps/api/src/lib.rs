@@ -33,6 +33,7 @@ use sqlx::PgPool;
 pub mod analytics;
 pub mod billing;
 pub mod clinical;
+pub mod docs;
 pub mod http;
 pub mod patient;
 pub mod scheduling;
@@ -106,6 +107,7 @@ pub fn app(state: AppState) -> Router {
         .merge(billing::billing_routes())
         .merge(summary::summary_routes())
         .merge(analytics::analytics_routes())
+        .merge(docs::docs_routes())
         .with_state(state)
 }
 
