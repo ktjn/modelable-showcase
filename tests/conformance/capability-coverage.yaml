@@ -115,6 +115,9 @@ capabilities:
   target:odcs:
     coverage: probe
     test: tests/integration/test_generated_artifacts.py::test_odcs_contracts_have_identity_and_schema_fields
+  target:openapi:
+    coverage: product
+    test: apps/api/tests/openapi_contract.rs::create_patient_conforms_to_generated_openapi_contract
   deferred_feature:composite-keys:
     coverage: deferred
     test: tests/conformance/deferred/composite-keys.mdl

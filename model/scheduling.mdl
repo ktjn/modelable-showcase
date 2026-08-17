@@ -66,4 +66,19 @@ domain scheduling {
     reply
     event on [created, updated]
   }
+
+  // Task 9.6: only the create operation is declared here - reschedule/cancel/
+  // schedule-query (apps/api/src/scheduling.rs) take hand-written request/query
+  // shapes with no generated projection to bind them to, an intentional
+  // OpenAPI coverage gap (UPSTREAM_FINDINGS.md, Task 9.6 note).
+  api Appointment @ 1 {
+    operation "createAppointment" {
+      method: POST
+      path: "/api/appointments"
+      request: AppointmentRequest @ 1
+      responses {
+        201: AppointmentReply @ 1
+      }
+    }
+  }
 }
