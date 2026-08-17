@@ -14,6 +14,18 @@ export default defineConfig({
       '@generated': fileURLToPath(new URL('../../generated/typescript', import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      // Dev-only same-origin proxy to apps/api's default SHOWCASE_API_ADDR
+      // (Task 10.1). src/api/client.ts defaults VITE_API_BASE_URL to '' so
+      // requests are same-origin through this proxy - a browser SPA calling
+      // a cross-origin Rust API directly needs CORS middleware apps/api does
+      // not have, and this dev server already sits between the two.
+      '/api': 'http://127.0.0.1:8080',
+      '/openapi.json': 'http://127.0.0.1:8080',
+      '/docs': 'http://127.0.0.1:8080',
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
