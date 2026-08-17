@@ -30,9 +30,12 @@ use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
+pub mod billing;
+pub mod clinical;
 pub mod http;
 pub mod patient;
 pub mod scheduling;
+pub mod summary;
 
 pub type ReadyFn = Arc<
     dyn Fn() -> Pin<Box<dyn Future<Output = bool> + Send>> + Send + Sync,
@@ -81,6 +84,9 @@ pub fn app(state: AppState) -> Router {
         .route("/ready", get(ready))
         .merge(patient::patient_routes())
         .merge(scheduling::scheduling_routes())
+        .merge(clinical::clinical_routes())
+        .merge(billing::billing_routes())
+        .merge(summary::summary_routes())
         .with_state(state)
 }
 
