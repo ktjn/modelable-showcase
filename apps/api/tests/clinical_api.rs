@@ -67,6 +67,16 @@ async fn post_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode, 
     call(router, request).await
 }
 
+async fn patch_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    let request = Request::builder()
+        .method("PATCH")
+        .uri(uri)
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    call(router, request).await
+}
+
 fn encounter_body() -> Value {
     json!({
         "encounter_id": ENCOUNTER,
@@ -95,6 +105,75 @@ async fn encounter_creation_roundtrip() {
     assert_eq!(body["status"], "in_progress");
     assert!(body["created_at"].is_string(), "{body}");
     assert!(body["updated_at"].is_null(), "{body}");
+}
+
+#[tokio::test]
+async fn encounter_complete_sets_status_and_ended_at() {
+    let _guard = db_lock().await;
+    let Some(mut router) = app_ready().await else { return };
+
+    let (status, _) = post_json(&mut router, "/api/encounters", encounter_body()).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let uri = format!("/api/encounters/{ENCOUNTER}");
+    let (status, body) = patch_json(&mut router, &uri, json!({ "status": "completed" })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "completed", "{body}");
+    assert!(body["ended_at"].is_string(), "{body}");
+    assert!(body["updated_at"].is_string(), "{body}");
+}
+
+#[tokio::test]
+async fn encounter_cancel_sets_status() {
+    let _guard = db_lock().await;
+    let Some(mut router) = app_ready().await else { return };
+
+    let (status, _) = post_json(&mut router, "/api/encounters", encounter_body()).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let uri = format!("/api/encounters/{ENCOUNTER}");
+    let (status, body) = patch_json(&mut router, &uri, json!({ "status": "cancelled" })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "cancelled", "{body}");
+}
+
+#[tokio::test]
+async fn encounter_update_after_cancel_is_rejected() {
+    let _guard = db_lock().await;
+    let Some(mut router) = app_ready().await else { return };
+
+    let (status, _) = post_json(&mut router, "/api/encounters", encounter_body()).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let uri = format!("/api/encounters/{ENCOUNTER}");
+    let (status, _) = patch_json(&mut router, &uri, json!({ "status": "cancelled" })).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, body) = patch_json(&mut router, &uri, json!({ "status": "completed" })).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+}
+
+#[tokio::test]
+async fn encounter_update_for_unknown_encounter_returns_404() {
+    let _guard = db_lock().await;
+    let Some(mut router) = app_ready().await else { return };
+
+    let uri = "/api/encounters/00000000-0000-0000-0000-000000000000";
+    let (status, body) = patch_json(&mut router, uri, json!({ "status": "completed" })).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+}
+
+#[tokio::test]
+async fn encounter_update_with_invalid_status_returns_400() {
+    let _guard = db_lock().await;
+    let Some(mut router) = app_ready().await else { return };
+
+    let (status, _) = post_json(&mut router, "/api/encounters", encounter_body()).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let uri = format!("/api/encounters/{ENCOUNTER}");
+    let (status, body) = patch_json(&mut router, &uri, json!({ "status": "scheduled" })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 }
 
 #[tokio::test]

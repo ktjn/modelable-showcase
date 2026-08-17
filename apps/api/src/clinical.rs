@@ -11,9 +11,11 @@
 //! (the generated request projection only excludes `@server` fields);
 //! createdAt/updatedAt are server-generated.
 
+use std::str::FromStr;
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::post;
+use axum::routing::{patch, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
 use clinical_core::clinical::clinical_encounter_db_v1::{
@@ -25,18 +27,27 @@ use clinical_core::clinical::clinical_encounter_reply_v1::{
 use clinical_core::clinical::clinical_encounter_request_v1::{
     ClinicalEncounterRequestV1, ClinicalEncounterRequestV1Status,
 };
+use clinical_core::clinical::clinical_diagnosis_v0::ClinicalDiagnosisV0;
 use clinical_core::clinical::clinical_observation_v1::ClinicalObservationV1;
+use clinical_core::clinical::encounter_id::EncounterId;
 use clinical_core::clinical::observation_code::ObservationCode;
 use clinical_core::clinical::vital_sign_code::VitalSignCode;
+use clinic_core::patient::patient_id::PatientId;
+use clinic_core::scheduling::practitioner_id::PractitionerId;
 use serde::Deserialize;
+use sqlx::Row;
 use uuid::Uuid;
 
 use crate::http::{self, ApiError, JsonBody};
 use crate::AppState;
 
+const ENCOUNTER_COLUMNS: &str = "encounter_id, patient_id, practitioner_id, appointment_id, status, \
+     started_at, ended_at, expected_duration, reason_code, diagnoses, created_at, updated_at";
+
 pub fn clinical_routes() -> Router<AppState> {
     Router::new()
         .route("/api/encounters", post(create_encounter))
+        .route("/api/encounters/{id}", patch(update_encounter))
         .route("/api/encounters/{id}/observations", post(create_observation))
 }
 
@@ -61,6 +72,11 @@ fn db_status_to_reply(status: ClinicalEncounterDbV1Status) -> ClinicalEncounterR
 fn parse_uuid(value: &str, label: &str) -> Result<Uuid, ApiError> {
     Uuid::parse_str(value)
         .map_err(|err| ApiError::bad_request(format!("invalid {label} '{value}': {err}")))
+}
+
+fn parse_reply_status(value: &str) -> Result<ClinicalEncounterReplyV1Status, ApiError> {
+    serde_json::from_str::<ClinicalEncounterReplyV1Status>(&format!("\"{value}\""))
+        .map_err(|err| ApiError::internal(format!("invalid status '{value}' in encounter_db: {err}")))
 }
 
 // --- mapping helpers ------------------------------------------------------------
@@ -110,6 +126,81 @@ fn db_status_to_str(status: &ClinicalEncounterDbV1Status) -> &'static str {
     }
 }
 
+fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<ClinicalEncounterReplyV1, ApiError> {
+    let encounter_id: String = row
+        .try_get("encounter_id")
+        .map_err(|err| ApiError::internal(format!("decoding encounter_id: {err}")))?;
+    let patient_id: String = row
+        .try_get("patient_id")
+        .map_err(|err| ApiError::internal(format!("decoding patient_id: {err}")))?;
+    let practitioner_id: String = row
+        .try_get("practitioner_id")
+        .map_err(|err| ApiError::internal(format!("decoding practitioner_id: {err}")))?;
+    let appointment_id: Option<String> = row
+        .try_get("appointment_id")
+        .map_err(|err| ApiError::internal(format!("decoding appointment_id: {err}")))?;
+    let status: String = row
+        .try_get("status")
+        .map_err(|err| ApiError::internal(format!("decoding status: {err}")))?;
+    let started_at: DateTime<Utc> = row
+        .try_get("started_at")
+        .map_err(|err| ApiError::internal(format!("decoding started_at: {err}")))?;
+    let ended_at: Option<DateTime<Utc>> = row
+        .try_get("ended_at")
+        .map_err(|err| ApiError::internal(format!("decoding ended_at: {err}")))?;
+    let expected_duration: Option<String> = row
+        .try_get("expected_duration")
+        .map_err(|err| ApiError::internal(format!("decoding expected_duration: {err}")))?;
+    let reason_code: Option<String> = row
+        .try_get("reason_code")
+        .map_err(|err| ApiError::internal(format!("decoding reason_code: {err}")))?;
+    let diagnoses: Option<Vec<sqlx::types::Json<ClinicalDiagnosisV0>>> = row
+        .try_get("diagnoses")
+        .map_err(|err| ApiError::internal(format!("decoding diagnoses: {err}")))?;
+    let created_at: DateTime<Utc> = row
+        .try_get("created_at")
+        .map_err(|err| ApiError::internal(format!("decoding created_at: {err}")))?;
+    let updated_at: Option<DateTime<Utc>> = row
+        .try_get("updated_at")
+        .map_err(|err| ApiError::internal(format!("decoding updated_at: {err}")))?;
+
+    Ok(ClinicalEncounterReplyV1 {
+        encounter_id: EncounterId(
+            Uuid::from_str(&encounter_id)
+                .map_err(|err| ApiError::internal(format!("encounter_id is not a uuid: {err}")))?,
+        ),
+        patient_id: PatientId(
+            Uuid::from_str(&patient_id)
+                .map_err(|err| ApiError::internal(format!("patient_id is not a uuid: {err}")))?,
+        ),
+        practitioner_id: PractitionerId(
+            Uuid::from_str(&practitioner_id)
+                .map_err(|err| ApiError::internal(format!("practitioner_id is not a uuid: {err}")))?,
+        ),
+        appointment_id,
+        status: parse_reply_status(&status)?,
+        started_at,
+        ended_at,
+        expected_duration: expected_duration.map(|value| http::parse_iso_duration(&value)).transpose()?,
+        reason_code,
+        diagnoses: diagnoses.map(|items| items.into_iter().map(|item| item.0).collect()),
+        created_at,
+        updated_at,
+    })
+}
+
+async fn fetch_encounter(
+    pool: &sqlx::PgPool,
+    encounter_id: &str,
+) -> Result<Option<ClinicalEncounterReplyV1>, ApiError> {
+    let row = sqlx::query(&format!("SELECT {ENCOUNTER_COLUMNS} FROM encounter_db WHERE encounter_id = $1"))
+        .bind(encounter_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|err| ApiError::internal(format!("encounter lookup failed: {err}")))?;
+    row.as_ref().map(row_to_reply).transpose()
+}
+
 // --- handlers ----------------------------------------------------------------------
 
 async fn create_encounter(
@@ -150,6 +241,65 @@ async fn create_encounter(
     }
 
     Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EncounterUpdateRequest {
+    pub status: String,
+    pub ended_at: Option<String>,
+}
+
+async fn update_encounter(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    JsonBody(request): JsonBody<EncounterUpdateRequest>,
+) -> Result<Json<ClinicalEncounterReplyV1>, ApiError> {
+    parse_uuid(&id, "encounter id")?;
+
+    let current = fetch_encounter(&state.pool, &id)
+        .await?
+        .ok_or_else(|| ApiError::not_found(format!("encounter {id} not found")))?;
+    if current.status == ClinicalEncounterReplyV1Status::Cancelled {
+        return Err(ApiError::conflict(format!("encounter {id} is cancelled")));
+    }
+
+    let status = match request.status.as_str() {
+        "in_progress" => ClinicalEncounterDbV1Status::InProgress,
+        "completed" => ClinicalEncounterDbV1Status::Completed,
+        "cancelled" => ClinicalEncounterDbV1Status::Cancelled,
+        other => return Err(ApiError::bad_request(format!("invalid status '{other}'"))),
+    };
+    let ended_at = match &request.ended_at {
+        Some(value) => Some(
+            chrono::DateTime::parse_from_rfc3339(value)
+                .map(|dt| dt.with_timezone(&Utc))
+                .map_err(|err| ApiError::bad_request(format!("invalid ended_at '{value}': {err}")))?,
+        ),
+        None if status == ClinicalEncounterDbV1Status::Completed => Some(http::utc_now()),
+        None => current.ended_at,
+    };
+    let updated_at = http::utc_now();
+
+    let update = sqlx::query(
+        "UPDATE encounter_db SET status = $1, ended_at = $2, updated_at = $3 WHERE encounter_id = $4",
+    )
+    .bind(db_status_to_str(&status))
+    .bind(ended_at)
+    .bind(updated_at)
+    .bind(&id)
+    .execute(&state.pool)
+    .await
+    .map_err(|err| ApiError::internal(format!("encounter update failed: {err}")))?;
+
+    if update.rows_affected() != 1 {
+        return Err(ApiError::not_found(format!("encounter {id} not found")));
+    }
+
+    let refreshed = fetch_encounter(&state.pool, &id)
+        .await?
+        .ok_or_else(|| ApiError::internal(format!("encounter {id} disappeared after update")))?;
+    Ok(Json(refreshed))
 }
 
 #[derive(Deserialize)]
