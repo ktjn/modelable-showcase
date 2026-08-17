@@ -311,6 +311,18 @@ async fn create_appointment(
         return Err(ApiError::conflict(format!("appointment {appointment_id} already exists")));
     }
 
+    crate::analytics::record_appointment_event(
+        &state.clickhouse,
+        &appointment_id,
+        &db_row.patient_id,
+        &practitioner_id,
+        db_row.scheduled_date,
+        &serde_json::to_string(&db_row.slot).unwrap_or_default(),
+        db_status_to_str(&db_row.status),
+        db_row.created_at,
+    )
+    .await;
+
     Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
 }
 

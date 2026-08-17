@@ -160,6 +160,18 @@ async fn create_invoice(
         return Err(ApiError::conflict(format!("invoice {invoice_id} already exists")));
     }
 
+    crate::analytics::record_invoice_event(
+        &state.clickhouse,
+        &invoice_id,
+        &db_row.patient_id.to_string(),
+        &db_row.subtotal,
+        &db_row.tax,
+        &db_row.total,
+        db_status_to_str(&db_row.status),
+        db_row.created_at,
+    )
+    .await;
+
     Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
 }
 
@@ -228,6 +240,16 @@ async fn create_payment(
     if insert.rows_affected() != 1 {
         return Err(ApiError::conflict(format!("payment {} already exists", payment.payment_id)));
     }
+
+    crate::analytics::record_payment_event(
+        &state.clickhouse,
+        &payment.payment_id.to_string(),
+        &id,
+        &payment.amount,
+        payment_method_to_str(&payment.method),
+        payment.received_at,
+    )
+    .await;
 
     Ok((StatusCode::CREATED, Json(payment)))
 }
