@@ -108,6 +108,57 @@ services:
       - showcase-net
     restart: unless-stopped
 
+  # Optional Task 15.3 integration profile: `modelable sync --lineage
+  # marquez` against a real Marquez/OpenLineage backend. Not part of
+  # ordinary `docker compose up` - only starts under the `marquez` profile
+  # (`docker compose --profile marquez up -d marquez`, or via `make
+  # integration-marquez`). Marquez hard-requires its own dedicated
+  # PostgreSQL (not the showcase's `postgres` service - Marquez runs its
+  # own Flyway migrations against it and expects db/user/password all
+  # named "marquez", matching marquez.dev.yml's baked-in defaults), so
+  # this profile is two containers, both disposable/no host volumes.
+  # SEARCH_ENABLED=false skips Marquez's optional OpenSearch dependency,
+  # which this showcase's read-only lineage-sync check does not need.
+  marquez-db:
+    image: postgres:17-alpine
+    profiles:
+      - marquez
+    environment:
+      POSTGRES_USER: marquez
+      POSTGRES_PASSWORD: marquez
+      POSTGRES_DB: marquez
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marquez -d marquez"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
+  marquez:
+    image: marquezproject/marquez:0.50.0
+    profiles:
+      - marquez
+    environment:
+      POSTGRES_HOST: marquez-db
+      POSTGRES_PORT: "5432"
+      SEARCH_ENABLED: "false"
+    ports:
+      - "127.0.0.1:5010:5000"
+      - "127.0.0.1:5011:5001"
+    depends_on:
+      marquez-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5001/healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   clickhouse-data:
