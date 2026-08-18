@@ -1,11 +1,8 @@
 //! Clinical API (IMPLEMENTATION_PLAN.md Task 9.4).
 //!
 //! Uses the generated Encounter request/reply types at the API boundary and
-//! persists to the generated `encounter_db` table (its generated DDL carries a
-//! `FOREIGN KEY (appointment_id) REFERENCES appointment (...)` clause broken by
-//! UPSTREAM_FINDINGS.md #27, so applying it to a dev database currently
-//! requires dropping that clause by hand - not a second handwritten schema per
-//! SPEC.md). Observation is an event-only model with no generated table at
+//! persists to the generated `encounter_db` table, including its foreign key to
+//! `appointment_db`. Observation is an event-only model with no generated table at
 //! all, so this API persists observations to a hand-written `observation_db`
 //! table instead. EncounterId/PatientId/PractitionerId are client-supplied
 //! (the generated request projection only excludes `@server` fields);

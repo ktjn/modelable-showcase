@@ -1,11 +1,8 @@
 //! Billing API (IMPLEMENTATION_PLAN.md Task 9.4).
 //!
 //! Uses the generated Invoice request/reply types at the API boundary and
-//! persists to the generated `invoice_db` table (its generated DDL carries a
-//! `FOREIGN KEY (encounter_id) REFERENCES encounter (...)` clause broken by
-//! UPSTREAM_FINDINGS.md #27, so applying it to a dev database currently
-//! requires dropping that clause by hand - not a second handwritten schema per
-//! SPEC.md). PaymentReceived is an event-only model with no generated table at
+//! persists to the generated `invoice_db` table, including its foreign key to
+//! `encounter_db`. PaymentReceived is an event-only model with no generated table at
 //! all, so this API persists payments to a hand-written `payment_db` table
 //! instead. InvoiceId/PatientId are client-supplied; createdAt/updatedAt are
 //! server-generated. Decimal fields (subtotal/tax/total, line

@@ -11,10 +11,8 @@ Task 9.6:
   `createAppointment`, `createEncounter`, `createInvoice`);
 - independent validation with `openapi-spec-validator` (a parser separate
   from whatever validation Modelable's own test suite performs, per
-  `UPSTREAM_POLICY.md` Sec 4.4/5.3) - this is what caught
-  UPSTREAM_FINDINGS.md #38, so the "currently fails" case is pinned rather
-  than silently skipped, the same pattern
-  `tests/integration/test_postgres_generated_schema.py` uses for #27.
+  `UPSTREAM_POLICY.md` Sec 4.4/5.3) - this catches regressions in the
+  component graph, including the repaired #38 ref<> path.
 
 `GET /api/patients/:id/summary` (Task 9.4) and `GET /api/analytics/clinic`
 (Task 9.5) are intentionally out of scope here: both return hand-composed
@@ -96,37 +94,26 @@ def test_patient_create_schemas_have_no_dangling_refs(doc: dict[str, Any]) -> No
         assert not missing, f"{name} has unexpectedly dangling refs: {missing}"
 
 
-def test_appointment_encounter_invoice_reply_schemas_have_the_known_dangling_ref(doc: dict[str, Any]) -> None:
-    # UPSTREAM_FINDINGS.md #38 pin: a ref<Domain.Entity@N> field's $ref
-    # target (the bare entity) is never emitted as a component schema. This
-    # must be updated (not silently deleted) once #38 is fixed upstream.
+def test_all_create_reply_schemas_have_no_dangling_refs(doc: dict[str, Any]) -> None:
+    # ref<> fields resolve through the referenced model's key schema, so every
+    # component reference in the generated API document is resolvable.
     schemas = doc["components"]["schemas"]
-    expected_dangling = {
-        "scheduling.AppointmentReply.v1": {"patient.Patient.v2"},
-        "clinical.EncounterReply.v1": {"scheduling.Appointment.v1"},
-        "billing.InvoiceReply.v2": {"clinical.Encounter.v1"},
-    }
-    for name, expected in expected_dangling.items():
+    for name in (
+        "scheduling.AppointmentReply.v1",
+        "clinical.EncounterReply.v1",
+        "billing.InvoiceReply.v2",
+    ):
         refs = _collect_component_refs(schemas[name], set())
         missing = {ref for ref in refs if ref not in schemas}
-        assert missing == expected, (
-            f"{name}: dangling refs changed from the #38 pin ({expected}) to {missing} - "
-            "update UPSTREAM_FINDINGS.md #38 and this pin together"
-        )
+        assert not missing, f"{name} has dangling refs: {missing}"
 
 
-def test_full_document_currently_fails_independent_validation(doc: dict[str, Any]) -> None:
-    # UPSTREAM_FINDINGS.md #38: an independent OpenAPI 3.1 parser/validator
-    # (openapi-spec-validator, separate from Modelable's own test suite -
-    # UPSTREAM_POLICY.md Sec 4.4/5.3) cannot resolve the full document today
-    # because of the dangling ref<> component refs above. This is the flip
-    # signal: once #38 is fixed upstream, this test should be replaced with
-    # a plain `validate(doc)` call that is expected to succeed.
+def test_full_document_passes_independent_validation(doc: dict[str, Any]) -> None:
+    # Validate with an independent OpenAPI 3.1 parser, separate from
+    # Modelable's own schema checks.
     from openapi_spec_validator import validate
-    from referencing.exceptions import PointerToNowhere
 
-    with pytest.raises(PointerToNowhere):
-        validate(doc)
+    validate(doc)
 
 
 def test_patient_request_and_reply_schemas_individually_validate() -> None:

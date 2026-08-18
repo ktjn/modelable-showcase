@@ -8,13 +8,9 @@
 //! have no generated projection to declare an operation against (see the
 //! `api {}` comments in `model/*.mdl`), so they are intentionally excluded.
 //!
-//! UPSTREAM_FINDINGS.md #39: the OpenAPI document's `properties` keys are the
-//! Modelable source camelCase spelling (`patientId`), but the generated Rust
-//! types' `serde` wire format is snake_case (`patient_id`) with no rename
-//! attribute, so the actual JSON bodies below use snake_case throughout. Each
-//! assertion here converts the actual body's keys to camelCase before
-//! comparing them against the OpenAPI schema, which is the one non-generic
-//! step in this file - everything else is a direct contract check.
+//! The generated Rust types preserve the same canonical camelCase JSON names
+//! as the OpenAPI document, so the assertions below compare the response
+//! bodies directly against the generated schema.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -90,31 +86,12 @@ async fn post_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode, 
     (status, json)
 }
 
-/// UPSTREAM_FINDINGS.md #39: the API's wire format is snake_case; the
-/// generated OpenAPI schema's `properties` keys are Modelable's source
-/// camelCase. `snake_case_two_words` -> `snakeCaseTwoWords`.
-fn to_camel_case(snake: &str) -> String {
-    let mut out = String::with_capacity(snake.len());
-    let mut upper_next = false;
-    for ch in snake.chars() {
-        if ch == '_' {
-            upper_next = true;
-        } else if upper_next {
-            out.extend(ch.to_uppercase());
-            upper_next = false;
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
-fn object_keys_as_camel_case(value: &Value) -> BTreeSet<String> {
+fn object_keys(value: &Value) -> BTreeSet<String> {
     value
         .as_object()
         .expect("expected a JSON object")
         .keys()
-        .map(|key| to_camel_case(key))
+        .cloned()
         .collect()
 }
 
@@ -133,8 +110,8 @@ fn schema_required_keys(schema: &Value) -> BTreeSet<String> {
         .unwrap_or_default()
 }
 
-/// Asserts `response_body`'s (snake_case) keys, converted to camelCase,
-/// exactly match the OpenAPI schema's declared `required` properties plus
+/// Asserts `response_body`'s keys exactly match the OpenAPI schema's declared
+/// `required` properties plus
 /// any of its optional `properties` actually present in the response - i.e.
 /// every key in the response is documented, and every required key is
 /// present.
@@ -142,7 +119,7 @@ fn assert_conforms_to_schema(doc: &Value, schema_name: &str, response_body: &Val
     let schema = schema_for(doc, schema_name);
     let documented = schema_property_keys(schema);
     let required = schema_required_keys(schema);
-    let actual = object_keys_as_camel_case(response_body);
+    let actual = object_keys(response_body);
 
     let undocumented: BTreeSet<_> = actual.difference(&documented).collect();
     assert!(undocumented.is_empty(), "{schema_name}: response has undocumented fields {undocumented:?}: {response_body}");
@@ -164,16 +141,16 @@ async fn create_patient_conforms_to_generated_openapi_contract() {
     assert_eq!(operation["operationId"], "createPatient");
 
     let body = json!({
-        "patient_id": PATIENT,
-        "legal_name": "Ada Lovelace",
-        "preferred_name": null,
-        "date_of_birth": "1815-12-10",
+        "patientId": PATIENT,
+        "legalName": "Ada Lovelace",
+        "preferredName": null,
+        "dateOfBirth": "1815-12-10",
         "contact": { "email": "ada@example.com", "phone": "555-0001" },
         "address": null,
-        "preferred_language": "en",
-        "alternate_phone_numbers": null,
+        "preferredLanguage": "en",
+        "alternatePhoneNumbers": null,
         "notes": null,
-        "clinical_notes": null,
+        "clinicalNotes": null,
     });
     let (status, reply) = post_json(&mut router, "/api/patients", body).await;
     let expected_status: u16 = operation["responses"].as_object().unwrap().keys().next().unwrap().parse().unwrap();
@@ -191,12 +168,12 @@ async fn create_appointment_conforms_to_generated_openapi_contract() {
     assert_eq!(operation["operationId"], "createAppointment");
 
     let body = json!({
-        "appointment_id": APPOINTMENT,
-        "patient_id": PATIENT,
-        "practitioner_id": PRACTITIONER,
-        "scheduled_date": "2026-09-01",
+        "appointmentId": APPOINTMENT,
+        "patientId": PATIENT,
+        "practitionerId": PRACTITIONER,
+        "scheduledDate": "2026-09-01",
         "slot": { "start": "09:00:00", "end": "09:30:00" },
-        "buffer_duration": null,
+        "bufferDuration": null,
         "status": "requested",
         "reason": null,
         "notes": null,
@@ -216,15 +193,15 @@ async fn create_encounter_conforms_to_generated_openapi_contract() {
     assert_eq!(operation["operationId"], "createEncounter");
 
     let body = json!({
-        "encounter_id": ENCOUNTER,
-        "patient_id": PATIENT,
-        "practitioner_id": PRACTITIONER,
-        "appointment_id": null,
+        "encounterId": ENCOUNTER,
+        "patientId": PATIENT,
+        "practitionerId": PRACTITIONER,
+        "appointmentId": null,
         "status": "in_progress",
-        "started_at": "2026-09-01T09:00:00Z",
-        "ended_at": null,
-        "expected_duration": null,
-        "reason_code": null,
+        "startedAt": "2026-09-01T09:00:00Z",
+        "endedAt": null,
+        "expectedDuration": null,
+        "reasonCode": null,
         "diagnoses": null,
     });
     let (status, reply) = post_json(&mut router, "/api/encounters", body).await;
@@ -242,20 +219,20 @@ async fn create_invoice_conforms_to_generated_openapi_contract() {
     assert_eq!(operation["operationId"], "createInvoice");
 
     let body = json!({
-        "invoice_id": INVOICE,
-        "patient_id": PATIENT,
-        "encounter_id": null,
+        "invoiceId": INVOICE,
+        "patientId": PATIENT,
+        "encounterId": null,
         "lines": [
-            { "description": "Consultation", "quantity": 1, "unit_price": "100.00", "line_total": "100.00" }
+            { "description": "Consultation", "quantity": 1, "unitPrice": "100.00", "lineTotal": "100.00" }
         ],
         "subtotal": "100.00",
         "tax": "25.00",
         "total": "125.00",
         "currency": "SEK",
-        "billing_period": "2026-09",
+        "billingPeriod": "2026-09",
         "status": "issued",
-        "issued_at": "2026-09-01T10:00:00Z",
-        "due_date": "2026-10-01",
+        "issuedAt": "2026-09-01T10:00:00Z",
+        "dueDate": "2026-10-01",
     });
     let (status, reply) = post_json(&mut router, "/api/invoices", body).await;
     assert_eq!(status, StatusCode::CREATED, "{reply}");
