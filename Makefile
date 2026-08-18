@@ -73,7 +73,13 @@ integration:
 	$(call not_implemented,integration,"Task 17.1 - Finalize command facade")
 
 e2e:
-	$(call not_implemented,e2e,"Task 12.1 - Playwright harness")
+	docker compose down -v
+	docker compose up --build -d
+	@. ./scripts/modelable-env.sh; uv run scripts/setup-e2e-database.py
+	@cd tests/e2e && npm install && npx playwright install --with-deps chromium
+	@( cd tests/e2e && npx playwright test ); status=$$?; \
+	docker compose down; \
+	exit $$status
 
 determinism:
 	@. ./scripts/modelable-env.sh; uv run scripts/check-determinism.py
@@ -82,10 +88,10 @@ acceptance:
 	$(call not_implemented,acceptance,"Task 17.1 - Finalize command facade")
 
 up:
-	$(call not_implemented,up,"Phase 11 - Docker product assembly")
+	docker compose up --build -d
 
 down:
-	$(call not_implemented,down,"Phase 11 - Docker product assembly")
+	docker compose down
 
 clean:
 	rm -rf $(CLEAN_DIRS)
