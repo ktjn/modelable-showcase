@@ -35,3 +35,22 @@ MODELABLE_REF=main make acceptance
 ```
 
 Generated artifacts remain disposable build output. `model/registry-ids.lock` is the intentional exception and is committed as stable Modelable semantic-ID allocation state.
+
+## Running the product locally (Task 11.1)
+
+```bash
+docker compose up --build -d
+```
+
+Ports (all bound to `127.0.0.1` only):
+
+| Service | Port | Notes |
+|---|---|---|
+| `web` | `5173` | The React SPA, served by nginx. `http://localhost:5173/` |
+| `api` | `8080` | The Axum API directly. `http://localhost:8080/health`, `/docs` (Swagger UI), `/openapi.json` |
+| `postgres` | `5433` | `psql -h 127.0.0.1 -p 5433 -U showcase showcase` |
+| `clickhouse` | `8123` | HTTP interface |
+
+`web`'s nginx proxies `/api`, `/openapi.json`, and `/docs` to `api` inside the compose network (`apps/web/nginx.conf`), so the SPA never needs `api`'s port directly - only `apps/web/src/api/client.ts`'s same-origin relative paths, matching `vite.config.ts`'s dev-server proxy. `apps/api/Dockerfile` and `apps/web/Dockerfile` each install the pinned Modelable CLI and compile `model/` from scratch in a dedicated generator stage, so `--build` from a clean checkout needs no manual `make generate` step.
+
+`docker compose up --build` does not apply PostgreSQL/ClickHouse schema - see `UPSTREAM_FINDINGS.md` #27 for why the full generated `sql-postgres` set cannot currently be applied in one pass, and `scripts/apply-postgres-ddl.py`/`scripts/apply-clickhouse-ddl.py` for the FK-free subset that can.

@@ -1,0 +1,20 @@
+# Keeps the docker build context (repository root) small - none of these are
+# needed inside apps/api/Dockerfile or apps/web/Dockerfile's build stages,
+# which COPY only .modelable-version, model/, scripts/, and their own apps/
+# subdirectory (IMPLEMENTATION_PLAN.md Task 11.1).
+.git/
+generated/
+dist/
+.modelable/
+node_modules/
+target/
+.venv/
+tools/
+__pycache__/
+.pytest_cache/
+playwright-report/
+test-results/
+bin/
+obj/
+apps/web/node_modules/
+apps/web/dist/

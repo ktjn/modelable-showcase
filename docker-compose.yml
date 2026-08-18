@@ -1,8 +1,14 @@
 name: modelable-showcase
-# Development-only services for the showcase (IMPLEMENTATION_PLAN.md Phase 8).
-# The PostgreSQL service pins an explicit major version, binds to localhost
-# only, uses synthetic development credentials, keeps data in a named volume,
-# and is isolated on its own network.
+# Development-only services for the showcase (IMPLEMENTATION_PLAN.md Phase 8,
+# api/web added in Task 11.1). The PostgreSQL service pins an explicit major
+# version, binds to localhost only, uses synthetic development credentials,
+# keeps data in a named volume, and is isolated on its own network.
+#
+# `docker compose up --build` needs no manual pre-step: apps/api/Dockerfile
+# and apps/web/Dockerfile each have their own self-contained generator stage
+# that installs the pinned Modelable CLI and compiles model/ from scratch
+# (Task 11.1's option 2 design - see those Dockerfiles' header comments).
+# There is no separate `generator` service here because of that.
 services:
   postgres:
     image: postgres:17-alpine
@@ -38,6 +44,45 @@ services:
       retries: 20
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      SHOWCASE_API_ADDR: 0.0.0.0:8080
+      SHOWCASE_PG_HOST: postgres
+      SHOWCASE_PG_PORT: "5432"
+      SHOWCASE_PG_USER: showcase
+      SHOWCASE_PG_PASSWORD: showcase
+      SHOWCASE_PG_DBNAME: showcase
+      SHOWCASE_CH_HOST: clickhouse
+      SHOWCASE_CH_PORT: "8123"
+      SHOWCASE_CH_USER: showcase
+      SHOWCASE_CH_PASSWORD: showcase
+      SHOWCASE_CH_DBNAME: showcase
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      - api
     networks:
       - showcase-net
     restart: unless-stopped
