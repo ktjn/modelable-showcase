@@ -41,7 +41,7 @@ async fn app_ready() -> Option<Router> {
         );
         return None;
     }
-    sqlx::query("TRUNCATE TABLE patient_db")
+    sqlx::query("TRUNCATE TABLE patient_db CASCADE")
         .execute(&state.pool)
         .await
         .expect("failed to TRUNCATE patient_db");
@@ -74,10 +74,10 @@ fn request_body(
     phone: &str,
 ) -> Value {
     json!({
-        "patient_id": patient_id,
-        "legal_name": legal_name,
-        "preferred_name": null,
-        "date_of_birth": "1985-06-15",
+        "patientId": patient_id,
+        "legalName": legal_name,
+        "preferredName": null,
+        "dateOfBirth": "1985-06-15",
         "contact": {
             "email": email,
             "phone": phone,
@@ -85,13 +85,13 @@ fn request_body(
         "address": {
             "street": "42 Market Street",
             "city": "Brisbane",
-            "postal_code": "4000",
+            "postalCode": "4000",
             "country": "Australia",
         },
-        "preferred_language": "en",
-        "alternate_phone_numbers": null,
+        "preferredLanguage": "en",
+        "alternatePhoneNumbers": null,
         "notes": null,
-        "clinical_notes": null,
+        "clinicalNotes": null,
     })
 }
 
@@ -111,13 +111,13 @@ async fn patient_create_fetch_list_roundtrip() {
 
     let (status, body) = post_patient(&mut router, valid_request()).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["patient_id"], "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d");
-    assert_eq!(body["legal_name"], "Ada Lovelace");
-    assert_eq!(body["preferred_language"], "en");
-    assert!(body["created_at"].is_string(), "{body}");
-    assert!(body["updated_at"].is_null(), "{body}");
+    assert_eq!(body["patientId"], "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d");
+    assert_eq!(body["legalName"], "Ada Lovelace");
+    assert_eq!(body["preferredLanguage"], "en");
+    assert!(body["createdAt"].is_string(), "{body}");
+    assert!(body["updatedAt"].is_null(), "{body}");
 
-    let id = body["patient_id"].as_str().unwrap();
+    let id = body["patientId"].as_str().unwrap();
     let request = Request::builder()
         .uri(format!("/api/patients/{id}"))
         .body(Body::empty())
@@ -144,10 +144,10 @@ async fn patient_create_generates_server_timestamps() {
 
     let (status, body) = post_patient(&mut router, valid_request()).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    let created_at = body["created_at"].as_str().unwrap();
+    let created_at = body["createdAt"].as_str().unwrap();
     chrono::DateTime::parse_from_rfc3339(created_at)
-        .expect("created_at must be a server-generated RFC3339 timestamp");
-    assert!(body["updated_at"].is_null(), "{body}");
+        .expect("createdAt must be a server-generated RFC3339 timestamp");
+    assert!(body["updatedAt"].is_null(), "{body}");
 }
 
 #[tokio::test]
@@ -182,7 +182,7 @@ async fn patient_invalid_bodies_return_400() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     assert!(body["error"].is_string(), "{body}");
 
-    // valid JSON but missing required fields (legal_name, date_of_birth)
+    // valid JSON but missing required fields (legalName, dateOfBirth)
     let (status, body) = call(
         &mut router,
         Request::builder()
@@ -190,7 +190,7 @@ async fn patient_invalid_bodies_return_400() {
             .uri("/api/patients")
             .header("content-type", "application/json")
             .body(Body::from(
-                json!({ "patient_id": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d" }).to_string(),
+                json!({ "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d" }).to_string(),
             ))
             .unwrap(),
     )
@@ -199,13 +199,13 @@ async fn patient_invalid_bodies_return_400() {
 
     // invalid patient id (not a uuid)
     let mut invalid = valid_request();
-    invalid["patient_id"] = json!("not-a-uuid");
+    invalid["patientId"] = json!("not-a-uuid");
     let (status, body) = post_patient(&mut router, invalid).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
-    // invalid date_of_birth format
+    // invalid dateOfBirth format
     let mut invalid = valid_request();
-    invalid["date_of_birth"] = json!("06/15/1985");
+    invalid["dateOfBirth"] = json!("06/15/1985");
     let (status, body) = post_patient(&mut router, invalid).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 }
@@ -273,7 +273,7 @@ async fn patient_search_by_name_and_email() {
     assert_eq!(status, StatusCode::OK, "{by_name}");
     let items = by_name.as_array().unwrap();
     assert_eq!(items.len(), 1, "{by_name}");
-    assert_eq!(items[0]["legal_name"], "Grace Hopper");
+    assert_eq!(items[0]["legalName"], "Grace Hopper");
 
     let (status, by_email) = call(
         &mut router,
@@ -286,7 +286,7 @@ async fn patient_search_by_name_and_email() {
     assert_eq!(status, StatusCode::OK, "{by_email}");
     let items = by_email.as_array().unwrap();
     assert_eq!(items.len(), 1, "{by_email}");
-    assert_eq!(items[0]["legal_name"], "Alan Turing");
+    assert_eq!(items[0]["legalName"], "Alan Turing");
 
     let (status, by_email) = call(
         &mut router,
@@ -334,23 +334,23 @@ async fn patient_reply_json_shape_matches_generated_types() {
     // `skip_serializing_if` attributes.
     let reply_fields = body.as_object().unwrap();
     let populated = [
-        "patient_id",
-        "legal_name",
-        "date_of_birth",
+        "patientId",
+        "legalName",
+        "dateOfBirth",
         "contact",
         "address",
-        "preferred_language",
-        "created_at",
+        "preferredLanguage",
+        "createdAt",
     ];
     for field in populated {
         assert!(reply_fields.contains_key(field), "missing field {field}");
     }
     let omitted = [
-        "preferred_name",
-        "alternate_phone_numbers",
+        "preferredName",
+        "alternatePhoneNumbers",
         "notes",
-        "clinical_notes",
-        "updated_at",
+        "clinicalNotes",
+        "updatedAt",
     ];
     for field in omitted {
         assert!(!reply_fields.contains_key(field), "unexpected field {field}");
@@ -361,23 +361,23 @@ async fn patient_reply_json_shape_matches_generated_types() {
     // explicit) must deserialize into the generated PatientPatientReplyV2 and
     // serialize back to the identical field set.
     let full = json!({
-        "patient_id": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
-        "legal_name": "Ada Lovelace",
-        "preferred_name": null,
-        "date_of_birth": "1985-06-15",
+        "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+        "legalName": "Ada Lovelace",
+        "preferredName": null,
+        "dateOfBirth": "1985-06-15",
         "contact": { "email": "ada@example.test", "phone": "+61 400 000 000" },
         "address": {
             "street": "42 Market Street",
             "city": "Brisbane",
-            "postal_code": "4000",
+            "postalCode": "4000",
             "country": "Australia",
         },
-        "preferred_language": "en",
-        "alternate_phone_numbers": null,
+        "preferredLanguage": "en",
+        "alternatePhoneNumbers": null,
         "notes": null,
-        "clinical_notes": null,
-        "created_at": "2026-08-16T00:00:00Z",
-        "updated_at": null,
+        "clinicalNotes": null,
+        "createdAt": "2026-08-16T00:00:00Z",
+        "updatedAt": null,
     });
     let reply = serde_json::from_value::<clinic_core::patient::patient_patient_reply_v2::PatientPatientReplyV2>(
         full,
@@ -396,21 +396,21 @@ async fn patient_reply_json_shape_matches_generated_types() {
     let request_fields = serde_json::to_value(&request).unwrap();
     let request_fields = request_fields.as_object().unwrap();
     let expected_request_fields = [
-        "patient_id",
-        "legal_name",
-        "date_of_birth",
+        "patientId",
+        "legalName",
+        "dateOfBirth",
         "contact",
         "address",
-        "preferred_language",
+        "preferredLanguage",
     ];
     for field in expected_request_fields {
         assert!(request_fields.contains_key(field), "missing request field {field}");
     }
     let omitted_request_fields = [
-        "preferred_name",
-        "alternate_phone_numbers",
+        "preferredName",
+        "alternatePhoneNumbers",
         "notes",
-        "clinical_notes",
+        "clinicalNotes",
     ];
     for field in omitted_request_fields {
         assert!(!request_fields.contains_key(field), "unexpected request field {field}");
@@ -438,7 +438,7 @@ fn generated_value_object_shapes_roundtrip_via_json() {
         json!({
             "street": "42 Market Street",
             "city": "Brisbane",
-            "postal_code": "4000",
+            "postalCode": "4000",
             "country": "Australia",
         })
     );

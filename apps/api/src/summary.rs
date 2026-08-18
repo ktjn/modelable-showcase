@@ -23,6 +23,7 @@ pub fn summary_routes() -> Router<AppState> {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PatientSummary {
     pub patient_id: String,
     pub legal_name: String,

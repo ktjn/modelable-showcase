@@ -173,7 +173,7 @@ async fn create_invoice(
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PaymentBody {
     pub payment_id: Option<String>,
     pub amount: String,

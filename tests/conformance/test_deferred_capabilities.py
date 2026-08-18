@@ -16,11 +16,16 @@ instruction not to pretend they all behave identically:
   construct outright with a hard SEM error, matching
   tests/conformance/invalid/composite-key.mdl's negative case.
 
-The remaining four deferred capabilities are output semantics rather than
+The remaining three deferred capabilities are output semantics rather than
 source syntax, and are covered by direct CLI probes instead of fixtures:
-ClickHouse secondary index emission, nominal semantic-type identity in
-targets other than Rust, model lifecycle status, and projection
-event-operation compatibility comparison.
+nominal semantic-type identity in targets other than Rust, model lifecycle
+status, and projection event-operation compatibility comparison. ClickHouse
+secondary index emission was a fourth such capability until Modelable 1.9.4:
+`test_clickhouse_secondary_indexes_are_now_emitted` below pins that it is no
+longer deferred (`modelable capabilities` no longer reports a
+`deferred_feature:clickhouse-secondary-indexes` entry at all, so its
+`tests/conformance/capability-coverage.yaml` row was removed rather than
+reclassified).
 
 Per SPEC.md Sec 14, the deferred federated-registry CLI entry points
 (`registry init`, `registry peer add`, `registry graph`, `registry sync`,
@@ -158,12 +163,13 @@ def test_deferred_fixture_behaves_as_documented(fixture: Path):
 # --- Output-semantics deferred capabilities (SPEC.md Sec 14) ---------------
 
 
-def test_clickhouse_secondary_indexes_are_absent():
-    # deferred_feature: clickhouse-secondary-indexes. model/patient.mdl
-    # declares a real `secondary byName {...}` index on Patient@2. Postgres
-    # emits it as a CREATE INDEX statement; ClickHouse silently drops it -
-    # the generated table has no secondary-index DDL of any kind, only the
-    # mandatory ORDER BY clause.
+def test_clickhouse_secondary_indexes_are_now_emitted():
+    # Formerly deferred_feature: clickhouse-secondary-indexes, fixed in
+    # Modelable 1.9.4. model/patient.mdl declares a real
+    # `secondary byName {...}` index on Patient@2. Postgres emits it as a
+    # CREATE INDEX statement; ClickHouse now emits an inline `INDEX ... TYPE
+    # bloom_filter` clause on the same columns, rather than silently
+    # dropping it.
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         pg_out = tmp_path / "postgres"
@@ -182,8 +188,8 @@ def test_clickhouse_secondary_indexes_are_absent():
         )
         assert ch_result.returncode == 0, ch_result.stdout + ch_result.stderr
         ch_sql = (ch_out / "patient.PatientDb.v2.sql").read_text()
-        assert "CREATE INDEX" not in ch_sql, ch_sql
-        assert "by_name" not in ch_sql, ch_sql
+        assert "INDEX idx_by_name" in ch_sql, ch_sql
+        assert "legal_name, date_of_birth" in ch_sql, ch_sql
         assert "ORDER BY tuple()" in ch_sql, ch_sql
 
 

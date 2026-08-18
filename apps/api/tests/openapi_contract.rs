@@ -63,7 +63,7 @@ async fn app_ready() -> Option<Router> {
         return None;
     }
     for table in ["patient_db", "appointment_db", "encounter_db", "invoice_db"] {
-        sqlx::query(&format!("TRUNCATE TABLE {table}"))
+        sqlx::query(&format!("TRUNCATE TABLE {table} CASCADE"))
             .execute(&state.pool)
             .await
             .unwrap_or_else(|err| panic!("failed to TRUNCATE {table}: {err}"));
@@ -166,6 +166,21 @@ async fn create_appointment_conforms_to_generated_openapi_contract() {
 
     let operation = &doc["paths"]["/api/appointments"]["post"];
     assert_eq!(operation["operationId"], "createAppointment");
+
+    let patient = json!({
+        "patientId": PATIENT,
+        "legalName": "Ada Lovelace",
+        "preferredName": null,
+        "dateOfBirth": "1815-12-10",
+        "contact": { "email": "ada@example.com", "phone": "555-0001" },
+        "address": null,
+        "preferredLanguage": "en",
+        "alternatePhoneNumbers": null,
+        "notes": null,
+        "clinicalNotes": null,
+    });
+    let (patient_status, patient_reply) = post_json(&mut router, "/api/patients", patient).await;
+    assert_eq!(patient_status, StatusCode::CREATED, "seeding patient failed: {patient_reply}");
 
     let body = json!({
         "appointmentId": APPOINTMENT,

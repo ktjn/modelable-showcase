@@ -241,7 +241,7 @@ async fn create_encounter(
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct EncounterUpdateRequest {
     pub status: String,
     pub ended_at: Option<String>,
@@ -300,7 +300,7 @@ async fn update_encounter(
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ObservationBody {
     pub observation_id: Option<String>,
     pub code: String,

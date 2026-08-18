@@ -39,11 +39,30 @@ async fn app_ready() -> Option<Router> {
         );
         return None;
     }
-    sqlx::query("TRUNCATE TABLE appointment_db")
+    sqlx::query("TRUNCATE TABLE patient_db CASCADE")
         .execute(&state.pool)
         .await
-        .expect("failed to TRUNCATE appointment_db");
-    Some(app(state))
+        .expect("failed to TRUNCATE patient_db");
+    let mut router = app(state);
+
+    // scheduling.mdl: Appointment.patientId is ref<patient.Patient@2>, a real
+    // foreign key (UPSTREAM_FINDINGS.md #27, fixed in v1.9.4) - booking
+    // requires an existing patient row.
+    let (status, body) = post_json(
+        &mut router,
+        "/api/patients",
+        json!({
+            "patientId": PATIENT,
+            "legalName": "Ada Lovelace",
+            "dateOfBirth": "1990-01-01",
+            "contact": { "email": "ada@example.test" },
+            "preferredLanguage": "en",
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "seeding patient failed: {body}");
+
+    Some(router)
 }
 
 async fn call(app: &mut Router, request: Request<Body>) -> (StatusCode, Value) {
@@ -74,12 +93,12 @@ fn booking(
     status: &str,
 ) -> Value {
     json!({
-        "appointment_id": appointment_id,
-        "patient_id": PATIENT,
-        "practitioner_id": practitioner_id,
-        "scheduled_date": date,
+        "appointmentId": appointment_id,
+        "patientId": PATIENT,
+        "practitionerId": practitioner_id,
+        "scheduledDate": date,
         "slot": { "start": start, "end": end },
-        "buffer_duration": null,
+        "bufferDuration": null,
         "status": status,
         "reason": null,
         "notes": null,
@@ -104,14 +123,14 @@ async fn appointment_booking_roundtrip() {
 
     let (status, body) = post_json(&mut router, "/api/appointments", valid_booking()).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["appointment_id"], "11111111-1111-1111-1111-111111111111");
-    assert_eq!(body["patient_id"], PATIENT);
-    assert_eq!(body["practitioner_id"], PRACTITIONER_A);
-    assert_eq!(body["scheduled_date"], "2026-09-01");
+    assert_eq!(body["appointmentId"], "11111111-1111-1111-1111-111111111111");
+    assert_eq!(body["patientId"], PATIENT);
+    assert_eq!(body["practitionerId"], PRACTITIONER_A);
+    assert_eq!(body["scheduledDate"], "2026-09-01");
     assert_eq!(body["slot"], json!({ "start": "09:00:00", "end": "09:30:00" }));
     assert_eq!(body["status"], "requested");
-    assert!(body["created_at"].is_string(), "{body}");
-    assert!(body["updated_at"].is_null(), "{body}");
+    assert!(body["createdAt"].is_string(), "{body}");
+    assert!(body["updatedAt"].is_null(), "{body}");
 
     let (status, schedule) = call(
         &mut router,
@@ -206,7 +225,7 @@ async fn appointment_reschedule_updates_date_slot_and_updated_at() {
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
-                "scheduled_date": "2026-09-02",
+                "scheduledDate": "2026-09-02",
                 "slot": { "start": "14:00:00", "end": "14:30:00" },
                 "notes": "moved by the front desk"
             })
@@ -215,11 +234,11 @@ async fn appointment_reschedule_updates_date_slot_and_updated_at() {
         .unwrap();
     let (status, body) = call(&mut router, request).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["scheduled_date"], "2026-09-02");
+    assert_eq!(body["scheduledDate"], "2026-09-02");
     assert_eq!(body["slot"], json!({ "start": "14:00:00", "end": "14:30:00" }));
     assert_eq!(body["notes"], "moved by the front desk");
     assert_eq!(body["status"], "requested");
-    assert!(body["updated_at"].is_string(), "{body}");
+    assert!(body["updatedAt"].is_string(), "{body}");
 
     let (status, old_day) = call(
         &mut router,
@@ -282,7 +301,7 @@ async fn appointment_reschedule_conflict_and_cancelled_are_rejected() {
         .method("PATCH")
         .uri("/api/appointments/22222222-2222-2222-2222-222222222222")
         .header("content-type", "application/json")
-        .body(Body::from(json!({ "scheduled_date": "2026-10-01" }).to_string()))
+        .body(Body::from(json!({ "scheduledDate": "2026-10-01" }).to_string()))
         .unwrap();
     let (status, body) = call(&mut router, request).await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
@@ -305,7 +324,7 @@ async fn appointment_cancel_sets_status_and_reason() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["status"], "cancelled");
     assert_eq!(body["reason"], "patient moved away");
-    assert!(body["updated_at"].is_string(), "{body}");
+    assert!(body["updatedAt"].is_string(), "{body}");
 
     // second cancel -> 409
     let request = Request::builder()
@@ -397,7 +416,7 @@ async fn appointment_schedule_supports_practitioner_filter_and_sorting() {
     let items = filtered.as_array().unwrap();
     assert_eq!(items.len(), 2, "{filtered}");
     for item in items {
-        assert_eq!(item["practitioner_id"], PRACTITIONER_A, "{filtered}");
+        assert_eq!(item["practitionerId"], PRACTITIONER_A, "{filtered}");
     }
 }
 
@@ -423,26 +442,26 @@ async fn appointment_invalid_inputs_are_rejected() {
     let (status, body) = post_json(
         &mut router,
         "/api/appointments",
-        json!({ "appointment_id": "11111111-1111-1111-1111-111111111111" }),
+        json!({ "appointmentId": "11111111-1111-1111-1111-111111111111" }),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
     // non-uuid appointment id
     let mut bad = valid_booking();
-    bad["appointment_id"] = json!("not-a-uuid");
+    bad["appointmentId"] = json!("not-a-uuid");
     let (status, body) = post_json(&mut router, "/api/appointments", bad).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
     // non-uuid patient id
     let mut bad = valid_booking();
-    bad["patient_id"] = json!("not-a-uuid");
+    bad["patientId"] = json!("not-a-uuid");
     let (status, body) = post_json(&mut router, "/api/appointments", bad).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
     // bad date format
     let mut bad = valid_booking();
-    bad["scheduled_date"] = json!("09/01/2026");
+    bad["scheduledDate"] = json!("09/01/2026");
     let (status, body) = post_json(&mut router, "/api/appointments", bad).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
@@ -489,7 +508,7 @@ async fn appointment_unknown_entities_return_404() {
         .method("PATCH")
         .uri("/api/appointments/00000000-0000-0000-0000-000000000000")
         .header("content-type", "application/json")
-        .body(Body::from(json!({ "scheduled_date": "2026-10-01" }).to_string()))
+        .body(Body::from(json!({ "scheduledDate": "2026-10-01" }).to_string()))
         .unwrap();
     let (status, body) = call(&mut router, request).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
@@ -512,22 +531,22 @@ async fn appointment_reply_json_shape_matches_generated_types() {
     let (status, body) = post_json(&mut router, "/api/appointments", valid_booking()).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
 
-    // UPSTREAM_FINDINGS.md #34: the generated reply type uses
-    // `skip_serializing_if` on its Option fields but no `#[serde(default)]`,
-    // so the API's own output (which omits None optionals like buffer_duration,
-    // reason, notes, updated_at) cannot be deserialized back into
-    // SchedulingAppointmentReplyV1. The created reply's present fields are
-    // asserted here; the generated type's deserializer is exercised below with
-    // a full JSON that spells out every optional.
+    // UPSTREAM_FINDINGS.md #34 (fixed in v1.9.0): the generated reply type
+    // carries `#[serde(default)]` alongside `skip_serializing_if` on every
+    // `Option` field, so the API's own output (which omits None optionals
+    // like bufferDuration/reason/notes/updatedAt) round-trips through
+    // SchedulingAppointmentReplyV1's deserializer. The created reply's
+    // present fields are asserted here; the generated type's deserializer is
+    // exercised below with a full JSON that spells out every optional.
     let reply_fields = body.as_object().unwrap();
     for field in [
-        "appointment_id",
-        "patient_id",
-        "practitioner_id",
-        "scheduled_date",
+        "appointmentId",
+        "patientId",
+        "practitionerId",
+        "scheduledDate",
         "slot",
         "status",
-        "created_at",
+        "createdAt",
     ] {
         assert!(reply_fields.contains_key(field), "missing reply field {field}");
     }
@@ -550,9 +569,9 @@ async fn appointment_reply_json_shape_matches_generated_types() {
     );
     // The generated request/reply types serialize chrono::Duration as an
     // ISO-8601 duration (15 minutes == PT900S), not a clock time.
-    with_buffer["buffer_duration"] = json!("PT900S");
+    with_buffer["bufferDuration"] = json!("PT900S");
     let (status, body) = post_json(&mut router, "/api/appointments", with_buffer).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["buffer_duration"], "PT900S", "{body}");
+    assert_eq!(body["bufferDuration"], "PT900S", "{body}");
     assert_eq!(body["status"], "confirmed", "{body}");
 }
