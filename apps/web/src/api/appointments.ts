@@ -17,12 +17,12 @@ export function getPatientAppointments(patientId: string): Promise<AppointmentRe
   return get<AppointmentReply[]>(`/api/patients/${encodeURIComponent(patientId)}/appointments`)
 }
 
-// UPSTREAM_FINDINGS.md #35: a ref<Domain.Entity@N> field (here `patientId:
+// UPSTREAM_FINDINGS.md #38: a ref<Domain.Entity@N> field (here `patientId:
 // ref<patient.Patient@2>`) resolves to the full referenced entity type in
 // every generated target, not the plain identifier it actually carries on
 // the wire (a bare `patientId: string` is what apps/api's request/reply
 // bodies actually exchange). AppointmentCreateInput corrects that field back
-// to a string and, per #37, restores the true optionality of
+// to a string and, per #40, restores the true optionality of
 // bufferDuration/reason/notes.
 export type AppointmentCreateInput = Omit<
   AppointmentRequest,

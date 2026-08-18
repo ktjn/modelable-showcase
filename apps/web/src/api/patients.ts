@@ -19,7 +19,7 @@ export function getPatient(id: string): Promise<PatientReply> {
   return get<PatientReply>(`/api/patients/${encodeURIComponent(id)}`)
 }
 
-// UPSTREAM_FINDINGS.md #37: the generated PatientRequest type marks every
+// UPSTREAM_FINDINGS.md #40: the generated PatientRequest type marks every
 // field required, including genuinely optional ones (preferredName,
 // address, notes, clinicalNotes, alternatePhoneNumbers). This type
 // re-declares the true optionality so the create form can omit them and

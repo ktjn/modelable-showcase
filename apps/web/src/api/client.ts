@@ -5,7 +5,7 @@
 // one reverse proxy - Phase 11). Override with VITE_API_BASE_URL if apps/api
 // is reachable directly some other way.
 //
-// UPSTREAM_FINDINGS.md #36: the generated OpenAPI/TypeScript targets use
+// UPSTREAM_FINDINGS.md #39: the generated OpenAPI/TypeScript targets use
 // Modelable's source camelCase field names, but the generated Rust API's
 // actual JSON wire format is snake_case (no serde rename). toSnakeCase/
 // toCamelCase below convert at this one boundary so the rest of the app can

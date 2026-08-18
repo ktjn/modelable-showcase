@@ -2,7 +2,7 @@ import type { InvoiceReply } from '@generated/billing.InvoiceReply.v2'
 import type { InvoiceRequest } from '@generated/billing.InvoiceRequest.v2'
 import { post } from './client'
 
-// UPSTREAM_FINDINGS.md #35/#37: same ref<>/optionality corrections as
+// UPSTREAM_FINDINGS.md #38/#40: same ref<>/optionality corrections as
 // appointments.ts/encounters.ts - Invoice.encounterId is
 // ref<clinical.Encounter@1>.
 export type InvoiceCreateInput = Omit<

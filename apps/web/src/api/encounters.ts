@@ -2,7 +2,7 @@ import type { EncounterReply } from '@generated/clinical.EncounterReply.v1'
 import type { EncounterRequest } from '@generated/clinical.EncounterRequest.v1'
 import { patch, post } from './client'
 
-// UPSTREAM_FINDINGS.md #35/#37: see appointments.ts's AppointmentCreateInput
+// UPSTREAM_FINDINGS.md #38/#40: see appointments.ts's AppointmentCreateInput
 // - the same ref<> (here `appointmentId: ref<scheduling.Appointment@1>`) and
 // optionality corrections apply to EncounterRequest.
 export type EncounterStartInput = Omit<
