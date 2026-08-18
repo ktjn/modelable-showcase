@@ -8,6 +8,13 @@
 //! /docs` is a small handwritten HTML page loading Swagger UI against that
 //! route; per UPSTREAM_POLICY.md Sec 5, "a documentation viewer MAY be
 //! handwritten configuration" - only the OpenAPI document itself must not be.
+//!
+//! The path defaults to the dev-repo-relative location (`CARGO_MANIFEST_DIR`
+//! is `apps/api` at compile time), but is overridable via
+//! `SHOWCASE_OPENAPI_PATH` (IMPLEMENTATION_PLAN.md Task 11.1:
+//! `apps/api/Dockerfile`'s runtime stage has no repo checkout at all, only
+//! the compiled binary, so it sets this env var to wherever it copied its own
+//! `generated/openapi/openapi.json` from the generator stage).
 
 use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse};
@@ -22,7 +29,8 @@ pub fn docs_routes() -> Router<AppState> {
 }
 
 fn openapi_json_path() -> String {
-    format!("{}/../../generated/openapi/openapi.json", env!("CARGO_MANIFEST_DIR"))
+    std::env::var("SHOWCASE_OPENAPI_PATH")
+        .unwrap_or_else(|_| format!("{}/../../generated/openapi/openapi.json", env!("CARGO_MANIFEST_DIR")))
 }
 
 async fn openapi_json() -> impl IntoResponse {
