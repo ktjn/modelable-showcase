@@ -1,0 +1,16 @@
+domain lspfixture {
+  owner: "test-team"
+  contact: "test@example.com"
+  description: "Minimal valid document for the LSP smoke test."
+
+  semantic WidgetId: uuid(7) {
+    registry: true
+  }
+
+  entity Widget @ 1 (additive) {
+    @key
+    widgetId: WidgetId
+    name: string
+    createdAt: timestamp
+  }
+}

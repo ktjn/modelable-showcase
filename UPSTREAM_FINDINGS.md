@@ -54,6 +54,7 @@
 | 38 | [`compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable](#38-compile---target-openapi-emits-a-ref-to-the-bare-source-entity-for-refdomainentityn-fields-but-no-component-schema-exists-for-a-bare-entity---the-reference-is-unresolvable) | Invalid generated output | A | Fixed in v1.9.4 |
 | 39 | [`compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract](#39-compile---target-openapi-emits-modelable-source-camelcase-property-names-while-compile---target-rust-emits-the-language-idiomatic-snake_case-field-names-as-is-on-the-wire---the-two-targets-disagree-about-the-same-models-json-contract) | Inconsistent behavior | A | Fixed in v1.9.4 |
 | 40 | [`compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields](#40-compile---target-typescript-never-marks-an-optional-field--every-field-is-emitted-as-required-even-server-fields-and-explicit--fields) | Missing feature (broken generated code) | A | Fixed in v1.9.4 |
+| 41 | [`compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails](#41-compile---target-sql-clickhouse-emits-a-bloom_filter-secondary-index-on-a-composite-index-that-includes-a-datetime64-column---create-table-succeeds-but-every-insert-into-the-table-fails) | Invalid generated output | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -1901,3 +1902,40 @@ Every optional field (`?` in `.mdl`, including every `@server` field like `creat
 **Showcase verification:** regenerated TypeScript artifacts now mark optional
 projection fields with `?:`; the generated types can be used directly by the
 web client.
+
+## 41. `compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails
+
+**Status:** Open.
+
+**Discovered:** Task 13.1 (LSP harness), while re-running the full test suite after re-pinning to v1.9.4. `tests/integration/test_clickhouse_generated_schema.py::test_insert_and_query_back_synthetic_report_rows` started failing with no changes to the showcase's own code - the only change was v1.9.4 newly emitting ClickHouse secondary indexes at all (previously a deferred capability, see `tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_now_emitted`).
+
+**Reproduction:**
+
+```bash
+docker compose up -d clickhouse
+docker compose exec -T clickhouse clickhouse-client --user showcase --password showcase --database showcase --multiquery --query "
+DROP TABLE IF EXISTS repro_bloom;
+CREATE TABLE repro_bloom (
+    patient_id String,
+    issued_at Nullable(DateTime64(9)),
+    INDEX idx_by_patient (patient_id, issued_at) TYPE bloom_filter GRANULARITY 1
+) ENGINE = MergeTree() ORDER BY tuple();
+INSERT INTO repro_bloom VALUES ('p1', now64(9));
+"
+```
+
+**Observed:**
+
+```text
+Received exception from server (version 24.8.14):
+Code: 36. DB::Exception: Received from localhost:9000. DB::Exception: Unexpected type DateTime64(9) of bloom filter index.. (BAD_ARGUMENTS)
+(query: INSERT INTO repro_bloom VALUES ('p1', now64(9));)
+```
+
+`CREATE TABLE` (and `SHOW CREATE TABLE`) both succeed - ClickHouse does not validate a `bloom_filter` index's column types at DDL time - so the defect is invisible until the first `INSERT`, which fails hard. The same index type applied to a composite column list containing only `String`/`LowCardinality(String)`/plain `Date` columns (no `DateTime64`) inserts and queries back fine (verified directly: `INDEX idx_by_name (legal_name, date_of_birth) TYPE bloom_filter` where `date_of_birth Date` works; only the `DateTime64`/`Nullable(DateTime64)` case fails). In this showcase's `generated/sql-clickhouse/` output, every table with a `DateTime64` field in a composite secondary index is affected: `billing.InvoiceDb.v2`, `billing.InvoiceEvent.v2`, `billing.InvoiceReply.v2`, `billing.InvoiceRequest.v2` (`idx_by_patient (patient_id, issued_at)`), and `reporting.OutstandingInvoices.v1` (same index, same `issued_at Nullable(DateTime64(9))` column) - five tables. Tables whose composite index columns are all `String`/`Date` (`patient.PatientDb.v2`'s `idx_by_name (legal_name, date_of_birth)`, `scheduling.AppointmentDb.v1`'s `idx_by_patient_day (patient_id, scheduled_date)` where `scheduled_date Date`, etc.) are unaffected.
+
+**Root cause (not yet read from source - Modelable's sql-clickhouse emitter is not vendored into this repo):** the emitter's secondary-index selection appears to pick `bloom_filter` for every multi-column composite index regardless of column type, without special-casing temporal columns. ClickHouse's `bloom_filter` index type does not support `DateTime`/`DateTime64` (only `String`, `FixedString`, numeric, `LowCardinality`, `Array` of those, `Map` keys); `minmax` (or a per-column index split, using `bloom_filter` only for the string columns and `minmax` for the temporal one) is the standard idiomatic choice for a range-queryable date/time column in ClickHouse, verified locally to accept the same insert cleanly.
+
+**Expected:** the sql-clickhouse emitter should either (a) never select `bloom_filter` for an index whose column list includes a `DateTime`/`DateTime64` field - falling back to `minmax` for that index, or (b) split a composite index across column-appropriate index types, so `CREATE TABLE ... INDEX ...` and every subsequent `INSERT` both succeed for the full generated graph.
+
+**Showcase workaround:** `tests/integration/test_clickhouse_generated_schema.py::test_insert_and_query_back_synthetic_report_rows` pins the current reality as an explicit flip test: inserting into `outstanding_invoices` (which carries the affected `idx_by_patient (patient_id, issued_at)` bloom_filter index) is asserted to fail with this exact `DB::Exception: Unexpected type DateTime64(9) of bloom filter index` error, while `daily_schedule` (unaffected - no `DateTime64` column in any of its indexes) still round-trips normally. No permanent DDL-rewriting script was added (`UPSTREAM_POLICY.md` §7); this is Case A per `UPSTREAM_POLICY.md` §6 - fix upstream first.

@@ -1,0 +1,3 @@
+workspace "lsp-fixture-workspace" {
+  description: "Minimal standalone workspace for tests/integration/test_lsp_smoke.py. Deliberately not the real model/ workspace (Task 13.1) - the LSP smoke test only needs one small valid document, and keeping it separate avoids coupling the LSP harness to unrelated changes in the showcase's real domains."
+}
