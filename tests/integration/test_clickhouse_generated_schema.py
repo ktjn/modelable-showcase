@@ -21,10 +21,15 @@ entire `generated/sql-clickhouse/` set (deterministic sorted application), then
 verifies representative reporting tables/columns and inserts/queries back
 synthetic report rows.
 
-The clickhouse target emits no secondary indexes at all (that capability is
-deferred upstream - `tests/conformance/test_deferred_capabilities.py`), so the
-showcase's reporting tables carry no index requirement; that is asserted
-explicitly in test_generated_clickhouse_ddl_has_no_secondary_indexes.
+As of v1.9.4 the clickhouse target emits real secondary indexes (previously a
+deferred capability - see
+`tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_now_emitted`);
+that is asserted here in test_generated_clickhouse_ddl_now_emits_secondary_indexes.
+UPSTREAM_FINDINGS.md #41: one of those indexes (`bloom_filter` on a composite
+column list including a `DateTime64` field) applies as DDL but fails on
+`INSERT` - `test_insert_and_query_back_synthetic_report_rows` pins that as a
+flip test on `outstanding_invoices` while `daily_schedule` (unaffected) still
+round-trips normally.
 """
 
 from __future__ import annotations
@@ -40,6 +45,7 @@ from pathlib import Path
 
 import clickhouse_connect
 import pytest
+from clickhouse_connect.driver.exceptions import DatabaseError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DDL_DIR = REPO_ROOT / "generated" / "sql-clickhouse"
@@ -223,10 +229,8 @@ def test_representative_reporting_columns_and_types(client):
 
 def test_insert_and_query_back_synthetic_report_rows(client):
     # The tables have no keys, so re-runs would accumulate duplicates; the dev
-    # database is disposable, so wipe both tables before each run to stay
-    # deterministic.
+    # database is disposable, so wipe before each run to stay deterministic.
     client.command("TRUNCATE TABLE daily_schedule")
-    client.command("TRUNCATE TABLE outstanding_invoices")
 
     client.insert(
         "daily_schedule",
@@ -241,37 +245,6 @@ def test_insert_and_query_back_synthetic_report_rows(client):
             "display_reason",
         ],
     )
-    client.insert(
-        "outstanding_invoices",
-        [[
-            "inv-1",
-            "pat-1",
-            None,
-            Decimal("150.00"),
-            Decimal("12.00"),
-            Decimal("162.00"),
-            "USD",
-            "2026-08",
-            "issued",
-            datetime(2026, 8, 16, 10, 30, tzinfo=timezone.utc),
-            date(2026, 9, 15),
-            "false",
-        ]],
-        column_names=[
-            "invoice_id",
-            "patient_id",
-            "encounter_id",
-            "subtotal",
-            "tax",
-            "total",
-            "currency",
-            "billing_period",
-            "status",
-            "issued_at",
-            "due_date",
-            "is_outstanding",
-        ],
-    )
 
     schedule_rows = client.query(
         "SELECT appointment_id, patient_name, practitioner_id, scheduled_date, slot, "
@@ -282,37 +255,58 @@ def test_insert_and_query_back_synthetic_report_rows(client):
         ("appt-1", "Jane Doe", "prac-1", date(2026, 8, 17), "09:00", "scheduled", "routine check")
     ], schedule_rows
 
-    invoice_rows = client.query(
-        "SELECT invoice_id, patient_id, encounter_id, subtotal, tax, total, currency, "
-        "billing_period, status, issued_at, due_date, is_outstanding "
-        "FROM outstanding_invoices WHERE invoice_id = {id:String}",
-        parameters={"id": "inv-1"},
-    ).result_rows
-    assert len(invoice_rows) == 1, invoice_rows
-    actual = tuple(_utc_naive(value) for value in invoice_rows[0])
-    expected = tuple(
-        _utc_naive(value)
-        for value in (
-            "inv-1",
-            "pat-1",
-            None,
-            Decimal("150.00"),
-            Decimal("12.00"),
-            Decimal("162.00"),
-            "USD",
-            "2026-08",
-            "issued",
-            datetime(2026, 8, 16, 10, 30, tzinfo=timezone.utc),
-            date(2026, 9, 15),
-            "false",
+
+def test_outstanding_invoices_insert_currently_fails_on_the_bloom_filter_datetime64_bug(client):
+    """UPSTREAM_FINDINGS.md #41 flip test: `outstanding_invoices` carries a
+    `bloom_filter` index over `(patient_id, issued_at)` where `issued_at` is
+    `Nullable(DateTime64(9))`. `CREATE TABLE` (done by the `applied_ddl`
+    fixture) succeeds, but ClickHouse rejects any `INSERT` into that table
+    because `bloom_filter` does not support `DateTime64`. This pins that
+    reality so a fix landing upstream turns this test red - the signal to
+    flip it back to a normal round-trip assertion and update #41's status."""
+    client.command("TRUNCATE TABLE outstanding_invoices")
+
+    with pytest.raises(DatabaseError, match="Unexpected type DateTime64.*bloom filter index"):
+        client.insert(
+            "outstanding_invoices",
+            [[
+                "inv-1",
+                "pat-1",
+                None,
+                Decimal("150.00"),
+                Decimal("12.00"),
+                Decimal("162.00"),
+                "USD",
+                "2026-08",
+                "issued",
+                datetime(2026, 8, 16, 10, 30, tzinfo=timezone.utc),
+                date(2026, 9, 15),
+                "false",
+            ]],
+            column_names=[
+                "invoice_id",
+                "patient_id",
+                "encounter_id",
+                "subtotal",
+                "tax",
+                "total",
+                "currency",
+                "billing_period",
+                "status",
+                "issued_at",
+                "due_date",
+                "is_outstanding",
+            ],
         )
-    )
-    assert actual == expected, f"read-back mismatch:\n got {actual}\n exp {expected}"
 
 
-def test_generated_clickhouse_ddl_has_no_secondary_indexes():
-    # The clickhouse target emits no secondary-index DDL of any kind - the
-    # capability is deferred upstream (test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent).
-    # This showcases that no index requirement is imposed on the applied schema.
-    for sql_file in sorted(DDL_DIR.glob("*.sql")):
-        assert "CREATE INDEX" not in sql_file.read_text(encoding="utf-8"), sql_file.name
+def test_generated_clickhouse_ddl_now_emits_secondary_indexes():
+    # As of v1.9.4 the clickhouse target emits real column-level secondary
+    # indexes (previously deferred upstream - see
+    # test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_now_emitted).
+    # Representative check: patient.PatientDb.v2's idx_by_name is present with
+    # the expected columns and index type.
+    patient_sql = (DDL_DIR / "patient.PatientDb.v2.sql").read_text(encoding="utf-8")
+    assert "INDEX idx_by_name" in patient_sql, patient_sql
+    assert "legal_name, date_of_birth" in patient_sql, patient_sql
+    assert "TYPE bloom_filter" in patient_sql, patient_sql
