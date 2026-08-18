@@ -148,3 +148,27 @@ capabilities:
   deferred_feature:projection-event-operation-coverage-compatibility:
     coverage: deferred
     test: tests/conformance/test_deferred_capabilities.py::test_projection_event_operation_coverage_not_comparable
+  target:registry:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py::test_baseline_compile_captures_ids
+  target:event-sink:
+    coverage: probe
+    test: tests/integration/test_generated_artifacts.py::test_event_sink_contract_declares_every_event_channel_with_a_schema_ref
+  annotation:latest_only:
+    coverage: probe
+    test: tests/conformance/test_valid_fixtures.py::test_join_temporal_modifiers_compile
+  annotation:pit_cutoff:
+    coverage: probe
+    test: tests/conformance/test_valid_fixtures.py::test_join_temporal_modifiers_compile
+  annotation:latest_before:
+    coverage: probe
+    test: tests/conformance/test_valid_fixtures.py::test_join_temporal_modifiers_compile
+  annotation:custom:
+    coverage: excluded
+    reason: >-
+      UPSTREAM_FINDINGS.md #42: `modelable capabilities` reports this as
+      "implemented", but the grammar has no production that reaches the
+      transformer's `ann_custom` method - `@custom(...)` is a hard parse
+      error on every real attempt, confirmed by reading both the installed
+      1.9.4 grammar and a fresh clone of upstream main. No `.mdl` syntax
+      exists to cover it.

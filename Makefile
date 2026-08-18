@@ -48,7 +48,12 @@ generate:
 	@. ./scripts/modelable-env.sh; uv run scripts/generate-all.py
 
 validate:
-	$(call not_implemented,validate,"Task 17.1 - Finalize command facade")
+	@. ./scripts/modelable-env.sh; modelable validate ./model --strict
+	@. ./scripts/modelable-env.sh; uv run pytest -q \
+		tests/conformance/test_valid_fixtures.py \
+		tests/conformance/test_invalid_fixtures.py \
+		tests/conformance/test_deferred_capabilities.py
+	@. ./scripts/modelable-env.sh; uv run scripts/check-capability-coverage.py --strict
 
 probes: generate
 	@. ./scripts/modelable-env.sh; \
@@ -70,7 +75,16 @@ compat:
 	@. ./scripts/modelable-env.sh; uv run pytest -q tests/conformance/test_model_compatibility.py $(wildcard tests/conformance/test_target_compatibility.py)
 
 integration:
-	$(call not_implemented,integration,"Task 17.1 - Finalize command facade")
+	@. ./scripts/modelable-env.sh; uv run pytest -q \
+		tests/integration/test_model_cli.py \
+		tests/integration/test_cli_surface.py \
+		tests/integration/test_generate_all.py \
+		tests/integration/test_generated_artifacts.py \
+		tests/integration/test_postgres_generated_schema.py \
+		tests/integration/test_clickhouse_generated_schema.py \
+		tests/integration/test_openapi_checkpoint.py \
+		tests/integration/test_openapi_contract.py \
+		tests/conformance/test_registry_ids.py
 
 e2e:
 	docker compose down -v
@@ -85,7 +99,15 @@ determinism:
 	@. ./scripts/modelable-env.sh; uv run scripts/check-determinism.py
 
 acceptance:
-	$(call not_implemented,acceptance,"Task 17.1 - Finalize command facade")
+	$(MAKE) validate
+	$(MAKE) compat
+	$(MAKE) generate
+	$(MAKE) determinism
+	docker compose up -d postgres clickhouse
+	$(MAKE) probes
+	$(MAKE) integration
+	$(MAKE) e2e
+	@. ./scripts/modelable-env.sh; uv run pytest -q tests/integration/test_lsp_smoke.py
 
 up:
 	docker compose up --build -d

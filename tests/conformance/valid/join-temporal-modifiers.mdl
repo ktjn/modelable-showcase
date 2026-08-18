@@ -1,0 +1,50 @@
+// Proves: a projection join accepts the temporal join-modifier annotations
+// (SPEC.md Sec 12; `modelable capabilities` reports these as
+// annotation:latest_only/latest_before/pit_cutoff) - `@latestOnly`,
+// `@latestBefore(<expr>)`, and `@pitCutoff(<expr>)` all attach after a join's
+// `on` clause. Grammar note (read from modelable's own `modelable.lark`):
+// `join_clause: join_prefix annotation*` where `join_prefix` ends with `"on"
+// EXPRESSION` and `EXPRESSION: /[^\n\r{}]+/` - the on-clause's EXPRESSION
+// terminal greedily consumes the rest of its physical line, so a join
+// modifier annotation MUST start on its own line or it gets swallowed into
+// the join condition and fails as a bogus CEL token (verified: putting
+// `@latestOnly` on the same line as `on ...` fails with `CEL001: parse
+// error: unexpected token 'latestOnly'`).
+domain latesttracking {
+  owner: "conformance-fixtures"
+
+  semantic ThingId: string
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: ThingId
+    name: string
+  }
+
+  event ThingStatusEvent @ 1 (additive) {
+    thingId: ThingId
+    status: string
+    recordedAt: timestamp
+  }
+
+  projection ThingWithLatestStatus @ 1
+    from latesttracking.Thing @ 1 as t
+    left join latesttracking.ThingStatusEvent @ 1 as e on e.thingId == t.thingId
+      @latestOnly
+  {
+    thingId <- t.thingId
+    name <- t.name
+    latestStatus <- e.status
+  }
+
+  projection ThingAsOfCutoff @ 1
+    from latesttracking.Thing @ 1 as t
+    left join latesttracking.ThingStatusEvent @ 1 as e on e.thingId == t.thingId
+      @pitCutoff(e.recordedAt <= t.name)
+      @latestBefore(e.recordedAt)
+  {
+    thingId <- t.thingId
+    name <- t.name
+    statusAsOfCutoff <- e.status
+  }
+}

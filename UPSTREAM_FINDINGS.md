@@ -55,6 +55,7 @@
 | 39 | [`compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract](#39-compile---target-openapi-emits-modelable-source-camelcase-property-names-while-compile---target-rust-emits-the-language-idiomatic-snake_case-field-names-as-is-on-the-wire---the-two-targets-disagree-about-the-same-models-json-contract) | Inconsistent behavior | A | Fixed in v1.9.4 |
 | 40 | [`compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields](#40-compile---target-typescript-never-marks-an-optional-field--every-field-is-emitted-as-required-even-server-fields-and-explicit--fields) | Missing feature (broken generated code) | A | Fixed in v1.9.4 |
 | 41 | [`compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails](#41-compile---target-sql-clickhouse-emits-a-bloom_filter-secondary-index-on-a-composite-index-that-includes-a-datetime64-column---create-table-succeeds-but-every-insert-into-the-table-fails) | Invalid generated output | A | Open |
+| 42 | [`modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt](#42-modelable-capabilities---format-json-reports-annotationcustom-as-status-implemented-but-the-grammar-has-no-production-that-reaches-it---custom-is-a-hard-parse-error-on-every-attempt) | Inconsistent behavior | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -1939,3 +1940,45 @@ Code: 36. DB::Exception: Received from localhost:9000. DB::Exception: Unexpected
 **Expected:** the sql-clickhouse emitter should either (a) never select `bloom_filter` for an index whose column list includes a `DateTime`/`DateTime64` field - falling back to `minmax` for that index, or (b) split a composite index across column-appropriate index types, so `CREATE TABLE ... INDEX ...` and every subsequent `INSERT` both succeed for the full generated graph.
 
 **Showcase workaround:** `tests/integration/test_clickhouse_generated_schema.py::test_insert_and_query_back_synthetic_report_rows` pins the current reality as an explicit flip test: inserting into `outstanding_invoices` (which carries the affected `idx_by_patient (patient_id, issued_at)` bloom_filter index) is asserted to fail with this exact `DB::Exception: Unexpected type DateTime64(9) of bloom filter index` error, while `daily_schedule` (unaffected - no `DateTime64` column in any of its indexes) still round-trips normally. No permanent DDL-rewriting script was added (`UPSTREAM_POLICY.md` §7); this is Case A per `UPSTREAM_POLICY.md` §6 - fix upstream first.
+
+## 42. `modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt
+
+**Status:** Open.
+
+**Discovered:** Task 17.1 (finalize command façade), resolving the last `check-capability-coverage.py --strict` gaps before enabling strict mode for good. `annotation:custom` had no manifest entry; while writing a fixture to cover it, every syntax attempt for `@custom(...)` failed to parse.
+
+**Reproduction:**
+
+```bash
+cat > /tmp/custom-probe.mdl <<'EOF'
+domain thing {
+  owner: "t"
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: string
+    @custom("foo", "bar")
+    name: string
+  }
+}
+EOF
+modelable validate /tmp/custom-probe.mdl --strict
+```
+
+**Observed:**
+
+```text
+Expected one of:
+        * __ANON_5
+        * RBRACE
+        ...
+        * IDENT
+        * __ANON_3
+```
+
+A hard grammar-level parse error - `@custom` is not a recognized annotation token at all. Confirmed by reading the installed 1.9.4 wheel's own grammar directly (`site-packages/modelable/grammar/modelable.lark`, cached locally at the path this showcase's earlier version-pin investigation left under `%TEMP%/ma-diff/m94/modelable-1.9.4/src/modelable/grammar/modelable.lark`): the `annotation` production lists `@key`, `@pii`, `@classification(...)`, `@deprecated(...)`, `@owner(...)`, `@server`, `wire_annotation`, `@pitCutoff(...)`, `@latestBefore(...)`, `@latestOnly` - there is no `@custom` alternative anywhere in the rule. Yet `cli/src/modelable/parser/transformer.py` has a live, fully-implemented `ann_custom` method (`AnnCustom(name=..., expression=...)`) that can never be invoked, because Lark only calls a transformer method when its grammar rule uses `-> ann_custom` as an alias, and no rule does. The same absence holds on a fresh clone of upstream `main` (`github.com/ktjn/modelable`, default branch at time of writing) - this is not a stale-pin artifact.
+
+**Root cause (read from source, not guessed):** `cli/src/modelable/capabilities.py` hardcodes a static capability descriptions table (`"custom": "Attaches an opaque, target-defined annotation"`) that is reported as `"status": "implemented"` for every capability listed there, independent of whether the grammar actually reaches the corresponding transformer method. The `ann_custom` transformer method was written (dead code, unreachable from any grammar rule) but the corresponding `"@custom" "(" ... ")" -> ann_custom` grammar alternative was never added to `annotation:` in `modelable.lark`. `modelable capabilities` never cross-checks its static description table against which transformer methods the grammar can actually produce, so the CLI self-reports a capability that does not exist in the parser at all.
+
+**Expected:** either (a) add the missing `"@custom" "(" IDENT ("," ANNOTATION_EXPR)? ")" -> ann_custom`-shaped grammar alternative so `@custom(...)` actually parses and reaches the existing transformer method, or (b) if `@custom` is intentionally not yet implemented, `modelable capabilities` should report it as `planned`/`deferred`, not `implemented` - the capability-coverage contract this showcase's `check-capability-coverage.py --strict` depends on assumes `implemented` means "a real `.mdl` file can use this today."
+
+**Showcase workaround:** `tests/conformance/capability-coverage.yaml`'s `annotation:custom` entry is `excluded` with a reason pointing at this finding, since no `.mdl` syntax exists to cover it (an `excluded` entry, not a false `product`/`probe` claim). `annotation:latest_only`/`annotation:pit_cutoff`/`annotation:latest_before` are real and do parse/compile (verified: the join-modifier annotations must start on their own physical line after the join's `on` clause, since `EXPRESSION: /[^\n\r{}]+/` greedily consumes the rest of the line the `on` clause sits on) - covered for real by `tests/conformance/valid/join-temporal-modifiers.mdl` and `test_join_temporal_modifiers_compile`.

@@ -326,3 +326,31 @@ def test_grpc_service_manifest_has_services_and_read_indexes():
     primary = next(i for i in manifest["read_indexes"] if i["index_name"] == "primary")
     assert primary["unique"] is True
     assert primary["key_fields"] == ["patientId"]
+
+
+# --- Event sink (adapter-neutral change-event/transactional-outbox contract) -
+
+
+def test_event_sink_contract_declares_every_event_channel_with_a_schema_ref():
+    doc = load_json(GENERATED_DIR / "event-sink" / "event-sink.json")
+    assert doc["format"] == "modelable.event-sink.v1"
+    assert doc["envelope"]["required"] == [
+        "domain",
+        "model",
+        "version",
+        "operation",
+        "key",
+        "timestamp",
+        "payload",
+    ]
+    assert doc["outbox"]["delivery"] == "transactional"
+
+    events = {event["ref"]: event for event in doc["events"]}
+    assert events, "expected at least one declared event channel"
+    invoice_event = events["billing.InvoiceEvent@2"]
+    assert invoice_event["channel"] == "billing.Invoice.events.v2"
+    assert set(invoice_event["operations"]) >= {"insert", "update", "delete"}
+    schema_ref = invoice_event["payload_schema"]["$ref"]
+    assert schema_ref == "#/components/schemas/billing.InvoiceEvent.v2"
+    schema_name = schema_ref.rsplit("/", 1)[-1]
+    assert schema_name in doc["components"]["schemas"], "payload_schema $ref does not resolve"
