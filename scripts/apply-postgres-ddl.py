@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -51,12 +52,44 @@ def connection_params() -> dict:
     }
 
 
+_TABLE_RE = re.compile(r"CREATE TABLE IF NOT EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+_REFERENCES_RE = re.compile(r"REFERENCES\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+
+
+def _ordered_sql_files(ddl_dir: Path) -> list[Path]:
+    """Return SQL files in a stable topological order by table dependencies."""
+    files = sorted(ddl_dir.glob("*.sql"))
+    file_for_table: dict[str, Path] = {}
+    dependencies: dict[Path, set[Path]] = {}
+    for sql_file in files:
+        text = sql_file.read_text(encoding="utf-8")
+        table_match = _TABLE_RE.search(text)
+        if table_match is None:
+            raise ValueError(f"could not find CREATE TABLE in {sql_file.name}")
+        file_for_table[table_match.group(1)] = sql_file
+        dependencies[sql_file] = set()
+    for sql_file in files:
+        text = sql_file.read_text(encoding="utf-8")
+        dependencies[sql_file] = {
+            file_for_table[table]
+            for table in _REFERENCES_RE.findall(text)
+            if table in file_for_table and file_for_table[table] != sql_file
+        }
+
+    ordered: list[Path] = []
+    remaining = set(files)
+    while remaining:
+        ready = sorted(file for file in remaining if not (dependencies[file] & remaining))
+        if not ready:
+            raise ValueError("cyclic PostgreSQL table dependencies in generated DDL")
+        ordered.extend(ready)
+        remaining.difference_update(ready)
+    return ordered
+
+
 def apply_ddl(ddl_dir: Path, conn) -> list[str]:
-    """Apply every *.sql file under ddl_dir in sorted filename order and return
-    the list of applied filenames. Statements are split on ';' only - the
-    generated files contain plain CREATE TABLE/CREATE INDEX statements with no
-    embedded semicolons, so each statement is passed to PostgreSQL verbatim."""
-    sql_files = sorted(ddl_dir.glob("*.sql"))
+    """Apply every *.sql file under ddl_dir in dependency order."""
+    sql_files = _ordered_sql_files(ddl_dir)
     applied: list[str] = []
     with conn.cursor() as cur:
         for sql_file in sql_files:

@@ -36,10 +36,12 @@ reality, which the showcase's flip tests pin exactly.
 | FR-8 | Ship `openapi` in a versioned release (with a real version string) | Task 9.0 | Implemented in v1.8.0 (verified: `modelable capabilities` includes openapi; `modelable --version` = 1.8.0) |
 | FR-9 | Canonical, round-trippable `time`/`duration` serialization | Task 9.3 | Implemented in v1.8.0 (verified: chrono types in generated Rust) |
 | FR-10 | Value objects as `jsonb` (or generated query operators) | Tasks 9.2/9.3 search/ordering | Implemented in v1.8.0 (verified: `contact JSONB NOT NULL` in DDL) |
-| FR-11 | Foreign keys from `ref<>` in generated DDL | Tasks 9.2/9.3 | Partially implemented in v1.8.0 — FKs emitted but broken on new finding #27 |
+| FR-11 | Foreign keys from `ref<>` in generated DDL | Tasks 9.2/9.3 | Implemented upstream on the current fix branch — bound/default `*Db` tables are referenced |
 | FR-12 | Official event-sink/outbox materialising event projections | Task 9.5 plan | Implemented in v1.8.0 (event-sink target ships) |
 | FR-13 | A generated registry/contract module | Task 9.1 `/health` | Implemented in v1.8.0 (verified: `generated/registry/registry.json`) |
-| FR-14 | Resolve `ref<>` fields to a real component in generated OpenAPI | Finding #38 | Open |
+| FR-14 | Resolve `ref<>` fields to a real component in generated OpenAPI | Finding #38 | Implemented upstream on the current fix branch |
+| FR-15 | Preserve canonical JSON field names in generated Rust | Finding #39 | Implemented upstream on the current fix branch |
+| FR-16 | Preserve optionality in generated TypeScript projections | Finding #40 | Implemented upstream on the current fix branch |
 
 ---
 
@@ -365,21 +367,13 @@ generated registry for all compiled models, not hand-wired for `patient` only.
 
 ## FR-14 — Resolve `ref<>` fields to a real component in generated OpenAPI
 
-**Status:** Open. New finding [#38](UPSTREAM_FINDINGS.md#38): the `openapi`
-target emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>`
-fields (e.g. `"$ref": "#/components/schemas/patient.Patient.v2"`), but no
-component schema for a bare entity is ever emitted - only its projections
-(`Db`/`Request`/`Reply`/`Event`) are. Every `ref<>` field in this showcase's
-model (`Appointment.patientId`, `Encounter.appointmentId`,
-`Observation.encounterId`, `Invoice.encounterId`) produces an unresolvable
-reference, so no `ref<>`-bearing projection's OpenAPI schema passes standard
-validation (`openapi-spec-validator` raises `PointerToNowhere`). This is the
-OpenAPI analogue of FR-11's SQL DDL foreign-key friction.
+**Status:** Implemented upstream on the current fix branch. The OpenAPI target
+resolves each `ref<>` field through the referenced entity's key schema, so the
+component graph validates without `PointerToNowhere` errors.
 
-**Friction.** A consumer generating an OpenAPI-derived client/mock/docs page
-for any endpoint whose request or reply carries a `ref<>` field gets a broken
-component graph, with no local workaround other than skipping full-document
-resolution.
+**Friction addressed.** A consumer generating an OpenAPI-derived
+client/mock/docs page now receives a resolvable component graph for endpoints
+whose request or reply carries a `ref<>` field.
 
 **Proposed behavior.** Resolve a `ref<Domain.Entity@N>` field's OpenAPI schema
 to the referenced entity's `@key` field type (its identifier semantic type,
@@ -391,3 +385,30 @@ a `$ref` to the entity itself. This mirrors how other targets already treat
 `generated/openapi/openapi.json` for a model containing a `ref<>` field with
 no `PointerToNowhere` errors, and the resolved schema for the `ref<>` field
 matches the referenced entity's `@key` type.
+
+---
+
+## FR-15 — Preserve canonical JSON field names in generated Rust
+
+**Status:** Implemented upstream on the current fix branch. Rust identifiers
+remain idiomatic snake_case, while serde rename attributes preserve the
+canonical Modelable/OpenAPI JSON property names.
+
+**Friction.** The generated Rust API and OpenAPI document described different
+wire contracts for the same fields, forcing showcase tests to normalize keys.
+
+**Acceptance.** Generated Rust request/reply JSON can be compared directly to
+the generated OpenAPI property and required-field sets.
+
+---
+
+## FR-16 — Preserve optionality in generated TypeScript projections
+
+**Status:** Implemented upstream on the current fix branch. Projection fields
+inherit optionality from their direct source model fields and emit `?:`.
+
+**Friction.** Generated TypeScript interfaces treated optional projection
+fields as required, so the compiler could not enforce the model contract.
+
+**Acceptance.** A generated projection marks optional source fields with `?:`
+and keeps required fields without it.

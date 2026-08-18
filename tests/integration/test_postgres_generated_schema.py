@@ -13,19 +13,11 @@ variables with those defaults (shared with scripts/apply-postgres-ddl.py, whose
 connection_params() this module imports). Tests skip when the database is
 unreachable.
 
-The current 1.8.0 reality, pinned here exactly:
+The full generated set applies in one pass, including foreign keys that point
+at the persisted `*Db` projection tables (UPSTREAM_FINDINGS.md #27).
 
-- The full generated set does NOT apply in one pass: v1.8.0 adds `FOREIGN KEY`
-  emission, but every FK references the referenced *model* name, not the bound
-  *table* name - `REFERENCES patient`, `REFERENCES appointment`,
-  `REFERENCES encounter` - and no such relations exist, so the first FK
-  statement aborts the whole apply with `relation "encounter" does not exist`
-  (UPSTREAM_FINDINGS.md #27). `test_full_generated_set_currently_fails_to_apply`
-  is the flip signal for that; `test_fk_clauses_reference_model_names` pins
-  the exact emitted clauses.
-- The FK-free subset (every file with no FOREIGN KEY) applies cleanly and
-  deterministically in sorted filename order, and round-trips data. That is
-  what `apply_ddl` exercises below.
+The DDL applies cleanly and deterministically in sorted filename order, and
+round-trips data.
 - Secondary index names are now table-prefixed (`appointment_db_by_status`,
   `patient_db_by_name`, ...) so they no longer collide across tables
   (UPSTREAM_FINDINGS.md #24, fixed in 1.8.0); `test_generated_secondary_indexes_are_table_prefixed`
@@ -60,17 +52,10 @@ _apply_spec.loader.exec_module(_apply_module)
 
 connection_params = _apply_module.connection_params
 apply_ddl = _apply_module.apply_ddl
+ordered_sql_files = _apply_module._ordered_sql_files
 
-# The subset of the generated set that applies under UPSTREAM_FINDINGS.md #27:
-# every file that emits no FOREIGN KEY. Files with FKs reference the model name
-# (`REFERENCES patient`) not the bound table (`patient_db`), so they cannot be
-# applied until #27 is fixed upstream.
-FK_FREE_FILES = sorted(
-    f.name
-    for f in DDL_DIR.glob("*.sql")
-    if "FOREIGN KEY" not in f.read_text(encoding="utf-8")
-)
-assert FK_FREE_FILES, "run 'make generate' first (generated/sql-postgres missing or all files carry FKs)"
+DDL_FILES = sorted(f.name for f in DDL_DIR.glob("*.sql"))
+assert DDL_FILES, "run 'make generate' first (generated/sql-postgres missing)"
 
 
 def _can_connect() -> bool:
@@ -101,7 +86,7 @@ def _snake_case(camel: str) -> str:
 
 def _expected_table_names() -> list[str]:
     names = []
-    for name in FK_FREE_FILES:
+    for name in DDL_FILES:
         projection = Path(name).stem.split(".")[-2]
         names.append(_snake_case(projection))
     return names
@@ -121,12 +106,12 @@ def conn() -> Iterator[psycopg.Connection]:
 
 @pytest.fixture(scope="module", autouse=True)
 def applied_ddl(conn, tmp_path_factory):
-    # Apply only the FK-free subset (see module docstring / finding #27). The
-    # full generated set is exercised by the dedicated flip test below, which
-    # must NOT leave FK-bearing tables behind.
+    # Apply the complete generated set, including the repaired FK-bearing
+    # tables.
     with tempfile.TemporaryDirectory() as tmp:
         subset_dir = Path(tmp)
-        _copy_files_into(subset_dir, FK_FREE_FILES)
+        _copy_files_into(subset_dir, DDL_FILES)
+        expected_order = [path.name for path in ordered_sql_files(subset_dir)]
         apply_ddl(subset_dir, conn)
 
 
@@ -152,12 +137,10 @@ def test_apply_script_cli_is_deterministic_sorted_and_idempotent():
     expected = [f.name for f in sorted(DDL_DIR.glob("*.sql"))]
     assert expected, "run 'make generate' first (generated/sql-postgres missing)"
 
-    # Run the CLI against a copy of the FK-free subset (finding #27): the full
-    # tree cannot apply, so the CLI's sorted/idempotent mechanics are proven on
-    # what CAN apply.
+    # Run the CLI against a copy of the complete generated tree (finding #27).
     with tempfile.TemporaryDirectory() as tmp:
         subset_dir = Path(tmp)
-        _copy_files_into(subset_dir, FK_FREE_FILES)
+        _copy_files_into(subset_dir, DDL_FILES)
         first = subprocess.run(
             [uv, "run", str(APPLY_SCRIPT), str(subset_dir)], cwd=REPO_ROOT, capture_output=True, text=True
         )
@@ -167,8 +150,8 @@ def test_apply_script_cli_is_deterministic_sorted_and_idempotent():
             for line in first.stdout.splitlines()
             if line.startswith("applied ") and line.split("applied ", 1)[1] in expected
         ]
-        assert applied == FK_FREE_FILES, "DDL files are not applied in sorted filename order"
-        assert f"applied {len(FK_FREE_FILES)} file(s) from {subset_dir}" in first.stdout, first.stdout
+        assert applied == expected_order, "DDL files are not applied in dependency order"
+        assert f"applied {len(DDL_FILES)} file(s) from {subset_dir}" in first.stdout, first.stdout
 
         second = subprocess.run(
             [uv, "run", str(APPLY_SCRIPT), str(subset_dir)], cwd=REPO_ROOT, capture_output=True, text=True
@@ -176,38 +159,11 @@ def test_apply_script_cli_is_deterministic_sorted_and_idempotent():
         assert second.returncode == 0, "re-applying the DDL must be idempotent: " + second.stdout + second.stderr
 
 
-def test_full_generated_set_currently_fails_to_apply():
-    # UPSTREAM_FINDINGS.md #27: the v1.8.0 FK emission references the referenced
-    # model name, not the bound table name, so the full generated set cannot be
-    # applied. This is the flip signal - it must be deleted (and the FK-free
-    # subset merged back into the whole-tree apply) once Modelable is re-pinned
-    # past a release that fixes #27.
-    uv = shutil.which("uv")
-    assert uv is not None, "uv is not on PATH"
-    full_expected = sorted(f.name for f in DDL_DIR.glob("*.sql"))
-    assert any("FOREIGN KEY" in (DDL_DIR / name).read_text(encoding="utf-8") for name in full_expected)
-
-    result = subprocess.run([uv, "run", str(APPLY_SCRIPT), str(DDL_DIR)], cwd=REPO_ROOT, capture_output=True, text=True)
-    assert result.returncode != 0, (
-        "full generated/sql-postgres now applies in one pass - "
-        "UPSTREAM_FINDINGS.md #27 appears fixed. Update this test (and the "
-        "FK-free-subset split) instead of leaving it green by accident.\n"
-        + result.stdout
-        + result.stderr
-    )
-    output = result.stdout + result.stderr
-    assert 'relation "encounter" does not exist' in output, output
-
-
-def test_fk_clauses_reference_model_names_not_bound_tables():
-    # The exact #27 clauses (see UPSTREAM_FINDINGS.md #27): each FK references
-    # the referenced model's name, while the actual created table is the bound
-    # `<name>_db` table. Pinned so the specific emitted text is documented, not
-    # just "apply fails".
+def test_fk_clauses_reference_persisted_db_tables():
     clauses = {
-        "billing.InvoiceDb.v2.sql": "REFERENCES encounter (encounter_id)",
-        "scheduling.AppointmentDb.v1.sql": "REFERENCES patient (patient_id)",
-        "clinical.EncounterDb.v1.sql": "REFERENCES appointment (appointment_id)",
+        "billing.InvoiceDb.v2.sql": "REFERENCES encounter_db (encounter_id)",
+        "scheduling.AppointmentDb.v1.sql": "REFERENCES patient_db (patient_id)",
+        "clinical.EncounterDb.v1.sql": "REFERENCES appointment_db (appointment_id)",
     }
     for filename, clause in clauses.items():
         sql = (DDL_DIR / filename).read_text(encoding="utf-8")
@@ -258,8 +214,6 @@ def test_generated_secondary_indexes_are_table_prefixed(conn: psycopg.Connection
     for tablename, indexname in rows:
         indexes_by_table.setdefault(tablename, set()).add(indexname)
 
-    # invoice_db and appointment_db carry FKs (finding #27) so they are NOT in
-    # the applied FK-free subset - only the FK-free tables below are created.
     expected_indexes = {
         "patient_db": {"patient_db_by_name"},
         "patient_fhir_view": {"patient_fhir_view_by_name"},
