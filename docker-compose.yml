@@ -87,6 +87,27 @@ services:
       - showcase-net
     restart: unless-stopped
 
+  # Optional Task 15.2 integration profile: `modelable publish
+  # apicurio`/`pull apicurio` against a real Apicurio Registry. Not part of
+  # ordinary `docker compose up` - only starts under the `apicurio` profile
+  # (`docker compose --profile apicurio up -d apicurio`, or via `make
+  # integration-apicurio`). The in-memory variant needs no persistence
+  # config for a disposable local integration test.
+  apicurio:
+    image: apicurio/apicurio-registry:3.0.6
+    profiles:
+      - apicurio
+    ports:
+      - "127.0.0.1:8090:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/apis/registry/v3/system/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - showcase-net
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   clickhouse-data:
