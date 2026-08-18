@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap generate validate probes compat integration e2e determinism acceptance clean up down modelable-version
+.PHONY: help bootstrap generate validate probes compat integration integration-apicurio e2e determinism acceptance clean up down modelable-version
 
 GENERATED_DIRS := generated dist .modelable
 CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist .pytest_cache
@@ -22,6 +22,7 @@ help:
 	@echo "  probes           downstream language/descriptor compilation"
 	@echo "  compat           semantic + protobuf + grpc compatibility"
 	@echo "  integration      generated artifact + DB + API integration tests"
+	@echo "  integration-apicurio  optional Apicurio publish/pull profile (Task 15.2)"
 	@echo "  e2e              Compose + Playwright"
 	@echo "  determinism      double-generation hash comparison"
 	@echo "  acceptance       all required non-optional gates"
@@ -85,6 +86,11 @@ integration:
 		tests/integration/test_openapi_checkpoint.py \
 		tests/integration/test_openapi_contract.py \
 		tests/conformance/test_registry_ids.py
+
+integration-apicurio:
+	docker compose --profile apicurio up -d apicurio
+	@. ./scripts/modelable-env.sh; uv run pytest -q tests/integration/test_apicurio_publish_pull.py
+	docker compose stop apicurio
 
 e2e:
 	docker compose down -v
