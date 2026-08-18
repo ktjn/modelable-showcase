@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -222,12 +223,43 @@ def test_fhir_base_profile_constrains_a_real_hl7_resource():
     assert doc["derivation"] == "constraint"
 
 
-@pytest.mark.skip(
-    reason="opt-in HL7 FHIR Validator gate - see IMPLEMENTATION_PLAN.md Task 15.4 "
-    "(Phase 15, optional integration profiles), not this task"
+FHIR_VALIDATOR_JAR = GENERATED_DIR.parent / "tools" / "validator_cli.jar"
+
+REPRESENTATIVE_FHIR_PROFILES = [
+    "clinical.PatientFhirView.v1",
+    "clinical.ObservationFhirView.v1",
+    "clinical.EncounterFhirView.v1",
+]
+
+
+@pytest.mark.skipif(
+    shutil.which("java") is None or not FHIR_VALIDATOR_JAR.exists(),
+    reason="opt-in HL7 FHIR Validator gate (IMPLEMENTATION_PLAN.md Task 15.4) - "
+    "run './scripts/install-fhir-validator.sh' first (requires Java)",
 )
 def test_fhir_profiles_pass_the_hl7_validator():
-    ...
+    """UPSTREAM_FINDINGS.md #43 flip test: the official HL7 FHIR Validator
+    currently rejects every representative profile, for two independent
+    reasons - the emitted extension sidecar StructureDefinitions have no
+    `baseDefinition` (sdf-4/sdf-8b), and the `pii`/`classification`
+    annotation-marker extensions they reference are never emitted as their
+    own StructureDefinition at all. This pins that reality so a fix landing
+    upstream turns this test red - the signal to flip it to asserting
+    success and update #43's status."""
+    for profile in REPRESENTATIVE_FHIR_PROFILES:
+        files = sorted((GENERATED_DIR / "fhir-profile").glob(f"{profile}*.fhir.json"))
+        assert files, f"no generated files found for {profile}"
+        result = subprocess.run(
+            ["java", "-jar", str(FHIR_VALIDATOR_JAR), *[str(f) for f in files], "-version", "4.0.1"],
+            capture_output=True,
+            text=True,
+        )
+        assert "*FAILURE*" in result.stdout, (
+            f"{profile}: expected the known HL7 validator failure (UPSTREAM_FINDINGS.md #43) - "
+            f"if this now succeeds, #43 is fixed upstream and this test should flip to asserting success.\n"
+            f"{result.stdout}"
+        )
+        assert "sdf-4" in result.stdout or "could not be found so is not allowed here" in result.stdout, result.stdout
 
 
 # --- OpenMetadata ---------------------------------------------------------
