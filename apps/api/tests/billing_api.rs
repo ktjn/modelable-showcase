@@ -36,11 +36,11 @@ async fn app_ready() -> Option<Router> {
         );
         return None;
     }
-    sqlx::query("TRUNCATE TABLE invoice_db")
+    sqlx::query("TRUNCATE TABLE invoice_db CASCADE")
         .execute(&state.pool)
         .await
         .expect("failed to TRUNCATE invoice_db");
-    sqlx::query("TRUNCATE TABLE payment_db")
+    sqlx::query("TRUNCATE TABLE payment_db CASCADE")
         .execute(&state.pool)
         .await
         .expect("failed to TRUNCATE payment_db");
@@ -68,20 +68,20 @@ async fn post_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode, 
 
 fn invoice_body() -> Value {
     json!({
-        "invoice_id": INVOICE,
-        "patient_id": PATIENT,
-        "encounter_id": null,
+        "invoiceId": INVOICE,
+        "patientId": PATIENT,
+        "encounterId": null,
         "lines": [
-            { "description": "Consultation", "quantity": 1, "unit_price": "100.00", "line_total": "100.00" }
+            { "description": "Consultation", "quantity": 1, "unitPrice": "100.00", "lineTotal": "100.00" }
         ],
         "subtotal": "100.00",
         "tax": "25.00",
         "total": "125.00",
         "currency": "SEK",
-        "billing_period": "2026-09",
+        "billingPeriod": "2026-09",
         "status": "issued",
-        "issued_at": "2026-09-01T10:00:00Z",
-        "due_date": "2026-10-01",
+        "issuedAt": "2026-09-01T10:00:00Z",
+        "dueDate": "2026-10-01",
     })
 }
 
@@ -92,12 +92,12 @@ async fn invoice_creation_roundtrip() {
 
     let (status, body) = post_json(&mut router, "/api/invoices", invoice_body()).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["invoice_id"], INVOICE);
-    assert_eq!(body["patient_id"], PATIENT);
+    assert_eq!(body["invoiceId"], INVOICE);
+    assert_eq!(body["patientId"], PATIENT);
     assert_eq!(body["status"], "issued");
     assert_eq!(body["total"], "125.00");
-    assert_eq!(body["lines"][0]["line_total"], "100.00");
-    assert!(body["created_at"].is_string(), "{body}");
+    assert_eq!(body["lines"][0]["lineTotal"], "100.00");
+    assert!(body["createdAt"].is_string(), "{body}");
 }
 
 #[tokio::test]
@@ -118,7 +118,7 @@ async fn invoice_invalid_inputs_are_rejected() {
     let Some(mut router) = app_ready().await else { return };
 
     let mut bad = invoice_body();
-    bad["invoice_id"] = json!("not-a-uuid");
+    bad["invoiceId"] = json!("not-a-uuid");
     let (status, body) = post_json(&mut router, "/api/invoices", bad).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
@@ -137,15 +137,15 @@ async fn payment_added_to_existing_invoice() {
     assert_eq!(status, StatusCode::CREATED);
 
     let payment = json!({
-        "payment_id": "02020202-0202-0202-0202-020202020202",
+        "paymentId": "02020202-0202-0202-0202-020202020202",
         "amount": "125.00",
         "method": "card",
-        "received_at": "2026-09-02T11:00:00Z",
+        "receivedAt": "2026-09-02T11:00:00Z",
     });
     let uri = format!("/api/invoices/{INVOICE}/payments");
     let (status, body) = post_json(&mut router, &uri, payment).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["invoice_id"], INVOICE);
+    assert_eq!(body["invoiceId"], INVOICE);
     assert_eq!(body["amount"], "125.00");
     assert_eq!(body["method"], "card");
 }
@@ -156,10 +156,10 @@ async fn payment_for_unknown_invoice_returns_404() {
     let Some(mut router) = app_ready().await else { return };
 
     let payment = json!({
-        "payment_id": "02020202-0202-0202-0202-020202020202",
+        "paymentId": "02020202-0202-0202-0202-020202020202",
         "amount": "125.00",
         "method": "card",
-        "received_at": "2026-09-02T11:00:00Z",
+        "receivedAt": "2026-09-02T11:00:00Z",
     });
     let uri = "/api/invoices/00000000-0000-0000-0000-000000000000/payments";
     let (status, body) = post_json(&mut router, uri, payment).await;

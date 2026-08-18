@@ -5,34 +5,14 @@
 // one reverse proxy - Phase 11). Override with VITE_API_BASE_URL if apps/api
 // is reachable directly some other way.
 //
-// UPSTREAM_FINDINGS.md #39: the generated OpenAPI/TypeScript targets use
-// Modelable's source camelCase field names, but the generated Rust API's
-// actual JSON wire format is snake_case (no serde rename). toSnakeCase/
-// toCamelCase below convert at this one boundary so the rest of the app can
-// keep using the generated camelCase types throughout.
+// The generated OpenAPI/TypeScript targets and the Rust API's JSON wire
+// format both use camelCase (Modelable 1.9.4, see UPSTREAM_FINDINGS.md #39),
+// so no key-casing conversion is needed at this boundary.
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
-function toSnakeCase(key: string): string {
-  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
-}
-
-function toCamelCase(key: string): string {
-  return key.replace(/_([a-z0-9])/g, (_match, letter: string) => letter.toUpperCase())
-}
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function convertKeys(value: unknown, convert: (key: string) => string): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => convertKeys(item, convert))
-  }
-  if (isPlainObject(value)) {
-    return Object.fromEntries(Object.entries(value).map(([key, val]) => [convert(key), convertKeys(val, convert)]))
-  }
-  return value
 }
 
 export class ApiError extends Error {
@@ -60,7 +40,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new ApiError(response.status, body)
   }
-  return convertKeys(body, toCamelCase) as T
+  return body as T
 }
 
 export function get<T>(path: string): Promise<T> {
@@ -68,9 +48,9 @@ export function get<T>(path: string): Promise<T> {
 }
 
 export function post<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'POST', body: JSON.stringify(convertKeys(body, toSnakeCase)) })
+  return request<T>(path, { method: 'POST', body: JSON.stringify(body) })
 }
 
 export function patch<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'PATCH', body: JSON.stringify(convertKeys(body, toSnakeCase)) })
+  return request<T>(path, { method: 'PATCH', body: JSON.stringify(body) })
 }

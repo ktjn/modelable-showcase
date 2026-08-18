@@ -36,7 +36,7 @@ async fn app_ready() -> Option<Router> {
         return None;
     }
     for table in ["patient_db", "appointment_db", "encounter_db", "observation_db", "invoice_db", "payment_db"] {
-        sqlx::query(&format!("TRUNCATE TABLE {table}"))
+        sqlx::query(&format!("TRUNCATE TABLE {table} CASCADE"))
             .execute(&state.pool)
             .await
             .expect(&format!("failed to TRUNCATE {table}"));
@@ -66,27 +66,27 @@ async fn post_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode, 
 async fn seed(router: &mut Router) {
     // Patient.
     let patient = serde_json::json!({
-        "patient_id": PATIENT,
-        "legal_name": "Ada Lovelace",
-        "preferred_name": null,
-        "date_of_birth": "1815-12-10",
+        "patientId": PATIENT,
+        "legalName": "Ada Lovelace",
+        "preferredName": null,
+        "dateOfBirth": "1815-12-10",
         "contact": { "email": "ada@example.com", "phone": "555-0001" },
         "address": null,
-        "preferred_language": "en",
-        "alternate_phone_numbers": null,
+        "preferredLanguage": "en",
+        "alternatePhoneNumbers": null,
         "notes": null,
-        "clinical_notes": null,
+        "clinicalNotes": null,
     });
     assert_eq!(post_json(router, "/api/patients", patient).await.0, StatusCode::CREATED);
 
     // Appointment.
     let appointment = serde_json::json!({
-        "appointment_id": APPOINTMENT,
-        "patient_id": PATIENT,
-        "practitioner_id": PRACTITIONER,
-        "scheduled_date": "2026-09-01",
+        "appointmentId": APPOINTMENT,
+        "patientId": PATIENT,
+        "practitionerId": PRACTITIONER,
+        "scheduledDate": "2026-09-01",
         "slot": { "start": "09:00:00", "end": "09:30:00" },
-        "buffer_duration": null,
+        "bufferDuration": null,
         "status": "completed",
         "reason": null,
         "notes": null,
@@ -95,55 +95,55 @@ async fn seed(router: &mut Router) {
 
     // Encounter.
     let encounter = serde_json::json!({
-        "encounter_id": ENCOUNTER,
-        "patient_id": PATIENT,
-        "practitioner_id": PRACTITIONER,
-        "appointment_id": null,
+        "encounterId": ENCOUNTER,
+        "patientId": PATIENT,
+        "practitionerId": PRACTITIONER,
+        "appointmentId": null,
         "status": "completed",
-        "started_at": "2026-09-01T09:00:00Z",
-        "ended_at": "2026-09-01T09:30:00Z",
-        "expected_duration": null,
-        "reason_code": null,
+        "startedAt": "2026-09-01T09:00:00Z",
+        "endedAt": "2026-09-01T09:30:00Z",
+        "expectedDuration": null,
+        "reasonCode": null,
         "diagnoses": null,
     });
     assert_eq!(post_json(router, "/api/encounters", encounter).await.0, StatusCode::CREATED);
 
     // Observation.
     let observation = serde_json::json!({
-        "observation_id": "01010101-0101-0101-0101-010101010101",
+        "observationId": "01010101-0101-0101-0101-010101010101",
         "code": "temperature",
-        "temperature_celsius": 36.8,
-        "is_abnormal": false,
-        "recorded_at": "2026-09-01T09:15:00Z",
+        "temperatureCelsius": 36.8,
+        "isAbnormal": false,
+        "recordedAt": "2026-09-01T09:15:00Z",
     });
     let uri = format!("/api/encounters/{ENCOUNTER}/observations");
     assert_eq!(post_json(router, &uri, observation).await.0, StatusCode::CREATED);
 
     // Invoice.
     let invoice = serde_json::json!({
-        "invoice_id": INVOICE,
-        "patient_id": PATIENT,
-        "encounter_id": ENCOUNTER,
+        "invoiceId": INVOICE,
+        "patientId": PATIENT,
+        "encounterId": ENCOUNTER,
         "lines": [
-            { "description": "Consultation", "quantity": 1, "unit_price": "100.00", "line_total": "100.00" }
+            { "description": "Consultation", "quantity": 1, "unitPrice": "100.00", "lineTotal": "100.00" }
         ],
         "subtotal": "100.00",
         "tax": "25.00",
         "total": "125.00",
         "currency": "SEK",
-        "billing_period": "2026-09",
+        "billingPeriod": "2026-09",
         "status": "issued",
-        "issued_at": "2026-09-01T10:00:00Z",
-        "due_date": "2026-10-01",
+        "issuedAt": "2026-09-01T10:00:00Z",
+        "dueDate": "2026-10-01",
     });
     assert_eq!(post_json(router, "/api/invoices", invoice).await.0, StatusCode::CREATED);
 
     // Payment.
     let payment = serde_json::json!({
-        "payment_id": "02020202-0202-0202-0202-020202020202",
+        "paymentId": "02020202-0202-0202-0202-020202020202",
         "amount": "125.00",
         "method": "card",
-        "received_at": "2026-09-02T11:00:00Z",
+        "receivedAt": "2026-09-02T11:00:00Z",
     });
     let uri = format!("/api/invoices/{INVOICE}/payments");
     assert_eq!(post_json(router, &uri, payment).await.0, StatusCode::CREATED);
@@ -158,16 +158,16 @@ async fn patient_summary_aggregates_multi_domain_state() {
     let uri = format!("/api/patients/{PATIENT}/summary");
     let (status, body) = call(&mut router, Request::builder().uri(&uri).body(Body::empty()).unwrap()).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["patient_id"], PATIENT);
-    assert_eq!(body["legal_name"], "Ada Lovelace");
-    assert_eq!(body["appointment_count"], 1);
-    assert_eq!(body["encounter_count"], 1);
-    assert_eq!(body["observation_count"], 1);
-    assert_eq!(body["invoice_count"], 1);
-    assert_eq!(body["total_invoiced"], "125.00");
-    assert_eq!(body["total_paid"], "125.00");
+    assert_eq!(body["patientId"], PATIENT);
+    assert_eq!(body["legalName"], "Ada Lovelace");
+    assert_eq!(body["appointmentCount"], 1);
+    assert_eq!(body["encounterCount"], 1);
+    assert_eq!(body["observationCount"], 1);
+    assert_eq!(body["invoiceCount"], 1);
+    assert_eq!(body["totalInvoiced"], "125.00");
+    assert_eq!(body["totalPaid"], "125.00");
     assert_eq!(body["outstanding"], "125.00");
-    assert!(body["last_encounter_at"].is_string(), "{body}");
+    assert!(body["lastEncounterAt"].is_string(), "{body}");
 }
 
 #[tokio::test]

@@ -229,18 +229,21 @@ fn decimal_total_query(column: &str, table: &str) -> String {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppointmentsPerDay {
     pub day: String,
     pub appointment_count: u64,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PractitionerAppointmentCount {
     pub practitioner_id: String,
     pub appointment_count: u64,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClinicAnalytics {
     pub appointments_per_day: Vec<AppointmentsPerDay>,
     pub billed_total: String,

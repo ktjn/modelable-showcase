@@ -337,7 +337,7 @@ fn db_status_to_str(status: &SchedulingAppointmentDbV1Status) -> &'static str {
 }
 
 #[derive(Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RescheduleRequest {
     pub scheduled_date: Option<String>,
     pub slot: Option<SchedulingTimeRangeV0>,

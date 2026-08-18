@@ -111,7 +111,6 @@ def applied_ddl(conn, tmp_path_factory):
     with tempfile.TemporaryDirectory() as tmp:
         subset_dir = Path(tmp)
         _copy_files_into(subset_dir, DDL_FILES)
-        expected_order = [path.name for path in ordered_sql_files(subset_dir)]
         apply_ddl(subset_dir, conn)
 
 
@@ -141,6 +140,7 @@ def test_apply_script_cli_is_deterministic_sorted_and_idempotent():
     with tempfile.TemporaryDirectory() as tmp:
         subset_dir = Path(tmp)
         _copy_files_into(subset_dir, DDL_FILES)
+        expected_order = [path.name for path in ordered_sql_files(subset_dir)]
         first = subprocess.run(
             [uv, "run", str(APPLY_SCRIPT), str(subset_dir)], cwd=REPO_ROOT, capture_output=True, text=True
         )

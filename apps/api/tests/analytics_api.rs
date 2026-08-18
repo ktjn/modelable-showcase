@@ -43,7 +43,7 @@ async fn app_ready() -> Option<Router> {
         return None;
     }
     for table in ["patient_db", "appointment_db", "invoice_db", "payment_db"] {
-        sqlx::query(&format!("TRUNCATE TABLE {table}"))
+        sqlx::query(&format!("TRUNCATE TABLE {table} CASCADE"))
             .execute(&state.pool)
             .await
             .unwrap_or_else(|err| panic!("failed to TRUNCATE {table}: {err}"));
@@ -84,26 +84,26 @@ async fn get(router: &mut Router, uri: &str) -> (StatusCode, Value) {
 
 async fn seed(router: &mut Router) {
     let patient = serde_json::json!({
-        "patient_id": PATIENT,
-        "legal_name": "Ada Lovelace",
-        "preferred_name": null,
-        "date_of_birth": "1815-12-10",
+        "patientId": PATIENT,
+        "legalName": "Ada Lovelace",
+        "preferredName": null,
+        "dateOfBirth": "1815-12-10",
         "contact": { "email": "ada@example.com", "phone": "555-0001" },
         "address": null,
-        "preferred_language": "en",
-        "alternate_phone_numbers": null,
+        "preferredLanguage": "en",
+        "alternatePhoneNumbers": null,
         "notes": null,
-        "clinical_notes": null,
+        "clinicalNotes": null,
     });
     assert_eq!(post_json(router, "/api/patients", patient).await.0, StatusCode::CREATED);
 
     let appointment = serde_json::json!({
-        "appointment_id": APPOINTMENT,
-        "patient_id": PATIENT,
-        "practitioner_id": PRACTITIONER,
-        "scheduled_date": "2026-09-01",
+        "appointmentId": APPOINTMENT,
+        "patientId": PATIENT,
+        "practitionerId": PRACTITIONER,
+        "scheduledDate": "2026-09-01",
         "slot": { "start": "09:00:00", "end": "09:30:00" },
-        "buffer_duration": null,
+        "bufferDuration": null,
         "status": "completed",
         "reason": null,
         "notes": null,
@@ -111,28 +111,28 @@ async fn seed(router: &mut Router) {
     assert_eq!(post_json(router, "/api/appointments", appointment).await.0, StatusCode::CREATED);
 
     let invoice = serde_json::json!({
-        "invoice_id": INVOICE,
-        "patient_id": PATIENT,
-        "encounter_id": null,
+        "invoiceId": INVOICE,
+        "patientId": PATIENT,
+        "encounterId": null,
         "lines": [
-            { "description": "Consultation", "quantity": 1, "unit_price": "100.00", "line_total": "100.00" }
+            { "description": "Consultation", "quantity": 1, "unitPrice": "100.00", "lineTotal": "100.00" }
         ],
         "subtotal": "100.00",
         "tax": "25.00",
         "total": "125.00",
         "currency": "SEK",
-        "billing_period": "2026-09",
+        "billingPeriod": "2026-09",
         "status": "issued",
-        "issued_at": "2026-09-01T10:00:00Z",
-        "due_date": "2026-10-01",
+        "issuedAt": "2026-09-01T10:00:00Z",
+        "dueDate": "2026-10-01",
     });
     assert_eq!(post_json(router, "/api/invoices", invoice).await.0, StatusCode::CREATED);
 
     let payment = serde_json::json!({
-        "payment_id": "02020202-0202-0202-0202-020202020202",
+        "paymentId": "02020202-0202-0202-0202-020202020202",
         "amount": "75.00",
         "method": "card",
-        "received_at": "2026-09-02T11:00:00Z",
+        "receivedAt": "2026-09-02T11:00:00Z",
     });
     let uri = format!("/api/invoices/{INVOICE}/payments");
     assert_eq!(post_json(router, &uri, payment).await.0, StatusCode::CREATED);
@@ -147,18 +147,18 @@ async fn clinic_analytics_reflects_recorded_events() {
     let (status, body) = get(&mut router, "/api/analytics/clinic").await;
     assert_eq!(status, StatusCode::OK, "{body}");
 
-    let days = body["appointments_per_day"].as_array().unwrap();
+    let days = body["appointmentsPerDay"].as_array().unwrap();
     assert_eq!(days.len(), 1, "{body}");
     assert_eq!(days[0]["day"], "2026-09-01", "{body}");
-    assert_eq!(days[0]["appointment_count"], 1, "{body}");
+    assert_eq!(days[0]["appointmentCount"], 1, "{body}");
 
-    assert_eq!(body["billed_total"], "125.00", "{body}");
-    assert_eq!(body["paid_total"], "75.00", "{body}");
+    assert_eq!(body["billedTotal"], "125.00", "{body}");
+    assert_eq!(body["paidTotal"], "75.00", "{body}");
 
-    let practitioners = body["practitioner_appointment_counts"].as_array().unwrap();
+    let practitioners = body["practitionerAppointmentCounts"].as_array().unwrap();
     assert_eq!(practitioners.len(), 1, "{body}");
-    assert_eq!(practitioners[0]["practitioner_id"], PRACTITIONER, "{body}");
-    assert_eq!(practitioners[0]["appointment_count"], 1, "{body}");
+    assert_eq!(practitioners[0]["practitionerId"], PRACTITIONER, "{body}");
+    assert_eq!(practitioners[0]["appointmentCount"], 1, "{body}");
 }
 
 #[tokio::test]
@@ -168,8 +168,8 @@ async fn clinic_analytics_returns_zeroed_totals_with_no_events() {
 
     let (status, body) = get(&mut router, "/api/analytics/clinic").await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["appointments_per_day"].as_array().unwrap().len(), 0, "{body}");
-    assert_eq!(body["practitioner_appointment_counts"].as_array().unwrap().len(), 0, "{body}");
-    assert_eq!(body["billed_total"], "0.00", "{body}");
-    assert_eq!(body["paid_total"], "0.00", "{body}");
+    assert_eq!(body["appointmentsPerDay"].as_array().unwrap().len(), 0, "{body}");
+    assert_eq!(body["practitionerAppointmentCounts"].as_array().unwrap().len(), 0, "{body}");
+    assert_eq!(body["billedTotal"], "0.00", "{body}");
+    assert_eq!(body["paidTotal"], "0.00", "{body}");
 }

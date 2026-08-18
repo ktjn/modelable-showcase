@@ -37,11 +37,11 @@ async fn app_ready() -> Option<Router> {
         );
         return None;
     }
-    sqlx::query("TRUNCATE TABLE encounter_db")
+    sqlx::query("TRUNCATE TABLE encounter_db CASCADE")
         .execute(&state.pool)
         .await
         .expect("failed to TRUNCATE encounter_db");
-    sqlx::query("TRUNCATE TABLE observation_db")
+    sqlx::query("TRUNCATE TABLE observation_db CASCADE")
         .execute(&state.pool)
         .await
         .expect("failed to TRUNCATE observation_db");
@@ -79,15 +79,15 @@ async fn patch_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode,
 
 fn encounter_body() -> Value {
     json!({
-        "encounter_id": ENCOUNTER,
-        "patient_id": PATIENT,
-        "practitioner_id": PRACTITIONER,
-        "appointment_id": null,
+        "encounterId": ENCOUNTER,
+        "patientId": PATIENT,
+        "practitionerId": PRACTITIONER,
+        "appointmentId": null,
         "status": "in_progress",
-        "started_at": "2026-09-01T09:00:00Z",
-        "ended_at": null,
-        "expected_duration": null,
-        "reason_code": null,
+        "startedAt": "2026-09-01T09:00:00Z",
+        "endedAt": null,
+        "expectedDuration": null,
+        "reasonCode": null,
         "diagnoses": null,
     })
 }
@@ -99,12 +99,12 @@ async fn encounter_creation_roundtrip() {
 
     let (status, body) = post_json(&mut router, "/api/encounters", encounter_body()).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["encounter_id"], ENCOUNTER);
-    assert_eq!(body["patient_id"], PATIENT);
-    assert_eq!(body["practitioner_id"], PRACTITIONER);
+    assert_eq!(body["encounterId"], ENCOUNTER);
+    assert_eq!(body["patientId"], PATIENT);
+    assert_eq!(body["practitionerId"], PRACTITIONER);
     assert_eq!(body["status"], "in_progress");
-    assert!(body["created_at"].is_string(), "{body}");
-    assert!(body["updated_at"].is_null(), "{body}");
+    assert!(body["createdAt"].is_string(), "{body}");
+    assert!(body["updatedAt"].is_null(), "{body}");
 }
 
 #[tokio::test]
@@ -119,8 +119,8 @@ async fn encounter_complete_sets_status_and_ended_at() {
     let (status, body) = patch_json(&mut router, &uri, json!({ "status": "completed" })).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["status"], "completed", "{body}");
-    assert!(body["ended_at"].is_string(), "{body}");
-    assert!(body["updated_at"].is_string(), "{body}");
+    assert!(body["endedAt"].is_string(), "{body}");
+    assert!(body["updatedAt"].is_string(), "{body}");
 }
 
 #[tokio::test]
@@ -194,7 +194,7 @@ async fn encounter_invalid_inputs_are_rejected() {
     let Some(mut router) = app_ready().await else { return };
 
     let mut bad = encounter_body();
-    bad["encounter_id"] = json!("not-a-uuid");
+    bad["encounterId"] = json!("not-a-uuid");
     let (status, body) = post_json(&mut router, "/api/encounters", bad).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
@@ -213,24 +213,24 @@ async fn observation_added_to_existing_encounter() {
     assert_eq!(status, StatusCode::CREATED);
 
     let observation = json!({
-        "observation_id": "01010101-0101-0101-0101-010101010101",
+        "observationId": "01010101-0101-0101-0101-010101010101",
         "code": "temperature",
-        "temperature_celsius": 36.8,
-        "blood_pressure_systolic": 120,
-        "blood_pressure_diastolic": 80,
-        "pulse_bpm": 72,
-        "is_abnormal": false,
-        "device_id": null,
+        "temperatureCelsius": 36.8,
+        "bloodPressureSystolic": 120,
+        "bloodPressureDiastolic": 80,
+        "pulseBpm": 72,
+        "isAbnormal": false,
+        "deviceId": null,
         "metadata": { "unit": "celsius" },
-        "recorded_at": "2026-09-01T09:15:00Z",
+        "recordedAt": "2026-09-01T09:15:00Z",
     });
     let uri = format!("/api/encounters/{ENCOUNTER}/observations");
     let (status, body) = post_json(&mut router, &uri, observation).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body["encounter_id"], ENCOUNTER);
+    assert_eq!(body["encounterId"], ENCOUNTER);
     assert_eq!(body["code"], "temperature");
-    assert_eq!(body["temperature_celsius"], 36.8);
-    assert_eq!(body["is_abnormal"], false);
+    assert_eq!(body["temperatureCelsius"], 36.8);
+    assert_eq!(body["isAbnormal"], false);
 }
 
 #[tokio::test]
@@ -239,10 +239,10 @@ async fn observation_for_unknown_encounter_returns_404() {
     let Some(mut router) = app_ready().await else { return };
 
     let observation = json!({
-        "observation_id": "01010101-0101-0101-0101-010101010101",
+        "observationId": "01010101-0101-0101-0101-010101010101",
         "code": "temperature",
-        "is_abnormal": false,
-        "recorded_at": "2026-09-01T09:15:00Z",
+        "isAbnormal": false,
+        "recordedAt": "2026-09-01T09:15:00Z",
     });
     let uri = "/api/encounters/00000000-0000-0000-0000-000000000000/observations";
     let (status, body) = post_json(&mut router, uri, observation).await;

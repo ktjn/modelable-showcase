@@ -12,20 +12,20 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('API client (UPSTREAM_FINDINGS.md #39 camelCase <-> snake_case mapping)', () => {
-  it('post() converts a camelCase request body to snake_case JSON on the wire', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { patient_id: 'p-1', legal_name: 'Ada' }))
+describe('API client (camelCase wire format, UPSTREAM_FINDINGS.md #39 fixed in Modelable 1.9.4)', () => {
+  it('post() sends the request body as JSON unmodified', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { patientId: 'p-1', legalName: 'Ada' }))
     vi.stubGlobal('fetch', fetchMock)
 
     await post('/api/patients', { patientId: 'p-1', legalName: 'Ada', contact: { email: 'a@example.com' } })
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     const sentBody: unknown = JSON.parse(init.body as string)
-    expect(sentBody).toEqual({ patient_id: 'p-1', legal_name: 'Ada', contact: { email: 'a@example.com' } })
+    expect(sentBody).toEqual({ patientId: 'p-1', legalName: 'Ada', contact: { email: 'a@example.com' } })
   })
 
-  it('get()/post() convert a snake_case response body back to camelCase', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { patient_id: 'p-1', legal_name: 'Ada' }))
+  it('get() returns the response body unmodified', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { patientId: 'p-1', legalName: 'Ada' }))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await get<{ patientId: string; legalName: string }>('/api/patients/p-1')
@@ -33,12 +33,12 @@ describe('API client (UPSTREAM_FINDINGS.md #39 camelCase <-> snake_case mapping)
     expect(result).toEqual({ patientId: 'p-1', legalName: 'Ada' })
   })
 
-  it('converts keys recursively, including nested objects and arrays of objects', async () => {
+  it('preserves nested objects and arrays of objects unmodified', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(200, {
-        patient_id: 'p-1',
+        patientId: 'p-1',
         contact: { email: 'a@example.com', phone: '555' },
-        lines: [{ unit_price: '10.00' }, { unit_price: '20.00' }],
+        lines: [{ unitPrice: '10.00' }, { unitPrice: '20.00' }],
       }),
     )
     vi.stubGlobal('fetch', fetchMock)

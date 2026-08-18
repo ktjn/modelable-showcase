@@ -139,9 +139,6 @@ capabilities:
   deferred_feature:binding-opaque-content:
     coverage: deferred
     test: tests/conformance/deferred/binding-opaque-content.mdl
-  deferred_feature:clickhouse-secondary-indexes:
-    coverage: deferred
-    test: tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_absent
   deferred_feature:nominal-semantic-types-beyond-rust:
     coverage: deferred
     test: tests/conformance/test_deferred_capabilities.py::test_nominal_semantic_identity_lost_beyond_rust
