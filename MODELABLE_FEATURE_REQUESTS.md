@@ -28,8 +28,8 @@ reality, which the showcase's flip tests pin exactly.
 |----|---------|-----------------|--------|
 | FR-1 | Emit `PRIMARY KEY`/`UNIQUE` from `@key` in generated DDL | Tasks 9.2/9.3 duplicate handling | Implemented in v1.8.0 (verified: `patient_id TEXT NOT NULL PRIMARY KEY`) |
 | FR-2 | Server-generated key fields (IDs dropped from the request projection) | Tasks 9.2/9.3 | Implemented in v1.8.0 |
-| FR-3 | Symmetric Rust serde attributes (`#[serde(default)]`) | Tasks 9.2/9.3 reply round-trip | Implemented in v1.8.0 (verified in `generated/rust`) |
-| FR-4 | Generated Rust compiles for every supported model | Finding #14 (clinical/billing) | Partially implemented in v1.8.0 — clinical-core compiles; billing-core still fails on new finding #26 |
+| FR-3 | Symmetric Rust serde attributes (`#[serde(default)]`) | Findings #34/#35 | Implemented in v1.9.1 (verified: exactly one `#[serde(default)]` per `Option` field) |
+| FR-4 | Generated Rust compiles for every supported model | Findings #14/#26/#35/#36 | Implemented in v1.9.2 (verified: `cargo check` green on clinic/clinical/billing-core) |
 | FR-5 | Legal ClickHouse rendering for optional arrays | Finding #25 | Implemented in v1.8.0 (verified: full clickhouse set applies) |
 | FR-6 | Globally unique deterministic index names | Finding #24 | Implemented in v1.8.0 (verified: table-prefixed names) |
 | FR-7 | Cwd-independent deterministic registry-id resolution | Task 9.0 OpenAPI probe | Implemented in v1.8.0 (verified: ledger at `model/registry-ids.lock`) |
@@ -94,10 +94,11 @@ defensive edge case rather than the primary flow.
 
 ## FR-3 — Symmetric Rust serde attributes (`#[serde(default)]`)
 
-**Status:** Implemented in v1.8.0. Verified against the 1.8.0 regeneration:
-generated Rust structs now carry `#[serde(default)]` alongside
-`#[serde(skip_serializing_if = "Option::is_none")]`, so generated types are
-lossless in both directions.
+**Status:** Implemented. #34 shipped fixed in **v1.9.0**; the regression it
+introduced, [finding #35](UPSTREAM_FINDINGS.md#35) (duplicate `#[serde(default)]`),
+was fixed in **v1.9.1** via #387. Verified against the **1.9.2** regeneration:
+every `Option` field carries exactly one `#[serde(default)]` alongside
+`skip_serializing_if`, so generated Rust types are lossless in both directions.
 
 **Friction.** Generated Rust structs annotate every `Option` field with
 `#[serde(skip_serializing_if = "Option::is_none")]` but no `#[serde(default)]`.
@@ -119,11 +120,16 @@ succeeds; the showcase reply-shape tests collapse to a single round-trip check.
 
 ## FR-4 — Generated Rust compiles for every supported model
 
-**Status:** Partially implemented in v1.8.0. The #14 root cause shipped fixed in
-[#355](https://github.com/ktjn/modelable/pull/355), so `generated/rust/clinical-core`
-now compiles; but new finding [#26](UPSTREAM_FINDINGS.md#26) — the projection
-status-enum `From` impl is never generated — still breaks `generated/rust/billing-core`,
-so the "every supported model compiles" acceptance criterion is not yet met.
+**Status:** Implemented. #14 shipped fixed in
+[#355](https://github.com/ktjn/modelable/pull/355) (v1.8.0, `clinical-core` compiles),
+#26 shipped fixed in **v1.9.0** (`billing-core` no longer errors on the missing
+`From` impl), and the two regressions those fixes surfaced — #35 (duplicate
+`#[serde(default)]`, fixed in v1.9.1 via #387) and #36 (cross-domain status-enum
+`From` imports via `super::` in package mode, fixed in v1.9.2 via #389) — are
+also resolved. Verified against the **1.9.2** regeneration: `cargo check` on all
+three of `clinic-core`, `clinical-core`, and `billing-core` succeeds, so the
+"every supported model compiles" acceptance criterion is met and the showcase is
+re-pinned to **1.9.2**.
 
 **Friction.** Finding #14: `compile --target rust` loses named-type resolution
 for **optional array fields** specifically. On pinned 1.7.0 the generated

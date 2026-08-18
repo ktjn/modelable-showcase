@@ -124,13 +124,11 @@ def _write_fixture(tmp_path: Path, name: str, content: str) -> Path:
     return path
 
 
-def test_generate_from_json_schema_currently_fails_on_ref_typed_fields():
-    # UPSTREAM_FINDINGS.md #32: the json-schema importer maps `$ref` fields to
-    # the literal JSON Pointer (`#/$defs/<Type>`), which the parser rejects.
-    # patient.Patient.v2.json declares `patientId: { $ref: "#/$defs/PatientId" }`,
-    # so the round-trip must fail with the parser error below. This assertion is
-    # the flip signal: it must become a round-trip success once Modelable is
-    # re-pinned past a release that fixes #32.
+def test_generate_from_json_schema_round_trips_ref_typed_fields():
+    # UPSTREAM_FINDINGS.md #32: the json-schema importer previously mapped `$ref`
+    # fields to the literal JSON Pointer (`#/$defs/<Type>`), which the parser
+    # rejected. Fixed upstream (landed in the pinned release): `$ref` fields now
+    # import as semantic types and the round-trip validates cleanly.
     source = GENERATED_DIR / "json-schema" / "patient.Patient.v2.json"
     assert source.exists(), "run 'make generate' first"
     with tempfile.TemporaryDirectory() as tmp:
@@ -138,13 +136,13 @@ def test_generate_from_json_schema_currently_fails_on_ref_typed_fields():
         result = run_modelable(
             "generate", "--from", str(source), "--format", "json-schema", "--domain", "patient", "--output", str(out)
         )
-        assert result.returncode != 0, (
-            "json-schema import of a $ref-typed schema now succeeds - "
-            "UPSTREAM_FINDINGS.md #32 appears fixed. Update this flip test.\n"
-            + result.stdout
-            + result.stderr
-        )
-        assert "No terminal matches '#'" in result.stdout + result.stderr
+        assert result.returncode == 0, result.stdout + result.stderr
+        validate = run_modelable("validate", str(out))
+        assert validate.returncode == 0, validate.stdout + validate.stderr
+        text = out.read_text()
+        assert "semantic PatientId: string" in text
+        assert "semantic ContactDetails: string" in text
+        assert "patientId: PatientId" in text
 
 
 def test_generate_from_json_schema_round_trips_primitive_only_schemas():
@@ -171,14 +169,13 @@ def test_generate_from_json_schema_round_trips_primitive_only_schemas():
         assert provenance["validation_status"] == "passed"
 
 
-def test_generate_from_odcs_currently_fails_on_semantic_or_value_typed_fields():
-    # UPSTREAM_FINDINGS.md #33: the odcs importer drops the domain qualifier
-    # from modelableType/modelableNamedType references and imports them without
-    # their `semantic`/`value` declarations, so the imported model fails
-    # validation. patient.Patient.v2.odcs.yaml references PatientId, ContactDetails
-    # and Address, so `modelable validate` must fail on `unknown semantic type`.
-    # This assertion is the flip signal: it must become a clean validation once
-    # Modelable is re-pinned past a release that fixes #33.
+def test_generate_from_odcs_round_trips_semantic_or_value_typed_fields():
+    # UPSTREAM_FINDINGS.md #33: the odcs importer previously dropped the domain
+    # qualifier from modelableType/modelableNamedType references and imported
+    # them without their `semantic`/`value` declarations, so the imported model
+    # failed validation. Fixed upstream (landed in the pinned release): the
+    # referenced semantic/value types are now declared and the round-trip
+    # validates cleanly.
     source = GENERATED_DIR / "odcs" / "patient.Patient.v2.odcs.yaml"
     assert source.exists(), "run 'make generate' first"
     with tempfile.TemporaryDirectory() as tmp:
@@ -189,13 +186,11 @@ def test_generate_from_odcs_currently_fails_on_semantic_or_value_typed_fields():
         assert result.returncode == 0, result.stdout + result.stderr
 
         validate = run_modelable("validate", str(out))
-        assert validate.returncode != 0, (
-            "odcs import of a semantic/value-typed contract now validates - "
-            "UPSTREAM_FINDINGS.md #33 appears fixed. Update this flip test.\n"
-            + validate.stdout
-            + validate.stderr
-        )
-        assert "unknown semantic type" in validate.stdout + validate.stderr
+        assert validate.returncode == 0, validate.stdout + validate.stderr
+        text = out.read_text()
+        assert "semantic PatientId: string" in text
+        assert "semantic ContactDetails: string" in text
+        assert "patientId: PatientId" in text
 
 
 def test_generate_from_odcs_round_trips_primitive_only_contracts():

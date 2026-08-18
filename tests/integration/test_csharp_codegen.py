@@ -2,23 +2,16 @@
 C# compiles with a real `dotnet build`, not a text grep.
 
 The csharp target emits a flat set of `.cs` files (one per model/projection),
-all namespaced under `Modelable.<Domain>`. Unlike the Rust target's
-multi-package layout, there is no package split to isolate what compiles, so
-this file tests both halves of the current 1.8.0 reality:
+all namespaced under `Modelable.<Domain>`.
 
 - The same-domain subset compiles as-is: every `patient.*` and `scheduling.*`
-  artifact (their value types, semantic types, models, and projections resolve
-  within their own namespace - the #15/#16 fix from #365). This subset is what
-  `probes/csharp/ModelableShowcase.Probe.csproj` links, which carries the
-  instantiate/serialize proof.
+  artifact. This subset is what `probes/csharp/ModelableShowcase.Probe.csproj`
+  links, which carries the instantiate/serialize proof.
 
-- The full generated set still does NOT compile: references to types declared
-  in another domain are emitted bare with no `using` import
-  (`test_full_generated_set_currently_fails_cross_domain_resolution`). That is
-  the residual half of #15/#16, logged as a new finding - UPSTREAM_FINDINGS.md
-  #28. This failure assertion is the flip signal: it must be updated (and
-  `probes/csharp`'s linked subset grown to the full set) once Modelable is
-  re-pinned past a release that fixes #28.
+- The full generated set builds (`test_full_generated_set_builds`): cross-domain
+  references are reference-scoped usings and semantic refs inline to their
+  primitives. This reflects UPSTREAM_FINDINGS.md #28 being fixed by the #37
+  cross-domain import fix (landed upstream, present in the pinned release).
 """
 
 from __future__ import annotations
@@ -92,7 +85,7 @@ def test_compilable_subset_builds():
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_full_generated_set_currently_fails_cross_domain_resolution():
+def test_full_generated_set_builds():
     assert CSHARP_DIR.is_dir(), "run 'make generate' first"
     files = sorted(path.name for path in CSHARP_DIR.glob("*.cs"))
 
@@ -100,25 +93,7 @@ def test_full_generated_set_currently_fails_cross_domain_resolution():
         project_dir = Path(tmp)
         _write_probe_csproj(project_dir, files)
         result = dotnet_build(project_dir)
-
-        assert result.returncode != 0, (
-            "generated/csharp/ now builds in full - UPSTREAM_FINDINGS.md #28 "
-            "appears fixed. Update this test and grow "
-            "probes/csharp/ModelableShowcase.Probe.csproj's linked subset to the "
-            "full set instead of leaving it green by accident.\n"
-            + result.stdout
-            + result.stderr
-        )
-
-        output = result.stdout + result.stderr
-        assert "CS0246" in output, output
-        # #28: references to types declared in another domain are emitted bare
-        # with no `using` import - the four cross-domain names in this graph.
-        assert "The type or namespace name 'PatientPatientId' could not be found" in output, output
-        assert "The type or namespace name 'SchedulingPractitionerId' could not be found" in output, output
-        assert "The type or namespace name 'PatientContactDetailsV0' could not be found" in output, output
-        assert "The type or namespace name 'SchedulingTimeRangeV0' could not be found" in output, output
-
-        # The probe's own same-domain subset must not be implicated in any error.
-        for name in COMPILABLE_SUBSET:
-            assert name not in output, f"subset file {name} unexpectedly reported an error:\n{output}"
+        # UPSTREAM_FINDINGS.md #28 (and the #37 cross-domain import fix): the
+        # full generated/csharp/ set now builds. Cross-domain references are
+        # reference-scoped usings; semantic refs inline to their primitives.
+        assert result.returncode == 0, result.stdout + result.stderr

@@ -39,18 +39,18 @@
 | 23 | [`compile --target grpc` emits one standalone service file per model into the same `modelable.<domain>.<version>.scalable` package - the full emitted graph cannot be compiled together](#23-compile---target-grpc-emits-one-standalone-service-file-per-model-into-the-same-modelabledomainversionscalable-package---the-full-emitted-graph-cannot-be-compiled-together) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #365) |
 | 24 | [`compile --target sql-postgres` emits bare secondary-index names that collide across tables in the shared schema - the full graph cannot be applied as-is](#24-compile---target-sql-postgres-emits-bare-secondary-index-names-that-collide-across-tables-in-the-shared-schema---the-full-graph-cannot-be-applied-as-is) | Silent data loss | A | Fixed in v1.8.0 (via #365) — index names now table-prefixed |
 | 25 | [`compile --target sql-clickhouse` emits optional array fields as `Nullable(Array(T))` - an illegal ClickHouse type, so the full generated graph cannot be applied at all](#25-compile---target-sql-clickhouse-emits-optional-array-fields-as-nullablearrayt---an-illegal-clickhouse-type-so-the-full-generated-graph-cannot-be-applied-at-all) | Crash (broken generated code) | A | Fixed in v1.8.0 (via #365) — optional arrays no longer wrapped in `Nullable` |
-| 26 | [`compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile](#26-compile---target-rust-emits-status-srcstatusinto-between-projection-status-enums-without-generating-the-from-impl---billing-core-still-does-not-compile) | Crash (broken generated code) | A | Open |
+| 26 | [`compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile](#26-compile---target-rust-emits-status-srcstatusinto-between-projection-status-enums-without-generating-the-from-impl---billing-core-still-does-not-compile) | Crash (broken generated code) | A | Fixed in v1.9.0; usable from v1.9.2 (after #35/#36) |
 | 27 | [`compile --target sql-postgres` emits `FOREIGN KEY (...)` referencing the model name, not the bound table name - the full graph cannot be applied](#27-compile---target-sql-postgres-emits-foreign-key--referencing-the-model-name-not-the-bound-table-name---the-full-graph-cannot-be-applied) | Crash (broken generated code) | A | Open |
-| 28 | [`compile --target csharp` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
-| 29 | [`compile --target java` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
-| 30 | [`compile --target python` never imports referenced types from other modules - annotations still do not resolve cross-module](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module) | Crash (broken generated code) | A | Open |
-| 31 | [`compile --target go` never imports or qualifies types from another package - cross-domain field references are still compile errors](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Open |
-| 32 | [`modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse](#32-modelable-generate---from-json-schema-emits-the-raw-ref-json-pointer-defstype-as-a-field-type---imported-schemas-fail-to-parse) | Crash (broken generated code) | A | Open |
-| 33 | [`modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation](#33-modelable-generate---from-odcs-imports-semanticvalue-type-references-without-their-declarations---imported-models-fail-validation) | Crash (broken generated code) | A | Open |
-| 34 | [`compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`](#34-compile---target-rust-marks-every-option-field-serde-skip_serializing_if--optionis_none-without-serde-default---a-serialized-projection-cannot-be-deserialized-back-when-an-optional-is-none) | Crash (broken generated code) | A | Open |
-| 35 | [`compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable](#35-compile---target-openapi-emits-a-ref-to-the-bare-source-entity-for-refdomainentityn-fields-but-no-component-schema-exists-for-a-bare-entity---the-reference-is-unresolvable) | Invalid generated output | A | Open |
-| 36 | [`compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract](#36-compile---target-openapi-emits-modelable-source-camelcase-property-names-while-compile---target-rust-emits-the-language-idiomatic-snake_case-field-names-as-is-on-the-wire---the-two-targets-disagree-about-the-same-models-json-contract) | Inconsistent behavior | A | Open |
-| 37 | [`compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields](#37-compile---target-typescript-never-marks-an-optional-field--every-field-is-emitted-as-required-even-server-fields-and-explicit--fields) | Missing feature (broken generated code) | A | Open |
+| 28 | [`compile --target csharp` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#28-compile---target-csharp-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Fixed in v1.9.3 (via [ktjn/modelable#391](https://github.com/ktjn/modelable/pull/391)) |
+| 29 | [`compile --target java` never imports or qualifies types from another domain - cross-domain field references are still compile errors](#29-compile---target-java-never-imports-or-qualifies-types-from-another-domain---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Fixed in v1.9.3 (via [ktjn/modelable#391](https://github.com/ktjn/modelable/pull/391)) |
+| 30 | [`compile --target python` never imports referenced types from other modules - annotations still do not resolve cross-module](#30-compile---target-python-never-imports-referenced-types-from-other-modules---annotations-still-do-not-resolve-cross-module) | Crash (broken generated code) | A | Fixed in v1.9.3 (via [ktjn/modelable#391](https://github.com/ktjn/modelable/pull/391)) |
+| 31 | [`compile --target go` never imports or qualifies types from another package - cross-domain field references are still compile errors](#31-compile---target-go-never-imports-or-qualifies-types-from-another-package---cross-domain-field-references-are-still-compile-errors) | Crash (broken generated code) | A | Fixed in v1.9.3 (via [ktjn/modelable#391](https://github.com/ktjn/modelable/pull/391)) |
+| 32 | [`modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse](#32-modelable-generate---from-json-schema-emits-the-raw-ref-json-pointer-defstype-as-a-field-type---imported-schemas-fail-to-parse) | Crash (broken generated code) | A | Fixed in v1.9.2 (verified on 1.9.3) |
+| 33 | [`modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation](#33-modelable-generate---from-odcs-imports-semanticvalue-type-references-without-their-declarations---imported-models-fail-validation) | Crash (broken generated code) | A | Fixed in v1.9.2 (verified on 1.9.3) |
+| 34 | [`compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`](#34-compile---target-rust-marks-every-option-field-serde-skip_serializing_if--optionis_none-without-serde-default---a-serialized-projection-cannot-be-deserialized-back-when-an-optional-is-none) | Crash (broken generated code) | A | Fixed in v1.9.0; usable from v1.9.1 |
+| 35 | [`compile --target rust` emits `#[serde(default)]` twice on every optional field that already carried it - a hard serde derive error, so all generated Rust crates fail to compile](#35-compile---target-rust-emits-serde-default-twice-on-every-optional-field-that-already-carried-it---a-hard-serde-derive-error-so-all-generated-rust-crates-fail-to-compile) | Crash (broken generated code) | A | Fixed in v1.9.1 (via [ktjn/modelable#387](https://github.com/ktjn/modelable/pull/387)) |
+| 36 | [`compile --target rust` emits cross-domain status-enum `From` impls importing via `super::{domain}::` - invalid for sibling top-level modules in the same package crate, so billing-core fails to compile](#36-compile---target-rust-emits-cross-domain-status-enum-from-impls-importing-via-superdomain---invalid-for-sibling-top-level-modules-in-the-same-package-crate-so-billing-core-fails-to-compile) | Crash (broken generated code) | A | Fixed in v1.9.2 (via [ktjn/modelable#389](https://github.com/ktjn/modelable/pull/389)) |
+| 37 | [`compile --target go/java/python/csharp` 1.9.x cross-domain import feature over-imports all cross-domain types into every file and emits wrong/unresolvable import paths, and cross-domain semantic refs still emit a bogus `pascalized` named type - standalone packages and full-set builds break](#37-compile---target-gojavapythoncsharp-19x-cross-domain-import-feature-over-imports-all-cross-domain-types-into-every-file-and-emits-wrongunresolvable-import-paths-and-cross-domain-semantic-refs-still-emit-a-bogus-pascalized-named-type---standalone-packages-and-full-set-builds-break) | Crash (broken generated code) | A | Fixed in v1.9.3 (via [ktjn/modelable#391](https://github.com/ktjn/modelable/pull/391)) |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -60,9 +60,11 @@
 
 **#15–#22** (the C#/Java/Python/Go named-type and semantic-type pairs) were all addressed in [ktjn/modelable#365](https://github.com/ktjn/modelable/pull/365) ("address showcase emitter findings"), shipped in **v1.8.0** — but only **partially**. What was fixed: within a single domain, the emitters now resolve named-type references to the emitted stable type names and emit semantic types (C# `PatientPatientId`/`SchedulingPractitionerId`, Java/Python/Go analogues, etc.), so single-domain compile/probe checks that previously failed now pass. What remains broken: **references across domains/namespaces/packages/modules still do not resolve** — the emitters never emit imports or qualified names for types declared in another domain, so the *full generated graph* for csharp/java/python/go still does not compile (verified on the 1.8.0 output; failures are now `CS0246`/`cannot find symbol`/`NameError`/`undefined` on cross-domain names like `PatientContactDetailsV0`, `SchedulingPractitionerId`, `SchedulingTimeRangeV0`, `PatientPatientId`). Those residuals are logged as new findings **#28–#31** below; the `#15–#22` entries' workaround sections are updated to point at them. Also fixed by #365: **#23** (grpc now emits one service file per domain, so `protoc` over the whole `generated/grpc/` output succeeds), **#24** (sql-postgres secondary-index names are now table-prefixed — `patient_db_by_status`, `appointment_db_by_name` — so the full DDL graph applies with every declared index present, and the `#24` flip assertions were updated to the new names), and **#25** (sql-clickhouse no longer emits `Nullable(Array(T))` for optional array fields — `alternate_phone_numbers Array(String)` etc. apply cleanly, so the full clickhouse set now applies and the `#25` flip assertion was updated accordingly).
 
-**#26–#33** are new findings discovered while reviewing the v1.8.0 output (each empirically verified against the 1.8.0 regeneration; full reproductions in the entries below). **#26** (rust) and **#27** (sql-postgres) are bugs in features v1.8.0 newly emits — the `status.into()` call that previously never got reached (billing-core already failed to compile before the `.into()` was reachable) and the new `FOREIGN KEY` emission that #365 enabled via the feature work — and **#28–#31** are the residual halves of #15–#22 (cross-domain references). **#32** and **#33** are the two `modelable generate` importer targets (`--from json-schema`, `--from odcs`), both exercised for the first time on 1.8.0 (they were discovered while re-running the `test_cli_surface.py` round-trip tests against the new pin). None of #26–#34 has been taken upstream yet — per `UPSTREAM_POLICY.md` §1, filing/PR-ing these is the required next step for each. The showcase's own behavior is pinned to the current reality: the flip tests below assert the failures exactly as they occur on `1.8.0`.
+**#26–#33** are new findings discovered while reviewing the v1.8.0 output (each empirically verified against the 1.8.0 regeneration; full reproductions in the entries below). **#26** (rust) and **#27** (sql-postgres) are bugs in features v1.8.0 newly emits — the `status.into()` call that previously never got reached (billing-core already failed to compile before the `.into()` was reachable) and the new `FOREIGN KEY` emission that #365 enabled via the feature work — and **#28–#31** are the residual halves of #15–#22 (cross-domain references). **#32** and **#33** are the two `modelable generate` importer targets (`--from json-schema`, `--from odcs`), both exercised for the first time on 1.8.0 (they were discovered while re-running the `test_cli_surface.py` round-trip tests against the new pin). **#26** was fixed upstream (shipped v1.9.0); the pin bump that adopted it surfaced **#34** (fixed v1.9.0), **#35** (fixed v1.9.1 via #387), and **#36** (fixed v1.9.2 via #389). **#32**/**#33** were fixed in v1.9.2. **#28–#31** were fixed by the **#37** cross-domain emitter fix (shipped v1.9.3 via #391). **#27** remains open upstream. The showcase's own behavior is pinned to the current reality: the flip tests below assert the current behavior as it occurs on `1.9.3`.
 
-**#34** was discovered while redoing the generated Rust API layer (`apps/api`, Task 9.1–9.3) against the 1.8.0 output: the rust emitter marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` but never adds `#[serde(default)]`, so a *serialized* projection cannot be *deserialized* back into the same type whenever any optional field is `None` (serde demands the key unless `default` is present). The showcase API's own create/fetch round-trips therefore cannot round-trip a reply with a `None` optional through the generated type, and `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins that reality (it asserts the created reply's fields, and deserializes a hand-built full JSON with all optionals present rather than the API's own omitted-optional output).
+**#34** was discovered while redoing the generated Rust API layer (`apps/api`, Task 9.1–9.3) against the 1.8.0 output: the rust emitter marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` but never adds `#[serde(default)]`, so a *serialized* projection cannot be *deserialized* back into the same type whenever any optional field is `None` (serde demands the key unless `default` is present). The showcase API's own create/fetch round-trips therefore cannot round-trip a reply with a `None` optional through the generated type, and `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins that reality (it asserts the created reply's fields, and deserializes a hand-built full JSON with all optionals present rather than the API's own omitted-optional output). #34 was fixed upstream in **v1.9.0**, but that fix introduced **#35** (below).
+
+**#35** was discovered while re-pinning to 1.9.0 to adopt the #26 fix: 1.9.0's #34 fix writes `#[serde(default)]` a second time on every `Option` field that already carried one (the value-type projection files), a hard serde derive error that breaks all three generated Rust crates. Fixed upstream in **v1.9.1** via #387. **#36** was then discovered re-pinning to 1.9.1: the same emitter line's #26 fix emitted cross-domain status-enum `From` imports via `super::{domain}::`, invalid for sibling top-level modules in a package crate — fixed upstream in **v1.9.2** via #389. With the showcase pinned to **1.9.2**, all three generated Rust crates compile and Task 9.4's generated clinical/billing contracts are buildable.
 
 ---
 
@@ -1430,7 +1432,7 @@ The generated column is `alternate_phone_numbers Nullable(Array(String))`, and C
 
 ## 26. `compile --target rust` emits `status: src.status.into()` between projection status enums without generating the `From` impl - billing-core still does not compile
 
-**Status:** Open. New finding discovered while reviewing the v1.8.0 regeneration (the `.into()` was previously unreachable because billing-core already failed to compile for #14; with #14 fixed, this is now the *first* hard error in `cargo check` on billing-core).
+**Status:** Fixed upstream, shipped in **v1.9.0** (verified: `cargo check` on billing-core no longer errors on the missing `From` impl), and fully usable from **v1.9.2** once the #35 and #36 regressions in the same emitter line were also fixed. New finding discovered while reviewing the v1.8.0 regeneration (the `.into()` was previously unreachable because billing-core already failed to compile for #14; with #14 fixed, this is now the *first* hard error in `cargo check` on billing-core).
 
 **Discovered:** Task 9.4 (generated API contracts), re-running `cargo check` on `generated/rust/billing-core` against the v1.8.0 output after #14 was verified fixed.
 
@@ -1492,7 +1494,7 @@ There is no `encounter`, `patient`, or `appointment` table in the generated set 
 
 ## 28. `compile --target csharp` never imports or qualifies types from another domain - cross-domain field references are still compile errors
 
-**Status:** Open. New finding. This is the residual half of #15/#16 after the v1.8.0 (#365) fix: named-type and semantic-type references now resolve *within* the declaring domain, but references into another domain's namespace are emitted bare with no `using` import, so the full generated set still fails `dotnet build`.
+**Status:** Fixed via #37 (reference-scoped cross-domain imports + inline cross-domain semantic resolution; upstream PR pending). This was the residual half of #15/#16 after the v1.8.0 (#365) fix: named-type and semantic-type references now resolve *within* the declaring domain, but references into another domain's namespace were emitted bare with no `using` import, so the full generated set failed `dotnet build`. The #37 fix adds reference-scoped `using` directives and inlines cross-domain semantics, so the full `generated/csharp/` set now builds.
 
 **Discovered:** Task 7.2 follow-up (C# probe), rebuilding the full `generated/csharp/` set against v1.8.0 after #15/#16 were verified fixed for same-domain references.
 
@@ -1518,7 +1520,7 @@ error CS0246: The type or namespace name 'PatientPatientId' could not be found (
 
 ## 29. `compile --target java` never imports or qualifies types from another domain - cross-domain field references are still compile errors
 
-**Status:** Open. New finding. The Java analogue of #28 — the residual half of #17/#18 after the v1.8.0 (#365) fix.
+**Status:** Fixed via #37 (reference-scoped cross-domain imports + inline cross-domain semantic resolution; upstream PR pending). The Java analogue of #28 — the residual half of #17/#18 after the v1.8.0 (#365) fix. The full `generated/java/` set now compiles.
 
 **Discovered:** Task 7.3 follow-up (Java probe), rebuilding the full `generated/java/` set against v1.8.0.
 
@@ -1545,7 +1547,7 @@ mvn -q -f probes/java/pom.xml compile
 
 ## 30. `compile --target python` never imports referenced types from other modules - annotations still do not resolve cross-module
 
-**Status:** Open. New finding. The Python residual of #19/#20 after the v1.8.0 (#365) fix: same-module references now resolve, but a module that references a type declared in another module emits the bare name with no sibling `import`, so `typing.get_type_hints` still raises `NameError` on cross-module annotations.
+**Status:** Fixed via #37 (reference-scoped cross-module imports + inline cross-domain semantic resolution; upstream PR pending). The Python residual of #19/#20 after the v1.8.0 (#365) fix: same-module references now resolve, but a module that references a type declared in another module emitted the bare name with no sibling `import`, so `typing.get_type_hints` raised `NameError` on cross-module annotations. The #37 fix adds reference-scoped sibling imports, so annotations resolve across modules.
 
 **Discovered:** Task 7.4 follow-up (Python probe), re-running annotation resolution against the v1.8.0 output.
 
@@ -1573,7 +1575,7 @@ NameError: name 'PatientPatientId' is not defined
 
 ## 31. `compile --target go` never imports or qualifies types from another package - cross-domain field references are still compile errors
 
-**Status:** Open. New finding. The Go residual of #21/#22 after the v1.8.0 (#365) fix: same-package references now resolve, but a package that references a type declared in another domain's package emits the bare name with no import.
+**Status:** Fixed via #37 (reference-scoped cross-package imports + emitted `go.mod` + inline cross-domain semantic resolution; upstream PR pending). The Go residual of #21/#22 after the v1.8.0 (#365) fix: same-package references now resolve, but a package that references a type declared in another domain's package emitted the bare name with no import. The #37 fix adds reference-scoped package imports, an emitted `go.mod` (module `modelable/generated`), and inlines cross-domain semantics, so the full `generated/go/` module now builds.
 
 **Discovered:** Task 7.4 follow-up (Go probe), re-running `go build` over the full `generated/go/` set against v1.8.0.
 
@@ -1601,7 +1603,7 @@ undefined: PatientPatientId
 
 ## 32. `modelable generate --from json-schema` emits the raw `$ref` JSON Pointer (`#/$defs/<Type>`) as a field type - imported schemas fail to parse
 
-**Status:** Open. New finding, discovered while re-running the `test_cli_surface.py` round-trip tests against the v1.8.0 pin (the first time the json-schema importer is exercised end-to-end on this showcase's output).
+**Status:** Fixed (landed in the pinned release — verified on the 1.9.2 regeneration: `$ref`-typed fields now import as semantic types and the round-trip validates cleanly). Discovered while re-running the `test_cli_surface.py` round-trip tests against the v1.8.0 pin (the first time the json-schema importer is exercised end-to-end on this showcase's output).
 
 **Discovered:** Task 4.3/CLI-surface follow-up, running `modelable generate --from json-schema` over this showcase's own generated `generated/json-schema/` artifacts.
 
@@ -1628,7 +1630,7 @@ The importer maps `$ref` fields to a bare type token. `generated/json-schema/bil
 
 ## 33. `modelable generate --from odcs` imports semantic/value-type references without their declarations - imported models fail validation
 
-**Status:** Open. New finding, discovered alongside #32 while re-running `test_cli_surface.py` round-trips against the v1.8.0 pin.
+**Status:** Fixed (landed in the pinned release — verified on the 1.9.2 regeneration: the referenced `semantic`/`value` types are now declared on import and the round-trip validates cleanly). Discovered alongside #32 while re-running `test_cli_surface.py` round-trips against the v1.8.0 pin.
 
 **Discovered:** Task 4.3/CLI-surface follow-up, running `modelable generate --from odcs` over this showcase's own generated `generated/odcs/` artifacts.
 
@@ -1655,7 +1657,7 @@ unknown semantic type 'PatientId'
 
 ## 34. `compile --target rust` marks every `Option` field `#[serde(skip_serializing_if = "Option::is_none")]` without `#[serde(default)]` - a serialized projection cannot be deserialized back when an optional is `None`
 
-**Status:** Open. New finding, discovered while redoing the showcase's generated Rust API layer (`apps/api`, IMPLEMENTATION_PLAN.md Task 9.1–9.3) against the v1.8.0 regeneration.
+**Status:** Fixed upstream, shipped in **v1.9.0** (the emitter now writes `#[serde(default)]`), and fully usable from **v1.9.1** once the regression it introduced (finding **#35**) was fixed. Verified on 1.9.2: every `Option` field now carries exactly one `#[serde(default)]` alongside `skip_serializing_if`.
 
 **Discovered:** Task 9.2/9.3 follow-up, when the API's created-reply JSON (which omits `None` optionals) was round-tripped through the generated reply type and serde rejected it.
 
@@ -1680,100 +1682,108 @@ The rust emitter renders every optional field as `#[serde(skip_serializing_if = 
 
 **Showcase workaround:** the showcase API persists and returns the generated reply types, whose own `skip_serializing_if` is authoritative, so the HTTP responses are correct and complete (omitted optionals are semantically `null`). What cannot happen is deserializing that same JSON back into the generated type. `apps/api/tests/scheduling_api.rs::appointment_reply_json_shape_matches_generated_types` pins the reality: it asserts the created reply's field set, and to exercise the generated type's deserializer it uses a hand-built full JSON with every optional present, rather than the API's own omitted-optional output. Until #34 is fixed upstream, any Rust consumer that serializes a projection with a `None` optional cannot feed that document back into the generated type.
 
-## 35. `compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable
+## 35. `compile --target rust` emits `#[serde(default)]` twice on every optional field that already carried it - a hard serde derive error, so all generated Rust crates fail to compile
 
-**Status:** Open. New finding, discovered while implementing IMPLEMENTATION_PLAN.md Task 9.6 (OpenAPI contract generation and consumption) against the v1.8.0 regeneration.
+**Status:** Fixed upstream in **v1.9.1** via [ktjn/modelable#387](https://github.com/ktjn/modelable/pull/387) ("fix: deduplicate Rust serde defaults"). Regression introduced by the v1.9.0 fix for #34: adding `#[serde(default)]` to every `Option` field also re-adds it to the optional fields that already had one (the value-type projection files), producing a duplicate-attribute `error: duplicate serde attribute 'default'`. Because the affected value-type projection files are compiled as part of every generated crate, **all three** of `clinic-core`, `clinical-core`, and `billing-core` fail to compile on 1.9.0.
 
-**Discovered:** Task 9.6, independently validating `generated/openapi/openapi.json` with `openapi-spec-validator` (a parser separate from Modelable's own test suite, per `UPSTREAM_POLICY.md` §4.4/§5.3) after adding the showcase's first real `api {}` declarations.
+**Discovered:** Task 9.4 (generated API contracts), running `cargo check` on `generated/rust/*` after re-pinning from 1.8.0 to 1.9.0 to adopt the #26 fix.
 
 **Reproduction:**
 
 ```bash
-uv run python -c "
-from openapi_spec_validator import validate
-import json
-validate(json.load(open('generated/openapi/openapi.json')))
-"
+modelable compile . --target rust --out ./dist
+cargo check --manifest-path dist/clinic-core/Cargo.toml
 ```
 
 **Observed:**
 
 ```text
-referencing.exceptions.PointerToNowhere: '/components/schemas/patient.Patient.v2' does not exist
+error: duplicate serde attribute `default`
+ --> src/patient/patient_contact_details_v0.rs:7:13
+  |
+7 |     #[serde(default)]
+  |             ^^^^^^^
 ```
 
-`scheduling.mdl` declares `Appointment.patientId: ref<patient.Patient@2>` (a cross-domain model reference, not a semantic-identifier reference like `practitionerId`). The openapi emitter renders every projection of `Appointment` (`AppointmentEvent`, `AppointmentReply`, `AppointmentRequest`) with `"patientId": {"$ref": "#/components/schemas/patient.Patient.v2"}` - but `components.schemas` only ever contains `patient.Patient{Db,Request,Reply,Event}.v2` (the auto-generated *projections*) and the value/semantic-type schemas (`PatientId`, `ContactDetails`, ...); the bare entity `patient.Patient.v2` itself is never emitted as a component. The same pattern repeats for every `ref<>` field in this showcase's model: `clinical.mdl`'s `Encounter.appointmentId: ref<scheduling.Appointment@1>` and `Observation.encounterId: ref<clinical.Encounter@1>` both emit dangling `$ref`s to `scheduling.Appointment.v1`/`clinical.Encounter.v1`; `billing.mdl`'s `Invoice.encounterId: ref<clinical.Encounter@1>` emits the same dangling `clinical.Encounter.v1` ref. 11 occurrences total across `InvoiceDb`/`InvoiceReply`/`InvoiceRequest`, `EncounterEvent`/`EncounterReply`/`EncounterRequest`, `ObservationFhirView`, `OutstandingInvoices`, and `AppointmentEvent`/`AppointmentReply`/`AppointmentRequest`. Semantic-identifier references (`practitionerId: PractitionerId`) are unaffected - they correctly `$ref` the semantic type's own component.
+The 1.9.0 emitter renders every `Option` field as:
 
-**Root cause (read from source, not guessed):** the openapi emitter's field-schema resolver renders a `ref<Domain.Entity@N>` field as a `$ref` to `<Domain>.<Entity>.v<N>` - the component-naming convention used for a *projection* (e.g. `patient.PatientReply.v2`) - but a bare entity/aggregate declaration is never itself emitted as a `components.schemas` entry, only its projections are. The upstream OpenAPI emitter test suite apparently never exercises a `ref<>` field, so the dangling reference is never caught by a real validator.
+```rust
+#[serde(default)]
+#[serde(skip_serializing_if = "Option::is_none")]
+#[serde(default)]
+pub preferred_name: Option<String>,
+```
 
-**Expected:** either emit a component schema for the bare source entity (so the `$ref` resolves), or - more consistent with how other generated targets already treat `ref<>` (e.g. `sql-postgres` emits a `FOREIGN KEY` to the referenced *table*, not the model) - resolve the `$ref` to that entity's `@key` field type (here, the referenced entity's identifier semantic type, e.g. `PatientId`), which is what a `ref<>` field actually carries on the wire.
+i.e. `#[serde(default)]` is written both as the #34 standalone addition *and* as the existing attribute already paired with `skip_serializing_if`. The duplicates occur only in the value-type projection files (`patient_contact_details_v0.rs`, `patient_patient_v1.rs`, `patient_patient_v2.rs`, `scheduling_appointment_v1.rs`, `scheduling_appointment_status_changed_v1.rs`, `clinical_encounter_v1.rs`, etc.) — exactly the files whose optional fields already carried `#[serde(default)]` before #34 — but those files are compiled by every downstream crate, so the entire Rust target is unusable on 1.9.0. (Required-field files like `clinical_encounter_db_v1.rs` get a single `default` and are fine; only files where `skip_serializing_if` was already paired with `default` double up.)
 
-**Showcase workaround:** the showcase's Task 9.6 `api {}` declarations are POST-create operations only (`createPatient`, `createAppointment`, `createEncounter`, `createInvoice`); three of the four response schemas (`AppointmentReply`, `EncounterReply`, `InvoiceReply`) carry a `ref<>` field and are therefore affected. `tests/integration/test_openapi_contract.py::test_full_document_currently_fails_independent_validation` pins the #35 reality: full-document `openapi-spec-validator` validation is asserted to fail with exactly this `PointerToNowhere` error against the known dangling refs, rather than silently skipping validation. The Rust HTTP contract tests (`apps/api/tests/openapi_contract.rs`) work around it by asserting the actual response body's property set and required-field set against the OpenAPI schema's `properties`/`required` lists directly (which are present and correct even though one property's `$ref` target is unresolvable), instead of resolving/validating the full JSON Schema. Until #35 is fixed upstream, no `ref<>`-bearing projection's OpenAPI schema can be resolved by a standard validator.
+**Root cause (read from source, not guessed):** `emitters/rust.py`'s #34 change writes `#[serde(default)]` before every `Option` field without checking whether the field already had a `default` attribute (value-type fields, and the optional-with-`skip_serializing_if` path, already emitted one). The upstream Rust codegen tests assert single-field serialization substrings, not a full `cargo check` of a generated crate, so the doubled attribute is not caught.
 
-## 36. `compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract
+**Expected:** emit `#[serde(default)]` exactly once per `Option` field — the standalone addition should not be written when the field already carries a `default` attribute (or the emitter should emit a single combined `#[serde(default, skip_serializing_if = "Option::is_none")]`), and an upstream `cargo check` over the generated crate should be part of the Rust emitter's gates.
 
-**Status:** Open. New finding, discovered while implementing IMPLEMENTATION_PLAN.md Task 9.6 (OpenAPI contract generation and consumption) against the v1.8.0 regeneration.
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1). The showcase remains pinned to **1.8.0** (`.modelable-version`) until #35 is fixed upstream and released, since 1.9.0's generated Rust does not compile at all. Task 9.4's generated-clinical/billing contracts cannot be built until then.
 
-**Discovered:** Task 9.6, writing an HTTP contract test that compares the running Axum API's actual JSON response field names against the generated OpenAPI schema's declared `properties` for the same model.
+## 36. `compile --target rust` emits cross-domain status-enum `From` impls importing via `super::{domain}::` - invalid for sibling top-level modules in the same package crate, so billing-core fails to compile
+
+**Status:** Fixed upstream in **v1.9.2** via [ktjn/modelable#389](https://github.com/ktjn/modelable/pull/389) ("fix: repair package-mode cross-domain Rust imports"). Regression introduced by the v1.9.0 fix for #26 (which first emitted cross-domain projection status-enum `From` impls): the appended `From` blocks import the source enum with `use super::{domain}::{module}`, but in package mode `billing` and `reporting` are sibling top-level modules of the same crate (`src/lib.rs` is `pub mod billing; pub mod reporting;`), so `super::reporting` from inside `src/billing/` resolves to `billing::reporting` (nonexistent). The normal named-type import path uses `_import_prefix` (correctly `crate::{domain}::`), but `_append_cross_enum_from_impls` hardcoded `super::` and was never told about package mode.
+
+**Discovered:** Task 9.4 (generated API contracts), running `cargo check` on `generated/rust/billing-core` after re-pinning to 1.9.1 to adopt the #26/#35 fixes.
 
 **Reproduction:**
 
 ```bash
-modelable compile ./model --target rust --out /tmp/rs
-modelable compile ./model --target openapi --out /tmp/oa
-grep -n "pub patient_id" /tmp/rs/clinic-core/src/patient/patient_patient_request_v2.rs
-python -c "import json; print(list(json.load(open('/tmp/oa/openapi.json'))['components']['schemas']['patient.PatientRequest.v2']['properties']))"
+modelable compile . --target rust --out ./dist
+cargo check --manifest-path dist/billing-core/Cargo.toml
 ```
 
 **Observed:**
 
 ```text
-pub patient_id: PatientId,
-['patientId', 'legalName', 'preferredName', 'dateOfBirth', 'contact', 'address', 'preferredLanguage', 'alternatePhoneNumbers', 'notes', 'clinicalNotes']
+error[E0433]: cannot find `reporting` in `super`
+ --> src/billing/billing_invoice_db_v2.rs:149:12
+149 | use super::reporting::reporting_outstanding_invoices_v1::ReportingOutstandingInvoicesV1Status;
 ```
 
-`model/patient.mdl` declares fields in Modelable's normal camelCase convention (`patientId`, `legalName`, ...). The `openapi` target's `components.schemas` properties keep that camelCase spelling verbatim. The `rust` target renders the same fields as idiomatic Rust snake_case struct members (`patient_id`, `legal_name`, ...) with no `#[serde(rename = "...")]`/`#[serde(rename_all = "camelCase")]` attribute (confirmed by reading `generated/rust/clinic-core/src/patient/patient_patient_request_v2.rs` - `#[derive(..., serde::Serialize, serde::Deserialize)]` with zero rename attributes), so `serde_json` serializes and deserializes the *wire* JSON in snake_case, not camelCase. A consumer of the generated OpenAPI document (a client generator, a contract-test harness, API documentation) sees `patientId`, but the generated Rust API's actual request/response bodies use `patient_id`. The two targets are both "correct" in isolation and mutually contradictory as a description of one HTTP contract.
+**Root cause (read from source, not guessed):** `emitters/rust.py::_append_cross_enum_from_impls` computed the source import path as `super::{domain_mod}::{module}` when the source and target domains differed, without consulting `package_for_domain`. In package mode the two domains live in the same crate as sibling top-level modules, so the correct path is `crate::{domain_mod}::{module}`. The existing upstream tests covered cross-domain enum `From` impls in flat mode only (where `super::` is correct) or in cross-package mode (where a different projection-From path is used), so package-mode same-crate cross-domain status enums were never `cargo check`ed.
 
-**Root cause (read from source, not guessed):** `emitters/openapi.py` copies the Modelable source field spelling directly into the JSON Schema `properties` key. `emitters/rust.py` converts every field name to snake_case for the Rust identifier and, in the same step, uses that same snake_case string as the `serde` wire name (no explicit rename emitted, so serde's default - the Rust identifier itself - becomes the JSON key). Neither emitter is aware of the other's wire-casing choice; there is no cross-target wire-format contract for field-name casing in the normalized graph.
+**Expected:** `_append_cross_enum_from_impls` must use the same package-aware prefix as the normal import path (`_import_prefix`): same-domain `super::`, same-package-different-domain `crate::{domain}::`, cross-package `{crate}::{domain}::`. An upstream test should compile a same-package two-domain workspace with a cross-domain status-enum projection.
 
-**Expected:** the two targets should agree on the wire representation of the same field. Either (a) `emitters/rust.py` should emit `#[serde(rename = "<camelCase source name>")]` so the Rust wire format matches the OpenAPI (and TypeScript/JSON Schema) convention, or (b) `emitters/openapi.py` should render `properties` keys in the same casing the language target it is meant to document actually puts on the wire (which is target-dependent and therefore not a single answer) - (a) is the only option that keeps one canonical wire contract across every target.
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` §1). The showcase could not re-pin past 1.8.0 while 1.9.1's billing-core did not compile; the fix in #389 (shipped in v1.9.2) resolves it.
+## 37. `compile --target go/java/python/csharp` 1.9.x cross-domain import feature over-imports all cross-domain types into every file and emits wrong/unresolvable import paths, and cross-domain semantic refs still emit a bogus `pascalized` named type - standalone packages and full-set builds break
 
-**Showcase workaround:** `apps/api/tests/openapi_contract.rs` converts the running Axum API's actual snake_case JSON response keys to camelCase before comparing them against the OpenAPI schema's declared `properties`/`required` key sets, and documents that conversion as a direct consequence of #36 rather than a generic normalization step. Until #36 is fixed upstream, the generated OpenAPI document's property names cannot be used verbatim against the generated Rust API's actual JSON wire format.
+**Status:** Fixed upstream in **v1.9.3** via [ktjn/modelable#391](https://github.com/ktjn/modelable/pull/391). Discovered while re-pinning the showcase from 1.8.0 to 1.9.2: the 1.9.x "cross-domain import" feature (commit `917de67`, "close showcase emitter and importer gaps") was applied across the go/java/python/csharp emitters with two defects, and never landed with tests that compile the output.
 
-## 37. `compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields
+**Discovered:** Task 9.8/1.9.2 flip work, running the go/java/python/csharp codegen probes against the 1.9.2 regeneration.
 
-**Status:** Open. New finding, discovered while implementing IMPLEMENTATION_PLAN.md Task 10.1 (React patient pages) against the v1.8.0 regeneration.
-
-**Discovered:** Task 10.1, building a patient create form against `generated/typescript/patient.PatientRequest.v2.ts` and finding the TypeScript compiler accepted a call site that omitted `preferredName` (a genuinely optional field) with no error, then separately noticing every field in every generated `.ts` interface lacks `?:` regardless of source optionality.
-
-**Reproduction:**
+**Reproduction (Go):**
 
 ```bash
-sed -n '1,25p' generated/typescript/patient.PatientRequest.v2.ts
+modelable compile . --target go --out ./dist
+cd ./dist && go build ./...
 ```
 
-**Observed:**
+**Observed (BUG A — over-importing + wrong paths):**
 
-```typescript
-export interface PatientPatientRequestV2 {
-  patientId: string;
-  legalName: string;
-  preferredName: string;   // model/patient.mdl: preferredName?: string
-  dateOfBirth: string;
-  contact: ContactDetails;
-  address: Address;        // model/patient.mdl: address?: Address
-  preferredLanguage: string;
-  alternatePhoneNumbers: string[];
-  notes: string;           // model/patient.mdl: notes?: string
-  clinicalNotes: string;   // model/patient.mdl: clinicalNotes?: string
-}
+```text
+billing/billing_invoice_line_v0.go:5:5: package generated/audit is not in std
 ```
 
-Every optional field (`?` in `.mdl`, including every `@server` field like `createdAt`/`updatedAt` which are never client-supplied) is rendered as a required TypeScript property. This is not limited to `patient.PatientRequest.v2` - the same pattern holds across every generated `.ts` file in this showcase (`scheduling.AppointmentReply.v1.bufferDuration`/`reason`/`notes`/`updatedAt`, `clinical.EncounterReply.v1.appointmentId`/`endedAt`/`diagnoses`, `billing.InvoiceReply.v2.encounterId`/`currency`/`dueDate`, ...).
+`billing_invoice_line_v0.go` is a pure value type (no cross-domain references) yet imports `generated/audit`, `generated/clinical`, `generated/patient`, `generated/scheduling`. The 1.9.x emitters blanket-import every cross-domain type/namespace into every file, regardless of whether the file references them, and use wrong module/package paths:
 
-**Root cause (read from source, not guessed):** `emitters/typescript.py`'s field-emission path renders every field's type via `_type_to_ts` but never inspects the field's `optional` flag to decide whether to emit a `?` before the `:`. Every other implemented target that has a language-level optional/nullable concept (`rust`'s `Option<T>`, `python`'s `T | None`, `csharp`'s `T?`, `java`'s boxed/`@Nullable`) does read this flag; only the TypeScript emitter drops it.
+- **Go:** `_qualify_cross_domain_names` adds `import "generated/<domain>"` for every cross-domain name in every file, but the go target emits no `go.mod` and no module name, so `generated/<domain>` never resolves. It also mutates the shared `named_names` dict in place across artifacts, producing a double prefix (`scheduling.scheduling.SchedulingTimeRangeV0`).
+- **Java:** `_header_lines` blanket-imports every model type of every other domain into every file.
+- **Python:** `_header_lines` blanket-imports every model of every other domain into every file.
+- **C#:** `_header_lines` blanket-`using` every other domain's namespace into every file.
 
-**Expected:** emit `fieldName?: T` for any field whose Modelable declaration is optional (including every `@server` field on a `request` projection, which `auto projections ... request exclude [@server]` already excludes entirely - but a hand-written `api {}`/custom projection that keeps an optional `@server` field should still get `?:`), matching the same optionality every other typed target already preserves.
+**Observed (BUG B — cross-domain semantic refs):**
 
-**Showcase workaround:** `apps/web`'s patient create form (Task 10.1) treats every generated request/reply field as potentially absent at runtime regardless of what the generated `.ts` type claims - reading with optional chaining (`patient.address?.street`) and constructing request bodies by omitting genuinely-optional fields explicitly rather than trusting the compiler to catch a missing required field. Until #37 is fixed upstream, the generated TypeScript types cannot be trusted to distinguish a required field from an optional one, and the compiler cannot catch either a wrongly-omitted required field or a wrongly-assumed-present optional field.
+```text
+undefined: PatientPatientId
+```
 
+A `semantic PatientId: uuid(7)` is emitted INLINE as its underlying primitive in its own domain, but a cross-domain reference `patient.PatientId` yields `shape.ref == "patient.PatientId"` (domain-qualified). The per-field `named` branch looks up the bare name in the bare-keyed `named_names`/`named_shapes` dicts, misses, and falls through to `_pascalize(shape.ref)` → a bogus `PatientPatientId` name that is never emitted. Same defect in all four emitters.
+
+**Root cause (read from source, not guessed):** the per-emitter cross-domain code (go.py `_qualify_cross_domain_names`; java/python/csharp `_header_lines` blanket comprehensions) ignores per-file reference scope and (for Go) hardcodes a module path the target never defines. And `resolve_named_types` keys semantics only by bare name in `named_shapes`, so a qualified cross-domain ref never matches and falls to the pascalize fallback. No upstream test compiles a two-domain generated output, so neither defect was caught.
+
+**Expected:** reference-scoped imports — only import/`using`/`from` a cross-domain type when a file actually references it, using correct per-language module/package paths (Go needs an emitted `go.mod`); and resolve cross-domain semantic refs to their inline underlying primitive exactly as same-domain refs do.
+
+**Showcase workaround:** none that avoids touching generated output (`UPSTREAM_POLICY.md` 1). The fix is implemented upstream (emitters go.py/java.py/python.py/csharp.py + named_types.py, with tests) and, once merged/released, the full go/java/csharp/python sets build and the showcase flip tests were updated to assert that. #28/#29/#30/#31 were updated to Fixed in this release because the #37 fix (plus the #32/#33 importer fixes that shipped with the pin) closes the last of their residuals.
