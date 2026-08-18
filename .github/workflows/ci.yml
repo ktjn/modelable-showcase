@@ -1,0 +1,297 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Toolchain pinning (IMPLEMENTATION_PLAN.md Task 16.1): every job pins an
+# exact version so this workflow is deterministic on first implementation -
+# Dependabot/Renovate may take over bumping these later. Modelable itself
+# (.modelable-version) and protoc (.protoc-version) are pinned in-repo
+# already; `make bootstrap` installs both from those files. The postgres/
+# clickhouse service image tags below must be kept in sync with
+# docker-compose.yml's - `services.<id>.image` doesn't have access to the
+# `env` context, so they can't be centralized into one env var here.
+env:
+  NODE_VERSION: "24"
+  DOTNET_VERSION: "10.0.x"
+  JAVA_VERSION: "21"
+  GO_VERSION: "1.26.x"
+
+jobs:
+  model:
+    name: model (validate + compat)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make validate
+        run: make validate
+      - name: make compat
+        run: make compat
+
+  generate:
+    name: generate (+ determinism)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: make determinism
+        run: make determinism
+      - name: Upload generated manifest on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generate-failure-manifest
+          path: |
+            generated/manifest.json
+            .modelable/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # --- languages: rust/typescript/csharp/java/python/go/protobuf-grpc -----
+  # Separate single-purpose jobs, not one matrix - each language needs a
+  # distinct toolchain setup step, so a matrix would just push the same
+  # per-entry conditionals into `with:` blocks without saving any real
+  # duplication (IMPLEMENTATION_PLAN.md Task 16.1 explicitly allows this:
+  # "correctness is more important than aesthetic symmetry"). TypeScript's
+  # codegen proof lives in the `product` job instead of a dedicated job here
+  # - apps/web's `tsc -b` build against the generated TypeScript types *is*
+  # the compile probe, and there is no separate probes/typescript/ project
+  # the way there is for csharp/java/python/go, so a standalone lang-
+  # typescript job here would just rebuild apps/web a second time.
+
+  lang-rust:
+    name: languages / rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: Rust codegen probe
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_rust_codegen.py
+      - name: Build generated Rust crates + apps/api
+        run: cargo build --manifest-path apps/api/Cargo.toml --all-targets
+
+  lang-csharp:
+    name: languages / csharp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: C# codegen probe
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_csharp_codegen.py
+      - name: dotnet test probes/csharp
+        run: dotnet test probes/csharp
+
+  lang-java:
+    name: languages / java
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: Java codegen probe
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_java_codegen.py
+      - name: mvn test probes/java
+        working-directory: probes/java
+        run: mvn -q -B test
+
+  lang-python:
+    name: languages / python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: Python codegen probe
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_python_codegen.py
+      - name: probes/python pytest
+        working-directory: probes/python
+        run: uv run pytest -q
+
+  lang-go:
+    name: languages / go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: Go codegen probe
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_go_codegen.py
+      - name: probes/go go test
+        working-directory: probes/go
+        run: go test ./...
+
+  lang-protobuf-grpc:
+    name: languages / protobuf-grpc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: Protobuf/gRPC codegen probe (includes --descriptor-set)
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_protobuf_codegen.py
+
+  # --- databases: generated DDL applies to a real Postgres/ClickHouse -----
+
+  databases:
+    name: databases (generated schema + DB-backed integration tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: showcase
+          POSTGRES_PASSWORD: showcase
+          POSTGRES_DB: showcase
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U showcase -d showcase"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8-alpine
+        env:
+          CLICKHOUSE_USER: showcase
+          CLICKHOUSE_PASSWORD: showcase
+          CLICKHOUSE_DB: showcase
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user showcase --password showcase --query 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: make integration
+        run: make integration
+
+  # --- product: the actual showcase API + web app -------------------------
+
+  product:
+    name: product (apps/api + apps/web)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: showcase
+          POSTGRES_PASSWORD: showcase
+          POSTGRES_DB: showcase
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U showcase -d showcase"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8-alpine
+        env:
+          CLICKHOUSE_USER: showcase
+          CLICKHOUSE_PASSWORD: showcase
+          CLICKHOUSE_DB: showcase
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user showcase --password showcase --query 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: cargo test apps/api
+        run: cargo test --manifest-path apps/api/Cargo.toml
+      - name: apps/web install
+        working-directory: apps/web
+        run: npm install
+      - name: apps/web lint
+        working-directory: apps/web
+        run: npm run lint
+      - name: apps/web test
+        working-directory: apps/web
+        run: npm test -- --run
+      - name: apps/web build
+        working-directory: apps/web
+        run: npm run build
+
+  # --- e2e: full Compose stack + Playwright --------------------------------
+
+  e2e:
+    name: e2e (Compose + Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make e2e
+        run: make e2e
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            tests/e2e/playwright-report/
+            tests/e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
