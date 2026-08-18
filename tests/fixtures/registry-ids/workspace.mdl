@@ -1,0 +1,3 @@
+workspace "registry-ids-fixture-workspace" {
+  description: "Minimal standalone workspace for tests/conformance/test_registry_ids.py (IMPLEMENTATION_PLAN.md Task 14.1). Deliberately not the real model/ workspace - registry ID allocation only needs one small evolving domain, and keeping it separate avoids coupling registry-ledger tests to unrelated changes in the showcase's real domains."
+}
