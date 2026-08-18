@@ -56,6 +56,7 @@
 | 40 | [`compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields](#40-compile---target-typescript-never-marks-an-optional-field--every-field-is-emitted-as-required-even-server-fields-and-explicit--fields) | Missing feature (broken generated code) | A | Fixed in v1.9.4 |
 | 41 | [`compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails](#41-compile---target-sql-clickhouse-emits-a-bloom_filter-secondary-index-on-a-composite-index-that-includes-a-datetime64-column---create-table-succeeds-but-every-insert-into-the-table-fails) | Invalid generated output | A | Open |
 | 42 | [`modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt](#42-modelable-capabilities---format-json-reports-annotationcustom-as-status-implemented-but-the-grammar-has-no-production-that-reaches-it---custom-is-a-hard-parse-error-on-every-attempt) | Inconsistent behavior | A | Open |
+| 43 | [`compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs for which no `StructureDefinition` is ever emitted at all](#43-compile---target-fhir-profile-emits-extension-sidecar-structuredefinitions-that-fail-the-official-hl7-fhir-validator-and-references-two-annotation-marker-extension-urls-piiclassification-for-which-no-structuredefinition-is-ever-emitted-at-all) | Invalid generated output | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -1982,3 +1983,49 @@ A hard grammar-level parse error - `@custom` is not a recognized annotation toke
 **Expected:** either (a) add the missing `"@custom" "(" IDENT ("," ANNOTATION_EXPR)? ")" -> ann_custom`-shaped grammar alternative so `@custom(...)` actually parses and reaches the existing transformer method, or (b) if `@custom` is intentionally not yet implemented, `modelable capabilities` should report it as `planned`/`deferred`, not `implemented` - the capability-coverage contract this showcase's `check-capability-coverage.py --strict` depends on assumes `implemented` means "a real `.mdl` file can use this today."
 
 **Showcase workaround:** `tests/conformance/capability-coverage.yaml`'s `annotation:custom` entry is `excluded` with a reason pointing at this finding, since no `.mdl` syntax exists to cover it (an `excluded` entry, not a false `product`/`probe` claim). `annotation:latest_only`/`annotation:pit_cutoff`/`annotation:latest_before` are real and do parse/compile (verified: the join-modifier annotations must start on their own physical line after the join's `on` clause, since `EXPRESSION: /[^\n\r{}]+/` greedily consumes the rest of the line the `on` clause sits on) - covered for real by `tests/conformance/valid/join-temporal-modifiers.mdl` and `test_join_temporal_modifiers_compile`.
+
+## 43. `compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs (`.../pii`, `.../classification`) for which no `StructureDefinition` is ever emitted at all
+
+**Status:** Open.
+
+**Discovered:** Task 15.4 (HL7 FHIR Validator smoke), running the real official validator (`org.hl7.fhir.core` `validator_cli.jar`, pinned `6.10.2`) against the representative Patient/Observation/Encounter profiles for the first time - no prior task in this showcase had run the actual HL7 validator, only structural JSON checks (`test_fhir_profiles_are_valid_structuredefinition_json`).
+
+**Reproduction:**
+
+```bash
+uv run scripts/install-modelable.sh   # or: source scripts/modelable-env.sh
+uv run scripts/generate-all.py
+./scripts/install-fhir-validator.sh
+java -jar tools/validator_cli.jar \
+  generated/fhir-profile/clinical.PatientFhirView.v1.fhir.json \
+  generated/fhir-profile/clinical.PatientFhirView.v1.ext.patientId.fhir.json \
+  generated/fhir-profile/clinical.PatientFhirView.v1.ext.legalName.fhir.json \
+  generated/fhir-profile/clinical.PatientFhirView.v1.ext.dateOfBirth.fhir.json \
+  -version 4.0.1
+```
+
+**Observed:** every one of the three representative `*FhirView` profiles fails, both directly and via their `*.ext.*.fhir.json` sidecars, with two distinct real defects:
+
+```text
+-- clinical.PatientFhirView.v1.ext.patientId.fhir.json --
+Error @ StructureDefinition.type: The type Extension can only be used as a type when constraining the base definition of the type
+Error @ StructureDefinition.snapshot: Constraint failed: sdf-3: 'Each element definition in a snapshot must have a formal definition and cardinalities'
+Error @ StructureDefinition.snapshot: Constraint failed: sdf-8b: 'All snapshot elements must have a base definition'
+Error @ StructureDefinition: Constraint failed: sdf-4: 'If the structure is not abstract, then there SHALL be a baseDefinition'
+
+-- clinical.PatientFhirView.v1.fhir.json --
+Error @ StructureDefinition.snapshot.element[1].extension[0]: The extension http://modelable.io/fhir/StructureDefinition/pii could not be found so is not allowed here
+Error @ StructureDefinition.snapshot.element[3].extension[0]: The extension http://modelable.io/fhir/StructureDefinition/classification could not be found so is not allowed here
+Error @ StructureDefinition: Error generating Snapshot: Type mismatch processing profile .../clinical.PatientFhirView.v1.ext.patientId at path Patient.extension: The element type is Extension, but the profile ... is for a different type Extension
+```
+
+The same two error shapes reproduce identically for `clinical.ObservationFhirView.v1` and `clinical.EncounterFhirView.v1` and every domain's own field-level `*.ext.*.fhir.json` files (`patient.PatientDb.v2.ext.*`, `billing.InvoiceDb.v2.ext.*`, etc.) - this is not specific to one model.
+
+**Root cause (read from source, not guessed):** two independent defects in `emitters/fhir.py` (installed 1.9.4 wheel, `src/modelable/emitters/fhir.py`):
+
+1. `_emit_extension_sd` (the function that emits every per-field `*.ext.<fieldName>.fhir.json` sidecar) builds its `struct_def` dict with `"type": "Extension"` and `"derivation": "specialization"`, but never sets `"baseDefinition"` at all. Per the FHIR spec's own `StructureDefinition` invariants, `type: Extension` is only legal when the structure *constrains* the base `Extension` type (`baseDefinition: http://hl7.org/fhir/StructureDefinition/Extension`, `derivation: constraint`) - a `specialization` with no `baseDefinition` is what `sdf-4`/`sdf-8b` and "can only be used as a type when constraining the base definition" are rejecting. Every extension sidecar this emitter ever produces is invalid FHIR for the same reason.
+2. `_extensions()` builds extension-usage entries with `"url": f"{MODELABLE_STRUCTURE_DEFINITION_BASE}/pii"` and `.../classification` for every `@pii`/`@classification(...)`-annotated field, but no function anywhere in `fhir.py` ever emits a `StructureDefinition` artifact *for* those two fixed URLs (`_emit_extension_sd` only emits per-field extensions keyed by field name, never these two shared annotation-marker extensions). Every profile with any `@pii`/`@classification` field - which is most of this showcase's PII-heavy clinical/patient domains - references two permanently unresolvable extension definitions.
+
+**Expected:** (1) `_emit_extension_sd` should set `"baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension"` and `"derivation": "constraint"` on every emitted extension `StructureDefinition`, matching how every other FHIR profile/extension in the wild is structured; (2) the `fhir-profile` target should also emit `pii.fhir.json`/`classification.fhir.json` (or equivalent) `StructureDefinition` artifacts for the two fixed annotation-marker extension URLs it references, so the full generated `fhir-profile` set - profile plus every extension it points at - validates against the official HL7 FHIR Validator with zero errors.
+
+**Showcase workaround:** `scripts/install-fhir-validator.sh` installs a pinned (`.fhir-validator-version` = `6.10.2`), checksum-verified copy of the real validator; `scripts/validate-fhir-profiles.py` runs it against the three representative Patient/Observation/Encounter profiles (skipping cleanly if Java or the jar isn't available - this is Task 15.4's optional profile, not part of `make acceptance`). `tests/integration/test_generated_artifacts.py::test_fhir_profiles_pass_the_hl7_validator` pins the current reality as an explicit flip test - all three representative profiles are asserted to fail validation with these exact error signatures - rather than a permanent workaround script that rewrites the generated FHIR output (`UPSTREAM_POLICY.md` §7). This is Case A per `UPSTREAM_POLICY.md` §6 - fix upstream first.
