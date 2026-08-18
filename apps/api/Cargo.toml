@@ -17,6 +17,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 clinic-core = { path = "../../generated/rust/clinic-core" }
+clinical-core = { path = "../../generated/rust/clinical-core" }
+billing-core = { path = "../../generated/rust/billing-core" }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

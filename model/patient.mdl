@@ -84,4 +84,19 @@ domain patient {
     reply
     event
   }
+
+  // Task 9.6: only the create operation is declared here - the API's
+  // GET/search endpoints (apps/api/src/patient.rs) take hand-written query
+  // parameters with no generated projection to bind them to, so they are an
+  // intentional OpenAPI coverage gap (UPSTREAM_FINDINGS.md, Task 9.6 note).
+  api Patient @ 2 {
+    operation "createPatient" {
+      method: POST
+      path: "/api/patients"
+      request: PatientRequest @ 2
+      responses {
+        201: PatientReply @ 2
+      }
+    }
+  }
 }

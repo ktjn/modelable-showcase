@@ -359,3 +359,34 @@ can be generated rather than hand-assembled.
 
 **Acceptance.** The showcase `/health` contract object is built from the
 generated registry for all compiled models, not hand-wired for `patient` only.
+
+---
+
+## FR-14 — Resolve `ref<>` fields to a real component in generated OpenAPI
+
+**Status:** Open. New finding [#35](UPSTREAM_FINDINGS.md#35): the `openapi`
+target emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>`
+fields (e.g. `"$ref": "#/components/schemas/patient.Patient.v2"`), but no
+component schema for a bare entity is ever emitted - only its projections
+(`Db`/`Request`/`Reply`/`Event`) are. Every `ref<>` field in this showcase's
+model (`Appointment.patientId`, `Encounter.appointmentId`,
+`Observation.encounterId`, `Invoice.encounterId`) produces an unresolvable
+reference, so no `ref<>`-bearing projection's OpenAPI schema passes standard
+validation (`openapi-spec-validator` raises `PointerToNowhere`). This is the
+OpenAPI analogue of FR-11's SQL DDL foreign-key friction.
+
+**Friction.** A consumer generating an OpenAPI-derived client/mock/docs page
+for any endpoint whose request or reply carries a `ref<>` field gets a broken
+component graph, with no local workaround other than skipping full-document
+resolution.
+
+**Proposed behavior.** Resolve a `ref<Domain.Entity@N>` field's OpenAPI schema
+to the referenced entity's `@key` field type (its identifier semantic type,
+e.g. `PatientId`) - what the field actually carries on the wire - rather than
+a `$ref` to the entity itself. This mirrors how other targets already treat
+`ref<>`: `sql-postgres` emits a `FOREIGN KEY` to the key column, not the model.
+
+**Acceptance.** `openapi-spec-validator` validates
+`generated/openapi/openapi.json` for a model containing a `ref<>` field with
+no `PointerToNowhere` errors, and the resolved schema for the `ref<>` field
+matches the referenced entity's `@key` type.

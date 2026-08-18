@@ -68,6 +68,22 @@ domain clinical {
     event
   }
 
+  // Task 9.6: only the create operation is declared here - the observation
+  // endpoint (apps/api/src/clinical.rs) takes a hand-written request body
+  // (Observation has no auto projections block to generate a request type
+  // from), an intentional OpenAPI coverage gap (UPSTREAM_FINDINGS.md, Task
+  // 9.6 note).
+  api Encounter @ 1 {
+    operation "createEncounter" {
+      method: POST
+      path: "/api/encounters"
+      request: EncounterRequest @ 1
+      responses {
+        201: EncounterReply @ 1
+      }
+    }
+  }
+
   // FHIR-oriented projections (SPEC.md Sec 6.3): the fhir-profile emitter
   // selects a real R4 base resource only when a projection's *source
   // model name* is exactly Patient, Observation, or Encounter - true

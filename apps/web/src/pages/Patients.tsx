@@ -1,49 +1,54 @@
-import type { PatientPatientV2 } from '@generated/patient.Patient.v2'
-
-// Placeholder data typed against the real Modelable-generated Patient
-// entity shape (UPSTREAM_FINDINGS.md #12/#13 are fixed in 1.8.0, so the
-// entity interface - with its semantic-typed patientId and value-typed
-// contact/address - is importable directly from generated/typescript).
-const placeholderPatient: PatientPatientV2 = {
-  patientId: '9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d',
-  legalName: 'Ada Lovelace',
-  preferredName: 'Ada',
-  dateOfBirth: '1985-06-15',
-  contact: {
-    email: 'front-desk@modelable-clinic.example',
-    phone: '+1-555-0100',
-  },
-  address: {
-    street: '1 Clinic Way',
-    city: 'Springfield',
-    postalCode: '00000',
-    country: 'US',
-  },
-  preferredLanguage: 'en',
-  alternatePhoneNumbers: [],
-  notes: 'Initial consultation',
-  clinicalNotes: 'n/a',
-  createdAt: '2026-08-16T00:00:00Z',
-}
+import { useQuery } from '@tanstack/react-query'
+import { type FormEvent, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { searchPatients, type PatientSearchParams } from '../api/patients'
 
 export function Patients() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState<PatientSearchParams>({})
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['patients', submitted],
+    queryFn: () => searchPatients(submitted),
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSubmitted({ name: name.trim() || undefined, email: email.trim() || undefined })
+  }
+
   return (
     <section>
       <h1>Patients</h1>
-      <p>Patient roster placeholder - populated once the API is available (Phase 9/10).</p>
-      <dl>
-        <dt>Sample patient</dt>
-        <dd>{placeholderPatient.legalName}</dd>
-        <dt>Sample contact</dt>
-        <dd>
-          {placeholderPatient.contact.email} / {placeholderPatient.contact.phone}
-        </dd>
-        <dt>Sample address</dt>
-        <dd>
-          {placeholderPatient.address?.street}, {placeholderPatient.address?.city}{' '}
-          {placeholderPatient.address?.postalCode}, {placeholderPatient.address?.country}
-        </dd>
-      </dl>
+      <p>
+        <Link to="/patients/new">New patient</Link>
+      </p>
+
+      <form onSubmit={handleSubmit}>
+        <label>
+          Name
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Legal name" />
+        </label>
+        <label>
+          Email
+          <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" />
+        </label>
+        <button type="submit">Search</button>
+      </form>
+
+      {isLoading && <p>Loading patients…</p>}
+      {isError && <p role="alert">{error instanceof Error ? error.message : 'Failed to load patients'}</p>}
+      {data && data.length === 0 && <p>No patients found.</p>}
+      {data && data.length > 0 && (
+        <ul>
+          {data.map((patient) => (
+            <li key={patient.patientId}>
+              <Link to={`/patients/${patient.patientId}`}>{patient.legalName}</Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
