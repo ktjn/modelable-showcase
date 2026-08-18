@@ -12,7 +12,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('API client (UPSTREAM_FINDINGS.md #36 camelCase <-> snake_case mapping)', () => {
+describe('API client (UPSTREAM_FINDINGS.md #39 camelCase <-> snake_case mapping)', () => {
   it('post() converts a camelCase request body to snake_case JSON on the wire', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { patient_id: 'p-1', legal_name: 'Ada' }))
     vi.stubGlobal('fetch', fetchMock)

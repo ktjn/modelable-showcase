@@ -8,7 +8,7 @@
 //! have no generated projection to declare an operation against (see the
 //! `api {}` comments in `model/*.mdl`), so they are intentionally excluded.
 //!
-//! UPSTREAM_FINDINGS.md #36: the OpenAPI document's `properties` keys are the
+//! UPSTREAM_FINDINGS.md #39: the OpenAPI document's `properties` keys are the
 //! Modelable source camelCase spelling (`patientId`), but the generated Rust
 //! types' `serde` wire format is snake_case (`patient_id`) with no rename
 //! attribute, so the actual JSON bodies below use snake_case throughout. Each
@@ -90,7 +90,7 @@ async fn post_json(router: &mut Router, uri: &str, body: Value) -> (StatusCode, 
     (status, json)
 }
 
-/// UPSTREAM_FINDINGS.md #36: the API's wire format is snake_case; the
+/// UPSTREAM_FINDINGS.md #39: the API's wire format is snake_case; the
 /// generated OpenAPI schema's `properties` keys are Modelable's source
 /// camelCase. `snake_case_two_words` -> `snakeCaseTwoWords`.
 fn to_camel_case(snake: &str) -> String {

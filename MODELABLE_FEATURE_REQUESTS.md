@@ -39,6 +39,7 @@ reality, which the showcase's flip tests pin exactly.
 | FR-11 | Foreign keys from `ref<>` in generated DDL | Tasks 9.2/9.3 | Partially implemented in v1.8.0 — FKs emitted but broken on new finding #27 |
 | FR-12 | Official event-sink/outbox materialising event projections | Task 9.5 plan | Implemented in v1.8.0 (event-sink target ships) |
 | FR-13 | A generated registry/contract module | Task 9.1 `/health` | Implemented in v1.8.0 (verified: `generated/registry/registry.json`) |
+| FR-14 | Resolve `ref<>` fields to a real component in generated OpenAPI | Finding #38 | Open |
 
 ---
 
@@ -364,7 +365,7 @@ generated registry for all compiled models, not hand-wired for `patient` only.
 
 ## FR-14 — Resolve `ref<>` fields to a real component in generated OpenAPI
 
-**Status:** Open. New finding [#35](UPSTREAM_FINDINGS.md#35): the `openapi`
+**Status:** Open. New finding [#38](UPSTREAM_FINDINGS.md#38): the `openapi`
 target emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>`
 fields (e.g. `"$ref": "#/components/schemas/patient.Patient.v2"`), but no
 component schema for a bare entity is ever emitted - only its projections
