@@ -117,3 +117,14 @@ def test_pinned_content_signature_reference_resolves():
     with tempfile.TemporaryDirectory() as tmp:
         result, _ = compile_fixture(Path(tmp), VALID_DIR / "version-ranges.mdl", "json-schema")
         assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_join_temporal_modifiers_compile():
+    # annotation:latest_only/latest_before/pit_cutoff: proves all three join
+    # modifier annotations (@latestOnly, @pitCutoff(<expr>), @latestBefore
+    # (<expr>)) reach a real emitter without error, not just that they parse.
+    with tempfile.TemporaryDirectory() as tmp:
+        result, out_dir = compile_fixture(Path(tmp), VALID_DIR / "join-temporal-modifiers.mdl", "sql-postgres")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (out_dir / "latesttracking.ThingWithLatestStatus.v1.sql").exists()
+        assert (out_dir / "latesttracking.ThingAsOfCutoff.v1.sql").exists()
