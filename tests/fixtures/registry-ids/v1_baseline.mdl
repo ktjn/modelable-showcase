@@ -1,0 +1,15 @@
+domain thing {
+  owner: "test-team"
+  contact: "test@example.com"
+  description: "Registry-ids evolution fixture, step 1: a single registered semantic type."
+
+  semantic ThingId: uuid(7) {
+    registry: true
+  }
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: ThingId
+    name: string
+  }
+}

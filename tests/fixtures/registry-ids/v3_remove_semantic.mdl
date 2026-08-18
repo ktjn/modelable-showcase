@@ -1,0 +1,15 @@
+domain thing {
+  owner: "test-team"
+  contact: "test@example.com"
+  description: "Registry-ids evolution fixture, step 3: removes the original registered semantic type declaration entirely, orphaning its ledger entry."
+
+  semantic ThingCode: string {
+    registry: true
+  }
+
+  entity Thing @ 1 (additive) {
+    @key
+    code: ThingCode
+    name: string
+  }
+}
