@@ -4,6 +4,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  # IMPLEMENTATION_PLAN.md Task 16.2: makes every job below reusable by
+  # .github/workflows/canary.yml, which calls this workflow with
+  # modelable_ref set to an upstream branch/tag/commit instead of the
+  # pinned .modelable-version release. `modelable_ref` is left unset (empty
+  # string) on ordinary push/pull_request triggers, which is exactly
+  # scripts/install-modelable.sh's own signal to install the pinned release
+  # instead of canary mode - no separate branching needed here.
+  workflow_call:
+    inputs:
+      modelable_ref:
+        description: "Modelable git ref (branch/tag/commit) to install instead of the pinned release. Empty = pinned release."
+        required: false
+        type: string
+        default: ""
 
 # Toolchain pinning (IMPLEMENTATION_PLAN.md Task 16.1): every job pins an
 # exact version so this workflow is deterministic on first implementation -
@@ -18,6 +32,7 @@ env:
   DOTNET_VERSION: "10.0.x"
   JAVA_VERSION: "21"
   GO_VERSION: "1.26.x"
+  MODELABLE_REF: ${{ inputs.modelable_ref }}
 
 jobs:
   model:
