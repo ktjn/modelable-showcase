@@ -54,10 +54,11 @@
 | 38 | [`compile --target openapi` emits a `$ref` to the bare source entity for `ref<Domain.Entity@N>` fields, but no component schema exists for a bare entity - the reference is unresolvable](#38-compile---target-openapi-emits-a-ref-to-the-bare-source-entity-for-refdomainentityn-fields-but-no-component-schema-exists-for-a-bare-entity---the-reference-is-unresolvable) | Invalid generated output | A | Fixed in v1.9.4 |
 | 39 | [`compile --target openapi` emits Modelable-source camelCase property names while `compile --target rust` emits the language-idiomatic snake_case field names as-is on the wire - the two targets disagree about the same model's JSON contract](#39-compile---target-openapi-emits-modelable-source-camelcase-property-names-while-compile---target-rust-emits-the-language-idiomatic-snake_case-field-names-as-is-on-the-wire---the-two-targets-disagree-about-the-same-models-json-contract) | Inconsistent behavior | A | Fixed in v1.9.4 |
 | 40 | [`compile --target typescript` never marks an optional field `?:` - every field is emitted as required, even `@server` fields and explicit `?` fields](#40-compile---target-typescript-never-marks-an-optional-field--every-field-is-emitted-as-required-even-server-fields-and-explicit--fields) | Missing feature (broken generated code) | A | Fixed in v1.9.4 |
-| 41 | [`compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails](#41-compile---target-sql-clickhouse-emits-a-bloom_filter-secondary-index-on-a-composite-index-that-includes-a-datetime64-column---create-table-succeeds-but-every-insert-into-the-table-fails) | Invalid generated output | A | Open |
-| 42 | [`modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt](#42-modelable-capabilities---format-json-reports-annotationcustom-as-status-implemented-but-the-grammar-has-no-production-that-reaches-it---custom-is-a-hard-parse-error-on-every-attempt) | Inconsistent behavior | A | Open |
-| 43 | [`compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs for which no `StructureDefinition` is ever emitted at all](#43-compile---target-fhir-profile-emits-extension-sidecar-structuredefinitions-that-fail-the-official-hl7-fhir-validator-and-references-two-annotation-marker-extension-urls-piiclassification-for-which-no-structuredefinition-is-ever-emitted-at-all) | Invalid generated output | A | Open |
-| 44 | [`compile --target avro` crashes on any field with a default value - `TypeError: cannot use 'dict' as a set element`](#44-compile---target-avro-crashes-on-any-field-with-a-default-value---typeerror-cannot-use-dict-as-a-set-element) | Crash | A | Open — found on upstream `main`, not present on pinned `1.9.4` |
+| 41 | [`compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails](#41-compile---target-sql-clickhouse-emits-a-bloom_filter-secondary-index-on-a-composite-index-that-includes-a-datetime64-column---create-table-succeeds-but-every-insert-into-the-table-fails) | Invalid generated output | A | Fix verified in [PR #417](https://github.com/ktjn/modelable/pull/417) (draft) |
+| 42 | [`modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt](#42-modelable-capabilities---format-json-reports-annotationcustom-as-status-implemented-but-the-grammar-has-no-production-that-reaches-it---custom-is-a-hard-parse-error-on-every-attempt) | Inconsistent behavior | A | Fix verified in [PR #417](https://github.com/ktjn/modelable/pull/417) (draft) |
+| 43 | [`compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs for which no `StructureDefinition` is ever emitted at all](#43-compile---target-fhir-profile-emits-extension-sidecar-structuredefinitions-that-fail-the-official-hl7-fhir-validator-and-references-two-annotation-marker-extension-urls-piiclassification-for-which-no-structuredefinition-is-ever-emitted-at-all) | Invalid generated output | A | Partially fixed in [PR #417](https://github.com/ktjn/modelable/pull/417) (draft) — see [## 45](#45-compile---target-fhir-profile-emits-extensionurl-elements-with-no-explicit-type-so-snapshot-generation-still-fails-the-official-hl7-fhir-validator-even-after-417) |
+| 44 | [`compile --target avro` crashes on any field with a default value - `TypeError: cannot use 'dict' as a set element`](#44-compile---target-avro-crashes-on-any-field-with-a-default-value---typeerror-cannot-use-dict-as-a-set-element) | Crash | A | Fix verified in [PR #417](https://github.com/ktjn/modelable/pull/417) (draft); found on upstream `main`, not present on pinned `1.9.4` |
+| 45 | [`compile --target fhir-profile` emits `Extension.url` elements with no explicit type, so snapshot generation still fails the official HL7 FHIR Validator even after #417](#45-compile---target-fhir-profile-emits-extensionurl-elements-with-no-explicit-type-so-snapshot-generation-still-fails-the-official-hl7-fhir-validator-even-after-417) | Invalid generated output | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -1908,7 +1909,7 @@ web client.
 
 ## 41. `compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails
 
-**Status:** Open.
+**Status:** Fix pending upstream review - [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417) (draft, not yet merged as of this note). Verified by installing that exact PR branch (`git+https://github.com/ktjn/modelable@agent/fix-showcase-gaps#subdirectory=cli`) and re-running this finding's own reproduction: `_clickhouse_secondary_index_type()` now inspects every field's ClickHouse base type and falls back to `minmax` whenever any of them starts with `DateTime`, otherwise keeps `bloom_filter` (`emitters/sql.py`). Re-compiled this showcase's real `model/` with that branch - `billing.InvoiceEvent.v2`'s `idx_by_patient (patient_id, issued_at)` now emits `TYPE minmax`, and a real `INSERT` against that DDL on the pinned ClickHouse 24.8 image succeeds. Not yet re-pinned here since the fix is still a draft PR upstream, not a release.
 
 **Discovered:** Task 13.1 (LSP harness), while re-running the full test suite after re-pinning to v1.9.4. `tests/integration/test_clickhouse_generated_schema.py::test_insert_and_query_back_synthetic_report_rows` started failing with no changes to the showcase's own code - the only change was v1.9.4 newly emitting ClickHouse secondary indexes at all (previously a deferred capability, see `tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_now_emitted`).
 
@@ -1947,7 +1948,7 @@ Code: 36. DB::Exception: Received from localhost:9000. DB::Exception: Unexpected
 
 ## 42. `modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt
 
-**Status:** Open.
+**Status:** Fix pending upstream review - [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417) (draft, not yet merged as of this note). Verified by installing that exact PR branch and re-running this finding's own reproduction: `modelable.lark`'s `annotation` production gained `"@custom" "(" (IDENT | ESCAPED_STRING) ["," ANNOTATION_EXPR] ")" -> ann_custom`, and the canonical renderer (`compiler/render.py`) now round-trips it back to source text. `modelable validate` on this finding's exact fixture (`@custom("foo", "bar")` on a field) now succeeds where it previously hard-failed with a parse error. Not yet re-pinned here since the fix is still a draft PR upstream, not a release; `tests/conformance/capability-coverage.yaml`'s `annotation:custom` entry stays `excluded` until it is.
 
 **Discovered:** Task 17.1 (finalize command façade), resolving the last `check-capability-coverage.py --strict` gaps before enabling strict mode for good. `annotation:custom` had no manifest entry; while writing a fixture to cover it, every syntax attempt for `@custom(...)` failed to parse.
 
@@ -1989,7 +1990,9 @@ A hard grammar-level parse error - `@custom` is not a recognized annotation toke
 
 ## 43. `compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs (`.../pii`, `.../classification`) for which no `StructureDefinition` is ever emitted at all
 
-**Status:** Open.
+**Status:** Partially fixed by [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417) (draft, not yet merged as of this note) - both defects originally described here are genuinely resolved, but re-running the real HL7 FHIR Validator against that branch's output surfaces a further, previously-masked defect. See [## 45](#45-compile---target-fhir-profile-emits-extensionurl-elements-with-no-explicit-type-so-snapshot-generation-still-fails-the-official-hl7-fhir-validator-even-after-417) for that residual - this entry's own two defects are confirmed closed by the PR as far as they were originally scoped.
+
+Verified by installing the exact PR branch (`git+https://github.com/ktjn/modelable@agent/fix-showcase-gaps#subdirectory=cli`) and recompiling this showcase's real `model/`: every extension `StructureDefinition` (`_emit_extension_sd` and the two new shared `_emit_annotation_extension_sd` artifacts) now sets `"baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension"` and `"derivation": "constraint"` (defect 1, fixed), and `pii.fhir.json`/`classification.fhir.json` are now emitted as real top-level artifacts referenced by every `@pii`/`@classification`-annotated field's profile (defect 2, fixed). Running the pinned HL7 FHIR Validator (`6.10.2`) against the PR branch's output for `clinical.PatientFhirView.v1` no longer reports either of this finding's original two error signatures (`sdf-4`/`sdf-8b`/"type Extension can only be used..." and "extension ... could not be found") - but still fails validation overall, for the different reason logged as #45.
 
 **Discovered:** Task 15.4 (HL7 FHIR Validator smoke), running the real official validator (`org.hl7.fhir.core` `validator_cli.jar`, pinned `6.10.2`) against the representative Patient/Observation/Encounter profiles for the first time - no prior task in this showcase had run the actual HL7 validator, only structural JSON checks (`test_fhir_profiles_are_valid_structuredefinition_json`).
 
@@ -2035,7 +2038,7 @@ The same two error shapes reproduce identically for `clinical.ObservationFhirVie
 
 ## 44. `compile --target avro` crashes on any field with a default value whose Avro type schema is a JSON object rather than a bare type-name string - `TypeError: cannot use 'dict' as a set element`
 
-**Status:** Open. Found on upstream `main` (a target this showcase does not otherwise exercise, since `avro` did not exist as a capability on the pinned `1.9.4` release at all - `modelable capabilities --format json` reports 20 implemented targets on `1.9.4`, not including `avro`). Not present on the pinned release for the trivial reason that the target itself is new; this is the canary workflow (Task 16.2) working exactly as designed - discovered on the very first manual canary run, before any re-pin adopts this target.
+**Status:** Fix pending upstream review - [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417) (draft, not yet merged as of this note). Verified by installing that exact PR branch and re-running this finding's own reproduction: `_parse_default` now guards the set-membership check with `isinstance(schema, str) and ...` before testing `schema in {"int", "long", "float", "double"}`, so a `dict`-shaped logical-type schema (e.g. `decimal`) falls through instead of raising. Re-ran the exact fixture from this finding's reproduction below - compiles cleanly, no traceback. Found on upstream `main` in the first place because `avro` did not exist as a capability on the pinned `1.9.4` release at all (`modelable capabilities --format json` reports 20 implemented targets on `1.9.4`, not including `avro`) - this is the canary workflow (Task 16.2) working exactly as designed, discovered on the very first manual canary run, before any re-pin adopts this target.
 
 **Discovered:** Task 16.2 acceptance runs - `.github/workflows/canary.yml` manually triggered against upstream `main` (and, separately, against the exact commit `main` resolved to at trigger time, `0f094cce45285a67380aa23143f8d433d095292c`) both failed identically at the `generate` job, cascading into every other job in the reusable `ci.yml` acceptance suite (all of which run `make generate` before their own work).
 
@@ -2090,3 +2093,52 @@ Confirmed by reading the actually-emitted Avro schema for the same field with no
 **Expected:** `_parse_default` should check `isinstance(schema, str)` (or equivalent) before the set-membership test, so a logical-type/complex `dict` schema falls through to whatever this function's non-primitive-type branch is meant to do (which may itself need a real implementation for decimal/date/timestamp/uuid defaults, not just a crash-free no-op) rather than raising an unhandled `TypeError`.
 
 **Showcase workaround:** None needed - `avro` is not (yet) an implemented target on the pinned `1.9.4` release this showcase depends on, so no `.mdl` file, generation step, or test in this repository is affected today. Logged here purely as a canary finding (`UPSTREAM_POLICY.md` §6 Case A) so it is not rediscovered from scratch when a future re-pin adopts a release that includes the `avro` target.
+
+## 45. `compile --target fhir-profile` emits `Extension.url` elements with no explicit type, so snapshot generation still fails the official HL7 FHIR Validator even after #417
+
+**Status:** Open. A residual defect surfaced only by re-validating [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417)'s fix for #43 against the real HL7 FHIR Validator - #417 does not claim to fix this (it is not mentioned in the PR description or its own test assertions, which only check `baseDefinition`/`derivation`/`context`/`base` on the elements it added, never run the actual validator).
+
+**Discovered:** Reviewing PR #417 for this showcase's own logged findings. Installing that exact branch (`git+https://github.com/ktjn/modelable@agent/fix-showcase-gaps#subdirectory=cli`), recompiling this showcase's real `model/` to `fhir-profile`, and running the pinned HL7 FHIR Validator (`6.10.2`) against the output no longer reproduces #43's two original error signatures, but still fails validation for a different reason that #43's validator run never reached (short-circuited earlier by the more fundamental `baseDefinition` errors #417 fixes).
+
+**Reproduction:**
+
+```bash
+uv tool install --force --python 3.14 "git+https://github.com/ktjn/modelable@agent/fix-showcase-gaps#subdirectory=cli"
+modelable compile ./model --target fhir-profile --out /tmp/fhir-out --registry /tmp/reg.db --registry-ids /tmp/ids.lock
+java -jar tools/validator_cli.jar \
+  /tmp/fhir-out/clinical.PatientFhirView.v1.fhir.json \
+  /tmp/fhir-out/clinical.PatientFhirView.v1.ext.patientId.fhir.json \
+  /tmp/fhir-out/clinical.PatientFhirView.v1.ext.legalName.fhir.json \
+  /tmp/fhir-out/clinical.PatientFhirView.v1.ext.dateOfBirth.fhir.json \
+  /tmp/fhir-out/pii.fhir.json \
+  /tmp/fhir-out/classification.fhir.json \
+  -version 4.0.1
+```
+
+**Observed:**
+
+```text
+-- clinical.PatientFhirView.v1.ext.patientId.fhir.json --
+*FAILURE*: 3 errors, 2 warnings
+Error @ StructureDefinition.snapshot: Constraint failed: sdf-3: 'Each element definition in a snapshot must have a formal definition and cardinalities'
+Error @ StructureDefinition: Error generating Snapshot: StructureDefinition .../clinical.PatientFhirView.v1.ext.patientId at Extension.value[x]: invalid constrained type BackboneElement from base64Binary, boolean, canonical, ... in http://hl7.org/fhir/StructureDefinition/Extension
+Error @ StructureDefinition.snapshot.element[1]: The element Extension.url has no assigned types, and no content reference
+
+-- pii.fhir.json / classification.fhir.json --
+*FAILURE*: 1 errors, 2 warnings
+Error @ StructureDefinition.snapshot.element[1]: The element Extension.url has no assigned types, and no content reference
+
+-- clinical.PatientFhirView.v1.fhir.json --
+*FAILURE*: 5 errors, 1 warnings, 1 notes
+Error @ StructureDefinition.differential.element[1]: No match found for Patient.contact in the generated snapshot: check that the path and definitions are legal in the differential (including order)
+Error @ StructureDefinition: The profile ...clinical.PatientFhirView.v1 has 1 element in the differential (id: Patient.contact) that don't have a matching element in the snapshot
+Error @ StructureDefinition.snapshot.element[2]: The element Patient.extension has no assigned types, and no content reference
+```
+
+Every extension `StructureDefinition` this emitter produces (both `_emit_extension_sd`'s per-field extensions and #417's new `_emit_annotation_extension_sd` shared `pii`/`classification` extensions) declares an `Extension.url` element (with `fixedUri` set) but never gives it an explicit `"type"` array. FHIR's own base `Extension.url` element is typed `uri`; a constraining profile that overrides `fixedUri` still needs to either inherit or restate that type for the validator's snapshot generator to resolve `Extension.value[x]`'s base correctly - without it, snapshot generation aborts with "has no assigned types, and no content reference," which cascades into every dependent validation (including the top-level profile's own `Patient.contact`/`Patient.extension` differential-vs-snapshot match, since the extension's snapshot never successfully generates for the profile to constrain against).
+
+**Root cause (read from source, not guessed - `emitters/fhir.py` on PR #417's branch):** `_emit_extension_sd`'s `elements` list sets `"id": "Extension.url"`, `"path": "Extension.url"`, `"min": 1`, `"max": "1"`, `"fixedUri": ext_url` - no `"type"` key. `_emit_annotation_extension_sd` (#417's new function for the shared `pii`/`classification` extensions) has the identical gap on its own `Extension.url` element. Neither function's `_add_extension_bases` helper (also added by #417, which backfills `min`/`max`/`base`) touches `type` either.
+
+**Expected:** both `_emit_extension_sd` and `_emit_annotation_extension_sd` should add `"type": [{"code": "uri"}]` to their `Extension.url` element, matching the base `Extension.url` element's own declared type, so the official HL7 FHIR Validator's snapshot generator can resolve it and the full generated `fhir-profile` set validates with zero errors - not just the two defects #43/#417 already address.
+
+**Showcase workaround:** None yet - `tests/integration/test_generated_artifacts.py::test_fhir_profiles_pass_the_hl7_validator` still pins the pinned-`1.9.4` failure signatures from #43 (unaffected by this finding, since the showcase has not re-pinned to #417's unreleased branch). Will need updating once a release including #417 is adopted, to pin *this* finding's failure signature instead until #45 is also fixed.
