@@ -24,17 +24,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # RENOVATE_TOKEN must be a PAT (repo-scoped classic, or fine-grained
-      # with contents:write + pull-requests:write), not the default
+      # `token` must be a PAT (repo-scoped classic, or fine-grained with
+      # contents:write + pull-requests:write - a classic token is still the
+      # safer default per this action's own README: fine-grained tokens
+      # only gained GitHub GraphQL support recently and still have gaps
+      # around Checks access, which can break automerge), not the default
       # GITHUB_TOKEN: GitHub does not fire pull_request-triggered workflows
       # (ci.yml) for PRs authored with GITHUB_TOKEN, which would silently
       # leave every Renovate PR's checks stuck pending and automerge never
       # firing. Add it under Settings > Secrets and variables > Actions.
+      #
+      # Passed via the `token` input (not a RENOVATE_TOKEN env var) to match
+      # this action's own documented usage exactly, rather than relying on
+      # its env-regex passthrough behaving the same way.
       - name: Self-hosted Renovate
-        uses: renovatebot/github-action@v41.0.4
+        uses: renovatebot/github-action@v46.2.2
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+          renovate-version: "44.34.3"
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_PLATFORM: github
-          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_AUTODISCOVER: "false"
           LOG_LEVEL: info
