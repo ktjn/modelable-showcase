@@ -13,15 +13,21 @@ than hard errors. Two halves of the current reality are asserted:
   (`dataclasses.asdict`, then a real `json.dumps`).
 
 - What is broken (flip signal): resolving a field's annotation with
-  `typing.get_type_hints` raises NameError whenever it references a value type
-  or a semantic type - value types are referenced by their short source name
-  while defined under the stable <Domain><Name>V<version> name (finding #19),
-  and semantic types are referenced but never emitted at all (finding #20).
-  Both are real, logged upstream findings - UPSTREAM_FINDINGS.md #19/#20 -
-  broken on the pinned release AND on upstream `main` (verified there: the
-  emitter is byte-identical). These assertions must be updated (and the entity
-  annotations expected to resolve) once Modelable is re-pinned past a release
-  that fixes either finding.
+  `typing.get_type_hints` raises NameError whenever it references a value
+  type - value types are emitted under their stable <Domain><Name>V<version>
+  name in a sibling file, but nothing that references one ever imports it
+  (finding #19/#30). Re-verified against the current pin (1.9.4): the
+  semantic-type half of #19/#20 is no longer reproducible this way - a
+  semantic-typed field (e.g. `clinical.Encounter.patientId`) is now emitted
+  as its bare underlying primitive (`patientId: UUID`) rather than an
+  unimported semantic-type name, so it resolves fine either way. The value-
+  type half is unchanged: `clinical.Encounter.diagnoses` (same domain) and
+  `patient.Patient.contact` (same domain) both still reference an unimported
+  stable name (`ClinicalDiagnosisV0`, `PatientContactDetailsV0`) and still
+  raise NameError - contradicts UPSTREAM_FINDINGS.md #19's "Fixed... for
+  same-module references" claim, which was verified only against a value
+  type's own file self-resolving (this file's test_value_type_annotations_resolve,
+  still true), never against a sibling file that actually references one.
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ import pytest
 
 from billing import billing_invoice_line_v0
 from clinical import clinical_diagnosis_v0
+from clinical import clinical_encounter_v1
 from patient import patient_address_v0
 from patient import patient_contact_details_v0
 from patient import patient_patient_v2
@@ -137,12 +144,46 @@ def test_value_type_annotations_resolve():
     assert hints == {"street": str, "city": str, "postalCode": str, "country": str}
 
 
-def test_value_and_semantic_typed_annotations_currently_do_not_resolve():
-    # PatientPatientV2's annotations reference PatientId (#20: semantic types are
-    # referenced but never emitted), ContactDetails and Address (#19: value types
-    # are referenced by short source name but defined as PatientContactDetailsV0 /
-    # PatientAddressV0). Resolving them must raise NameError under the pinned
-    # release; this is the flip signal for both findings.
+def test_value_typed_annotations_currently_do_not_resolve():
+    # PatientPatientV2.contact references patient.ContactDetails, emitted
+    # under the stable name PatientContactDetailsV0 in a sibling file
+    # (patient_contact_details_v0.py) that patient_patient_v2.py never
+    # imports. Resolving the annotation must raise NameError under the
+    # pinned release (UPSTREAM_FINDINGS.md #19/#30); this is the flip
+    # signal - PatientContactDetailsV0 is the first unresolvable name
+    # `typing.get_type_hints` hits (fields are resolved in declaration
+    # order, and `contact` comes before the optional `address`).
     with pytest.raises(NameError) as excinfo:
         typing.get_type_hints(patient_patient_v2.PatientPatientV2)
-    assert excinfo.value.name in {"PatientId", "ContactDetails", "Address"}, excinfo.value
+    assert excinfo.value.name == "PatientContactDetailsV0", excinfo.value
+
+
+def test_semantic_typed_annotations_now_emit_as_bare_primitives():
+    # As of the pinned 1.9.4 release, a cross-domain semantic-typed field is
+    # emitted as its bare underlying primitive rather than an unimported
+    # semantic-type name (clinical.Encounter.patientId/practitionerId are
+    # semantic-typed refs to patient.PatientId/scheduling.PractitionerId in
+    # model/clinical.mdl, but generated/python/clinical/clinical_encounter_v1.py
+    # declares them `patientId: UUID`/`practitionerId: UUID`) - this sidesteps
+    # the original NameError from UPSTREAM_FINDINGS.md #20's reproduction,
+    # though it is a representation change rather than an import fix.
+    #
+    # Checked as a raw `__annotations__` string, not via `typing.get_type_hints`:
+    # the class also has an unrelated broken value-type field (`diagnoses`,
+    # see test_same_domain_value_typed_annotation_also_does_not_resolve
+    # below), and `get_type_hints` evaluates every field together, so it
+    # raises on that field before this one could be checked in isolation.
+    annotations = clinical_encounter_v1.ClinicalEncounterV1.__annotations__
+    assert annotations["patientId"] == "UUID"
+    assert annotations["practitionerId"] == "UUID"
+
+
+def test_same_domain_value_typed_annotation_also_does_not_resolve():
+    # clinical.Encounter.diagnoses references clinical.Diagnosis, emitted
+    # under the stable name ClinicalDiagnosisV0 in a sibling file within the
+    # *same* domain (clinical_diagnosis_v0.py) that
+    # clinical_encounter_v1.py never imports - proves the missing-import gap
+    # is not specific to patient.Patient/cross-file coincidence.
+    with pytest.raises(NameError) as excinfo:
+        typing.get_type_hints(clinical_encounter_v1.ClinicalEncounterV1)
+    assert excinfo.value.name == "ClinicalDiagnosisV0", excinfo.value
