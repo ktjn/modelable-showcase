@@ -255,8 +255,8 @@ jobs:
         run: make bootstrap
       - name: make generate
         run: make generate
-      - name: Apply generated schema (apps/api's tests expect it to already exist)
-        run: . ./scripts/modelable-env.sh && uv run scripts/setup-e2e-database.py
+      - name: Apply full generated schema (apps/api's tests expect it to already exist)
+        run: . ./scripts/modelable-env.sh && uv run scripts/setup-full-database.py
       - name: cargo test apps/api
         run: cargo test --manifest-path apps/api/Cargo.toml
       - name: apps/web install
