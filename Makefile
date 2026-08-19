@@ -6,7 +6,7 @@
 SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance clean up down modelable-version
+.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report clean up down modelable-version
 
 GENERATED_DIRS := generated dist .modelable
 CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist .pytest_cache
@@ -34,6 +34,7 @@ help:
 	@echo "  e2e              Compose + Playwright"
 	@echo "  determinism      double-generation hash comparison"
 	@echo "  acceptance       all required non-optional gates"
+	@echo "  coverage-report  print upstream capability coverage table"
 	@echo "  clean            remove disposable build/test output"
 	@echo "  up               docker compose up --build"
 	@echo "  down             docker compose down"
@@ -127,6 +128,9 @@ acceptance:
 	$(MAKE) integration
 	$(MAKE) e2e
 	@. ./scripts/modelable-env.sh; uv run pytest -q tests/integration/test_lsp_smoke.py
+
+coverage-report:
+	@. ./scripts/modelable-env.sh; uv run scripts/coverage-report.py
 
 up:
 	docker compose up --build -d
