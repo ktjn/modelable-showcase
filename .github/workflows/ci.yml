@@ -35,8 +35,121 @@ env:
   MODELABLE_REF: ${{ inputs.modelable_ref }}
 
 jobs:
+  # Path-based job gating: each job below only runs if its own inputs
+  # changed, so an apps/web-only PR doesn't also pay for rust/java/go
+  # toolchain setup and generation. `shared` (aliased into every other
+  # filter) covers anything that can ripple into *every* generated target -
+  # the .mdl model itself, the pinned toolchain versions, the shared
+  # generate/determinism scripts, and this workflow file - so a change
+  # there still runs the full matrix, same as before this job existed.
+  #
+  # This filtering only applies to `push`/`pull_request` triggers, which are
+  # the only ones with a real "changed since what" diff. canary.yml's
+  # workflow_call invocation is testing the *same* model against a
+  # different Modelable compiler build, not a code diff - there is nothing
+  # to filter, and skipping jobs there would defeat the point of a canary
+  # run - so every filter output defaults to true for any other trigger.
+  changes:
+    name: detect changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      model: ${{ steps.filter.outputs.model || steps.fallback.outputs.model }}
+      generate: ${{ steps.filter.outputs.generate || steps.fallback.outputs.generate }}
+      rust: ${{ steps.filter.outputs.rust || steps.fallback.outputs.rust }}
+      csharp: ${{ steps.filter.outputs.csharp || steps.fallback.outputs.csharp }}
+      java: ${{ steps.filter.outputs.java || steps.fallback.outputs.java }}
+      python_lang: ${{ steps.filter.outputs.python_lang || steps.fallback.outputs.python_lang }}
+      go: ${{ steps.filter.outputs.go || steps.fallback.outputs.go }}
+      protobuf_grpc: ${{ steps.filter.outputs.protobuf_grpc || steps.fallback.outputs.protobuf_grpc }}
+      databases: ${{ steps.filter.outputs.databases || steps.fallback.outputs.databases }}
+      product: ${{ steps.filter.outputs.product || steps.fallback.outputs.product }}
+      e2e: ${{ steps.filter.outputs.e2e || steps.fallback.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+      - name: Path filters
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            shared: &shared
+              - 'model/**'
+              - '.modelable-version'
+              - '.protoc-version'
+              - 'Makefile'
+              - 'scripts/generate-all.py'
+              - 'scripts/check-determinism.py'
+              - 'scripts/modelable-env.sh'
+              - 'scripts/install-modelable.sh'
+              - 'scripts/install-protoc.sh'
+              - '.github/workflows/ci.yml'
+            model:
+              - *shared
+              - 'tests/conformance/**'
+              - 'scripts/check-capability-coverage.py'
+            generate:
+              - *shared
+            rust:
+              - *shared
+              - 'apps/api/**'
+              - 'tests/integration/test_rust_codegen.py'
+            csharp:
+              - *shared
+              - 'probes/csharp/**'
+              - 'tests/integration/test_csharp_codegen.py'
+            java:
+              - *shared
+              - 'probes/java/**'
+              - 'tests/integration/test_java_codegen.py'
+            python_lang:
+              - *shared
+              - 'probes/python/**'
+              - 'tests/integration/test_python_codegen.py'
+            go:
+              - *shared
+              - 'probes/go/**'
+              - 'tests/integration/test_go_codegen.py'
+            protobuf_grpc:
+              - *shared
+              - 'tests/integration/test_protobuf_codegen.py'
+            databases:
+              - *shared
+              - 'tests/integration/test_postgres_generated_schema.py'
+              - 'tests/integration/test_clickhouse_generated_schema.py'
+              - 'tests/integration/test_openapi_checkpoint.py'
+              - 'tests/integration/test_openapi_contract.py'
+              - 'tests/conformance/test_registry_ids.py'
+              - 'scripts/setup-full-database.py'
+              - 'docker-compose.yml'
+            product:
+              - *shared
+              - 'apps/api/**'
+              - 'apps/web/**'
+              - 'docker-compose.yml'
+              - 'scripts/setup-full-database.py'
+            e2e:
+              - *shared
+              - 'apps/api/**'
+              - 'apps/web/**'
+              - 'tests/e2e/**'
+              - 'docker-compose.yml'
+              - 'scripts/setup-e2e-database.py'
+      - name: Run everything (non-push/pull_request trigger, e.g. canary)
+        if: github.event_name != 'push' && github.event_name != 'pull_request'
+        id: fallback
+        run: |
+          for name in model generate rust csharp java python_lang go protobuf_grpc databases product e2e; do
+            echo "${name}=true" >> "$GITHUB_OUTPUT"
+          done
+
   model:
     name: model (validate + compat)
+    needs: changes
+    if: needs.changes.outputs.model == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +163,8 @@ jobs:
 
   generate:
     name: generate (+ determinism)
+    needs: changes
+    if: needs.changes.outputs.generate == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +200,8 @@ jobs:
 
   lang-rust:
     name: languages / rust
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,6 +218,8 @@ jobs:
 
   lang-csharp:
     name: languages / csharp
+    needs: changes
+    if: needs.changes.outputs.csharp == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -119,6 +238,8 @@ jobs:
 
   lang-java:
     name: languages / java
+    needs: changes
+    if: needs.changes.outputs.java == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,6 +260,8 @@ jobs:
 
   lang-python:
     name: languages / python
+    needs: changes
+    if: needs.changes.outputs.python_lang == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -155,6 +278,8 @@ jobs:
 
   lang-go:
     name: languages / go
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -174,6 +299,8 @@ jobs:
 
   lang-protobuf-grpc:
     name: languages / protobuf-grpc
+    needs: changes
+    if: needs.changes.outputs.protobuf_grpc == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -189,6 +316,8 @@ jobs:
 
   databases:
     name: databases (generated schema + DB-backed integration tests)
+    needs: changes
+    if: needs.changes.outputs.databases == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -231,6 +360,8 @@ jobs:
 
   product:
     name: product (apps/api + apps/web)
+    needs: changes
+    if: needs.changes.outputs.product == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -291,6 +422,8 @@ jobs:
 
   e2e:
     name: e2e (Compose + Playwright)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
