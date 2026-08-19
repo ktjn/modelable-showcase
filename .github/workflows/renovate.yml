@@ -1,0 +1,40 @@
+name: Renovate
+
+# Self-hosted weekly run (repo's own workflow, not the Renovate GitHub App -
+# nothing else in this repo depends on that app being installed). Config
+# lives in renovate.json at the repo root: every ecosystem Renovate can
+# detect here (npm, cargo, pip/pep621, gomod, maven, nuget, dockerfile,
+# docker-compose, github-actions) is enabled, and every PR it opens is set
+# to auto-merge once CI (.github/workflows/ci.yml, already pull_request-
+# triggered) passes - no manual approval step by default.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC, matching renovate.json's schedule
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # RENOVATE_TOKEN must be a PAT (repo-scoped classic, or fine-grained
+      # with contents:write + pull-requests:write), not the default
+      # GITHUB_TOKEN: GitHub does not fire pull_request-triggered workflows
+      # (ci.yml) for PRs authored with GITHUB_TOKEN, which would silently
+      # leave every Renovate PR's checks stuck pending and automerge never
+      # firing. Add it under Settings > Secrets and variables > Actions.
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@v41.0.4
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_AUTODISCOVER: "false"
+          LOG_LEVEL: info

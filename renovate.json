@@ -1,0 +1,67 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "UTC",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "dependencyDashboard": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ]
+  },
+  "npm": {
+    "enabled": true
+  },
+  "cargo": {
+    "enabled": true
+  },
+  "pip_requirements": {
+    "enabled": true
+  },
+  "pep621": {
+    "enabled": true
+  },
+  "pip_setup": {
+    "enabled": true
+  },
+  "gomod": {
+    "enabled": true
+  },
+  "maven": {
+    "enabled": true
+  },
+  "nuget": {
+    "enabled": true
+  },
+  "dockerfile": {
+    "enabled": true
+  },
+  "docker-compose": {
+    "enabled": true
+  },
+  "github-actions": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "matchPackageNames": ["*"],
+      "automerge": true,
+      "automergeType": "branch",
+      "platformAutomerge": true
+    }
+  ],
+  "ignorePaths": [
+    "generated/**",
+    "**/node_modules/**",
+    "**/target/**",
+    "**/dist/**",
+    "**/.modelable/**"
+  ]
+}
