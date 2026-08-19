@@ -1,3 +1,10 @@
+# Recipes here use bash-only constructs (scripts/modelable-env.sh's
+# ${var:=default}/case pattern matching, `( subshell; ) ; status=$?`), and
+# Make's default SHELL is /bin/sh - dash on Debian/Ubuntu, which chokes on
+# some of that ("Bad substitution"). Force bash explicitly rather than
+# rewriting every recipe to be POSIX-sh-safe.
+SHELL := /bin/bash
+
 .DEFAULT_GOAL := help
 .PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance clean up down modelable-version
 
@@ -98,7 +105,7 @@ integration-marquez:
 	@. ./scripts/modelable-env.sh; uv run pytest -q tests/integration/test_marquez_lineage_sync.py
 	docker compose stop marquez marquez-db
 
-e2e:
+e2e: generate
 	docker compose down -v
 	docker compose up --build -d
 	@. ./scripts/modelable-env.sh; uv run scripts/setup-e2e-database.py
