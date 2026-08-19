@@ -57,6 +57,7 @@
 | 41 | [`compile --target sql-clickhouse` emits a `bloom_filter` secondary index on a composite index that includes a `DateTime64` column - `CREATE TABLE` succeeds but every `INSERT` into the table fails](#41-compile---target-sql-clickhouse-emits-a-bloom_filter-secondary-index-on-a-composite-index-that-includes-a-datetime64-column---create-table-succeeds-but-every-insert-into-the-table-fails) | Invalid generated output | A | Open |
 | 42 | [`modelable capabilities --format json` reports `annotation:custom` as `"status": "implemented"`, but the grammar has no production that reaches it - `@custom(...)` is a hard parse error on every attempt](#42-modelable-capabilities---format-json-reports-annotationcustom-as-status-implemented-but-the-grammar-has-no-production-that-reaches-it---custom-is-a-hard-parse-error-on-every-attempt) | Inconsistent behavior | A | Open |
 | 43 | [`compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs for which no `StructureDefinition` is ever emitted at all](#43-compile---target-fhir-profile-emits-extension-sidecar-structuredefinitions-that-fail-the-official-hl7-fhir-validator-and-references-two-annotation-marker-extension-urls-piiclassification-for-which-no-structuredefinition-is-ever-emitted-at-all) | Invalid generated output | A | Open |
+| 44 | [`compile --target avro` crashes on any field with a default value - `TypeError: cannot use 'dict' as a set element`](#44-compile---target-avro-crashes-on-any-field-with-a-default-value---typeerror-cannot-use-dict-as-a-set-element) | Crash | A | Open — found on upstream `main`, not present on pinned `1.9.4` |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -2031,3 +2032,61 @@ The same two error shapes reproduce identically for `clinical.ObservationFhirVie
 **Expected:** (1) `_emit_extension_sd` should set `"baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension"` and `"derivation": "constraint"` on every emitted extension `StructureDefinition`, matching how every other FHIR profile/extension in the wild is structured; (2) the `fhir-profile` target should also emit `pii.fhir.json`/`classification.fhir.json` (or equivalent) `StructureDefinition` artifacts for the two fixed annotation-marker extension URLs it references, so the full generated `fhir-profile` set - profile plus every extension it points at - validates against the official HL7 FHIR Validator with zero errors.
 
 **Showcase workaround:** `scripts/install-fhir-validator.sh` installs a pinned (`.fhir-validator-version` = `6.10.2`), checksum-verified copy of the real validator; `scripts/validate-fhir-profiles.py` runs it against the three representative Patient/Observation/Encounter profiles (skipping cleanly if Java or the jar isn't available - this is Task 15.4's optional profile, not part of `make acceptance`). `tests/integration/test_generated_artifacts.py::test_fhir_profiles_pass_the_hl7_validator` pins the current reality as an explicit flip test - all three representative profiles are asserted to fail validation with these exact error signatures - rather than a permanent workaround script that rewrites the generated FHIR output (`UPSTREAM_POLICY.md` §7). This is Case A per `UPSTREAM_POLICY.md` §6 - fix upstream first.
+
+## 44. `compile --target avro` crashes on any field with a default value whose Avro type schema is a JSON object rather than a bare type-name string - `TypeError: cannot use 'dict' as a set element`
+
+**Status:** Open. Found on upstream `main` (a target this showcase does not otherwise exercise, since `avro` did not exist as a capability on the pinned `1.9.4` release at all - `modelable capabilities --format json` reports 20 implemented targets on `1.9.4`, not including `avro`). Not present on the pinned release for the trivial reason that the target itself is new; this is the canary workflow (Task 16.2) working exactly as designed - discovered on the very first manual canary run, before any re-pin adopts this target.
+
+**Discovered:** Task 16.2 acceptance runs - `.github/workflows/canary.yml` manually triggered against upstream `main` (and, separately, against the exact commit `main` resolved to at trigger time, `0f094cce45285a67380aa23143f8d433d095292c`) both failed identically at the `generate` job, cascading into every other job in the reusable `ci.yml` acceptance suite (all of which run `make generate` before their own work).
+
+**Reproduction:**
+
+```bash
+uv tool install --force --python 3.14 "git+https://github.com/ktjn/modelable@main#subdirectory=cli"
+mkdir /tmp/avro-repro && cd /tmp/avro-repro
+cat > workspace.mdl <<'EOF'
+workspace "avro-repro" { description: "probe" }
+EOF
+cat > thing.mdl <<'EOF'
+domain thing {
+  owner: "t"
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: string
+    tax: decimal(10, 2) = 0
+  }
+}
+EOF
+modelable compile . --target avro --out ./out --registry ./registry.db --registry-ids ./registry-ids.lock
+```
+
+**Observed:**
+
+```text
+Traceback (most recent call last):
+  ...
+  File ".../modelable/emitters/avro.py", line 66, in _emit_record
+    schema = _record_schema(name, version.fields, version.version, "model", ref, context)
+  File ".../modelable/emitters/avro.py", line 104, in _record_schema
+    entry["default"] = _parse_default(model_field.default, field_schema)
+  File ".../modelable/emitters/avro.py", line 226, in _parse_default
+    if schema in {"int", "long", "float", "double"}:
+TypeError: cannot use 'dict' as a set element (unhashable type: 'dict')
+```
+
+Confirmed by reading the actually-emitted Avro schema for the same field with no default (`tax: decimal(10, 2)`, no `= 0`) - the field's `type` renders as a JSON *object*, not a bare string:
+
+```json
+{
+  "name": "tax",
+  "type": { "type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2 }
+}
+```
+
+`string`/`int`/`bool`/etc. fields with a default (verified: `label: string = "..."`, `label?: string = "..."`, `quantity: int = 1`) all compile fine - the crash is specific to any field whose Avro type is a logical-type object (at minimum `decimal`; likely also `date`/`timestamp`/`uuid` and any other logicalType-based mapping, not independently verified here) combined with a `.mdl`-declared default value. This showcase's own `model/billing.mdl` (`tax: decimal(10, 2) = 0`, twice) and `model/clinical.mdl`/`model/scheduling.mdl`'s enum-with-default fields would hit the same code path if `avro` is ever adopted as an implemented target here.
+
+**Root cause (read from source, not guessed - `emitters/avro.py`, installed from `git+https://github.com/ktjn/modelable@main`):** `_parse_default` (line ~226) branches on the field's already-rendered Avro `type` value (`schema`, a `str` for primitive types but a `dict` for any logical/complex type) with `if schema in {"int", "long", "float", "double"}:` - a Python `in` check against a `set` literal, which requires `schema` to be hashable. A `dict` is never hashable, so this raises `TypeError` instead of either matching or falling through to the (presumably intended) "else" branch for non-numeric-primitive types. The function was clearly never exercised with a defaulted decimal/logical-type field before this crash - `_record_schema` calls it unconditionally for every field with a `default` set, regardless of the field's underlying type shape.
+
+**Expected:** `_parse_default` should check `isinstance(schema, str)` (or equivalent) before the set-membership test, so a logical-type/complex `dict` schema falls through to whatever this function's non-primitive-type branch is meant to do (which may itself need a real implementation for decimal/date/timestamp/uuid defaults, not just a crash-free no-op) rather than raising an unhandled `TypeError`.
+
+**Showcase workaround:** None needed - `avro` is not (yet) an implemented target on the pinned `1.9.4` release this showcase depends on, so no `.mdl` file, generation step, or test in this repository is affected today. Logged here purely as a canary finding (`UPSTREAM_POLICY.md` §6 Case A) so it is not rediscovered from scratch when a future re-pin adopts a release that includes the `avro` target.
