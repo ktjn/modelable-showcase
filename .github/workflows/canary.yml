@@ -1,0 +1,55 @@
+name: Canary
+
+# IMPLEMENTATION_PLAN.md Task 16.2: manually-triggered run of the full CI
+# acceptance suite against an upstream Modelable ref instead of the pinned
+# release in .modelable-version, so a breaking upstream change surfaces here
+# before this showcase re-pins to it. GitHub permissions for cross-repository
+# triggers from ktjn/modelable (repository_dispatch) are not set up yet - see
+# this task's own note that the initial implementation should not block on
+# that; workflow_dispatch alone satisfies the required acceptance ("manually
+# run canary once against upstream main and one explicit commit SHA").
+
+on:
+  workflow_dispatch:
+    inputs:
+      modelable_ref:
+        description: "Modelable git ref to canary-test: a branch (e.g. main), tag, or full 40-character commit SHA"
+        required: true
+        type: string
+
+jobs:
+  resolve-ref:
+    name: Resolve and log upstream commit
+    runs-on: ubuntu-latest
+    outputs:
+      resolved_sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve ${{ inputs.modelable_ref }} to an exact commit SHA
+        id: resolve
+        # Mirrors scripts/install-modelable.sh's own resolution logic (a
+        # 40-hex-char input is already a SHA; anything else is looked up via
+        # `git ls-remote`), so the SHA logged here is guaranteed to match
+        # what install-modelable.sh actually installs in the acceptance job
+        # below - this step exists purely for canary-run visibility (surface
+        # the exact commit under test at a glance, without opening logs),
+        # not to compute a different answer.
+        run: |
+          ref="${{ inputs.modelable_ref }}"
+          if [[ "${ref}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            sha="${ref}"
+          else
+            sha="$(git ls-remote https://github.com/ktjn/modelable "${ref}" | cut -f1 | head -n1)"
+            if [ -z "${sha}" ]; then
+              echo "::error::could not resolve ref '${ref}' on https://github.com/ktjn/modelable"
+              exit 1
+            fi
+          fi
+          echo "Canary target: ktjn/modelable@${sha} (ref: ${ref})"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+  acceptance:
+    name: Core acceptance suite
+    needs: resolve-ref
+    uses: ./.github/workflows/ci.yml
+    with:
+      modelable_ref: ${{ inputs.modelable_ref }}
