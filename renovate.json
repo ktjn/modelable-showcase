@@ -12,6 +12,7 @@
   "dependencyDashboard": true,
   "lockFileMaintenance": {
     "enabled": true,
+    "automerge": true,
     "schedule": [
       "before 6am on monday"
     ]
@@ -53,7 +54,7 @@
     {
       "matchPackageNames": ["*"],
       "automerge": true,
-      "automergeType": "branch",
+      "automergeType": "pr",
       "platformAutomerge": true
     }
   ],
