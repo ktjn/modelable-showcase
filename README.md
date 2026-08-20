@@ -61,9 +61,10 @@ cd modelable-showcase
 make bootstrap          # installs the pinned Modelable CLI + protoc (uv tool install, no global mutation)
 docker compose up --build -d
 uv run scripts/setup-full-database.py   # applies the full generated Postgres + ClickHouse schema
+uv run scripts/seed-demo-data.py        # optional: populate a handful of synthetic patients/appointments/invoices
 ```
 
-Then open `http://localhost:5173/` (the app) or `http://localhost:8080/docs` (Swagger UI over the generated OpenAPI document).
+Then open `http://localhost:5173/` (the app) or `http://localhost:8080/docs` (Swagger UI over the generated OpenAPI document). Without the seed step the app starts empty - `seed-demo-data.py` calls the real HTTP API (never a direct DB write) to create a few fictional patients (SPEC.md's synthetic-data rule) with appointments, encounters, observations, and invoices/payments, so `/patients`, `/schedule`, and `/analytics` all have something to show.
 
 | Service | Port (bound to `127.0.0.1`) | Notes |
 |---|---|---|
