@@ -109,6 +109,7 @@ jobs:
               - *shared
               - 'probes/python/**'
               - 'tests/integration/test_python_codegen.py'
+              - 'tests/integration/test_avro_codegen.py'
             go:
               - *shared
               - 'probes/go/**'
@@ -290,7 +291,7 @@ jobs:
       - name: make generate
         run: make generate
       - name: Python codegen probe
-        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_python_codegen.py
+        run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_python_codegen.py tests/integration/test_avro_codegen.py
       - name: probes/python pytest
         working-directory: probes/python
         run: uv run pytest -q

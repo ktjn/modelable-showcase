@@ -8,6 +8,7 @@ dependencies = []
 [dependency-groups]
 dev = [
   "clickhouse-connect>=0.8",
+  "fastavro>=1.9",
   "jsonschema>=4.20",
   "openapi-spec-validator>=0.7",
   "psycopg[binary]>=3.2",
