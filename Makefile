@@ -73,7 +73,8 @@ probes: generate
 		tests/integration/test_java_codegen.py \
 		tests/integration/test_python_codegen.py \
 		tests/integration/test_go_codegen.py \
-		tests/integration/test_protobuf_codegen.py
+		tests/integration/test_protobuf_codegen.py \
+		tests/integration/test_avro_codegen.py
 	@cd apps/web && npm install && npm test -- --run && npm run build
 	@dotnet test probes/csharp
 	@cd probes/java && mvn -q test

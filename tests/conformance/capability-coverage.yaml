@@ -79,6 +79,9 @@ capabilities:
   target:java:
     coverage: probe
     test: tests/integration/test_java_codegen.py::test_compilable_subset_compiles
+  target:avro:
+    coverage: probe
+    test: tests/integration/test_avro_codegen.py::test_every_generated_avro_schema_parses_with_a_real_avro_parser
   target:go:
     coverage: probe
     test: tests/integration/test_go_codegen.py::test_value_type_files_compile_in_isolation
@@ -164,11 +167,5 @@ capabilities:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_join_temporal_modifiers_compile
   annotation:custom:
-    coverage: excluded
-    reason: >-
-      UPSTREAM_FINDINGS.md #42: `modelable capabilities` reports this as
-      "implemented", but the grammar has no production that reaches the
-      transformer's `ann_custom` method - `@custom(...)` is a hard parse
-      error on every real attempt, confirmed by reading both the installed
-      1.9.4 grammar and a fresh clone of upstream main. No `.mdl` syntax
-      exists to cover it.
+    coverage: fixture
+    test: tests/conformance/valid/custom-annotation.mdl

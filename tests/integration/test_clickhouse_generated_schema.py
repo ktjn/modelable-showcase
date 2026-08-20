@@ -4,7 +4,7 @@ report data, using clickhouse-connect - an actual DB client library - never
 shell greps.
 
 Prerequisite: the dev ClickHouse from the repository docker-compose.yml
-(clickhouse/clickhouse-server:24.8-alpine, pinned version) must be running:
+(clickhouse/clickhouse-server:24.12-alpine, pinned version) must be running:
 
     docker compose up -d clickhouse
 
@@ -25,11 +25,11 @@ As of v1.9.4 the clickhouse target emits real secondary indexes (previously a
 deferred capability - see
 `tests/conformance/test_deferred_capabilities.py::test_clickhouse_secondary_indexes_are_now_emitted`);
 that is asserted here in test_generated_clickhouse_ddl_now_emits_secondary_indexes.
-UPSTREAM_FINDINGS.md #41: one of those indexes (`bloom_filter` on a composite
-column list including a `DateTime64` field) applies as DDL but fails on
-`INSERT` - `test_insert_and_query_back_synthetic_report_rows` pins that as a
-flip test on `outstanding_invoices` while `daily_schedule` (unaffected) still
-round-trips normally.
+UPSTREAM_FINDINGS.md #41, fixed in Modelable 1.9.5: one of those indexes
+(`bloom_filter` on a composite column list including a `DateTime64` field)
+used to apply as DDL but fail on `INSERT` - the generated index now uses
+`minmax` instead, and `test_outstanding_invoices_insert_round_trips` proves
+a real `INSERT` succeeds, same as `daily_schedule`.
 """
 
 from __future__ import annotations
@@ -45,7 +45,6 @@ from pathlib import Path
 
 import clickhouse_connect
 import pytest
-from clickhouse_connect.driver.exceptions import DatabaseError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DDL_DIR = REPO_ROOT / "generated" / "sql-clickhouse"
@@ -256,48 +255,54 @@ def test_insert_and_query_back_synthetic_report_rows(client):
     ], schedule_rows
 
 
-def test_outstanding_invoices_insert_currently_fails_on_the_bloom_filter_datetime64_bug(client):
-    """UPSTREAM_FINDINGS.md #41 flip test: `outstanding_invoices` carries a
-    `bloom_filter` index over `(patient_id, issued_at)` where `issued_at` is
-    `Nullable(DateTime64(9))`. `CREATE TABLE` (done by the `applied_ddl`
-    fixture) succeeds, but ClickHouse rejects any `INSERT` into that table
-    because `bloom_filter` does not support `DateTime64`. This pins that
-    reality so a fix landing upstream turns this test red - the signal to
-    flip it back to a normal round-trip assertion and update #41's status."""
+def test_outstanding_invoices_insert_round_trips(client):
+    """UPSTREAM_FINDINGS.md #41, fixed in Modelable 1.9.5: `outstanding_invoices`
+    used to carry a `bloom_filter` index over `(patient_id, issued_at)` where
+    `issued_at` is `Nullable(DateTime64(9))` - `CREATE TABLE` succeeded, but
+    ClickHouse rejected any `INSERT` because `bloom_filter` does not support
+    `DateTime64`. The generated index now uses `minmax` instead (verified by
+    `test_generated_clickhouse_ddl_now_emits_secondary_indexes` below), and a
+    real `INSERT` round-trips normally, same as `daily_schedule` above."""
     client.command("TRUNCATE TABLE outstanding_invoices")
 
-    with pytest.raises(DatabaseError, match="Unexpected type DateTime64.*bloom filter index"):
-        client.insert(
-            "outstanding_invoices",
-            [[
-                "inv-1",
-                "pat-1",
-                None,
-                Decimal("150.00"),
-                Decimal("12.00"),
-                Decimal("162.00"),
-                "USD",
-                "2026-08",
-                "issued",
-                datetime(2026, 8, 16, 10, 30, tzinfo=timezone.utc),
-                date(2026, 9, 15),
-                "false",
-            ]],
-            column_names=[
-                "invoice_id",
-                "patient_id",
-                "encounter_id",
-                "subtotal",
-                "tax",
-                "total",
-                "currency",
-                "billing_period",
-                "status",
-                "issued_at",
-                "due_date",
-                "is_outstanding",
-            ],
-        )
+    client.insert(
+        "outstanding_invoices",
+        [[
+            "inv-1",
+            "pat-1",
+            None,
+            Decimal("150.00"),
+            Decimal("12.00"),
+            Decimal("162.00"),
+            "USD",
+            "2026-08",
+            "issued",
+            datetime(2026, 8, 16, 10, 30, tzinfo=timezone.utc),
+            date(2026, 9, 15),
+            "false",
+        ]],
+        column_names=[
+            "invoice_id",
+            "patient_id",
+            "encounter_id",
+            "subtotal",
+            "tax",
+            "total",
+            "currency",
+            "billing_period",
+            "status",
+            "issued_at",
+            "due_date",
+            "is_outstanding",
+        ],
+    )
+
+    rows = client.query(
+        "SELECT invoice_id, patient_id, subtotal, tax, total, status "
+        "FROM outstanding_invoices WHERE invoice_id = {id:String}",
+        parameters={"id": "inv-1"},
+    ).result_rows
+    assert rows == [("inv-1", "pat-1", Decimal("150.00"), Decimal("12.00"), Decimal("162.00"), "issued")], rows
 
 
 def test_generated_clickhouse_ddl_now_emits_secondary_indexes():

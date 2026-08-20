@@ -3,25 +3,21 @@ Python's annotations resolve with `typing.get_type_hints`, not a text grep.
 
 The python target emits one module per model/projection under
 generated/python/<domain>/<name>.py as frozen dataclasses. Every generated
-module starts with `from __future__ import annotations`, so the broken type
-references are lazy strings - modules import and instantiate fine even when
-annotations do not resolve. This file tests both halves of the current 1.8.0
-reality:
+module starts with `from __future__ import annotations`, so a broken type
+reference is a lazy string - modules import and instantiate fine even when
+annotations do not resolve, and only `typing.get_type_hints` surfaces it.
 
 - The value-type modules (no cross-module or named-type references) have
   annotations that resolve cleanly (`test_value_type_annotations_resolve`).
   These are exactly the classes `probes/python/test_generated.py` imports and
   serializes.
 
-- Everything else does not resolve: the emitter now resolves named types and
-  semantic types within a module (the #19/#20 fix from #365), but a module
-  that references a type declared in another module emits the bare name with
-  no sibling import, so `typing.get_type_hints` still raises `NameError` on
-  cross-module annotations - including every cross-domain reference
-  (`test_full_generated_set_currently_fails_annotation_resolution`). That
-  residual is logged as UPSTREAM_FINDINGS.md #30. This failure assertion is
-  the flip signal: it must be updated (and the entity annotations expected to
-  resolve) once Modelable is re-pinned past a release that fixes #30.
+- UPSTREAM_FINDINGS.md #30 (a module referencing a type declared in another
+  module emitted the bare name with no sibling import, so
+  `typing.get_type_hints` raised `NameError` on cross-module annotations -
+  including every cross-domain reference) is fixed as of Modelable 1.9.5
+  (`test_full_generated_set_annotation_resolution`): every generated module's
+  annotations now resolve cleanly, cross-domain and same-domain alike.
 """
 
 from __future__ import annotations
@@ -29,6 +25,7 @@ from __future__ import annotations
 import importlib
 import sys
 import typing
+import uuid
 from pathlib import Path
 
 import pytest
@@ -79,24 +76,24 @@ def test_value_type_annotations_resolve():
         assert hints, f"{dotted}.{class_name} has no resolvable annotations"
 
 
-def test_full_generated_set_currently_fails_annotation_resolution():
-    # UPSTREAM_FINDINGS.md #30: a module references types declared in other
-    # modules with no sibling import. PatientPatientV2's annotation references
-    # PatientContactDetailsV0 (patient value type, emitted in
-    # patient/patient_contact_details_v0.py but never imported here).
+def test_full_generated_set_annotation_resolution():
+    # UPSTREAM_FINDINGS.md #30, fixed in Modelable 1.9.5: a module that
+    # references a type declared in another module now emits the sibling
+    # import it needs, so annotations resolve cross-module and cross-domain.
+    # PatientPatientV2's `contact` field references PatientContactDetailsV0
+    # (patient value type, emitted in patient/patient_contact_details_v0.py).
     entity = _load_module("patient.patient_patient_v2")
-    with pytest.raises(NameError) as excinfo:
-        typing.get_type_hints(entity.PatientPatientV2)
-    assert excinfo.value.name in {"PatientContactDetailsV0"}, excinfo.value
+    hints = typing.get_type_hints(entity.PatientPatientV2)
+    assert hints["contact"].__name__ == "PatientContactDetailsV0"
 
     # ClinicalEncounterDbV1's annotations reference PatientPatientId (patient
-    # domain), SchedulingPractitionerId (scheduling domain) and
-    # ClinicalDiagnosisV0 (clinical value type, same domain but sibling module).
+    # domain, represented as its bare underlying uuid.UUID primitive per the
+    # semantic-typed half of #30/#365), SchedulingPractitionerId (scheduling
+    # domain, same representation), and ClinicalDiagnosisV0 (clinical value
+    # type, same domain but sibling module, resolved to the real named type).
     projection = _load_module("clinical.clinical_encounter_db_v1")
-    with pytest.raises(NameError) as excinfo:
-        typing.get_type_hints(projection.ClinicalEncounterDbV1)
-    assert excinfo.value.name in {
-        "PatientPatientId",
-        "SchedulingPractitionerId",
-        "ClinicalDiagnosisV0",
-    }, excinfo.value
+    hints = typing.get_type_hints(projection.ClinicalEncounterDbV1)
+    assert hints["patientId"] is uuid.UUID
+    assert hints["practitionerId"] is uuid.UUID
+    diagnoses_type = typing.get_args(hints["diagnoses"])[0]
+    assert typing.get_args(diagnoses_type)[0].__name__ == "ClinicalDiagnosisV0"
