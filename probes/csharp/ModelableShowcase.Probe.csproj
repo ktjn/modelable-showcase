@@ -7,6 +7,7 @@
     <IsPackable>false</IsPackable>
     <RootNamespace>ModelableShowcase.Probe</RootNamespace>
     <AssemblyName>ModelableShowcase.Probe</AssemblyName>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
