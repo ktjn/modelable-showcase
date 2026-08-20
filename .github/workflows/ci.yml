@@ -154,6 +154,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - name: make bootstrap
         run: make bootstrap
       - name: make validate
@@ -169,6 +171,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -206,7 +210,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/api -> target"
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -224,9 +233,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: probes/csharp/packages.lock.json
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -244,10 +257,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+          cache-dependency-path: probes/java/pom.xml
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -266,6 +283,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -284,6 +303,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -305,6 +326,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -349,6 +372,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -393,10 +418,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/api -> target"
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - name: make bootstrap
         run: make bootstrap
       - name: make generate
@@ -428,9 +460,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
       - name: make bootstrap
         run: make bootstrap
       - name: make e2e
