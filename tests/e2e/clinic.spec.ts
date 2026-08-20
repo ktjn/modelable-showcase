@@ -31,7 +31,7 @@ test.describe('Patient identity (reachable on the current #27-constrained schema
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Modelable Clinic' })).toBeVisible()
 
-    await page.getByRole('link', { name: 'Patients' }).click()
+    await page.getByRole('link', { name: 'Patients', exact: true }).click()
     await page.getByRole('link', { name: 'New patient' }).click()
 
     await page.getByLabel('Legal name').fill(legalName)
@@ -52,7 +52,7 @@ test.describe('Patient identity (reachable on the current #27-constrained schema
     // with backoff, so the error state takes a few seconds to land.
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 15000 })
 
-    await page.getByRole('link', { name: 'Patients' }).click()
+    await page.getByRole('link', { name: 'Patients', exact: true }).click()
     await page.getByLabel('Name').fill(legalName)
     await page.getByRole('button', { name: 'Search' }).click()
     await expect(page.getByRole('link', { name: legalName })).toBeVisible()
@@ -87,7 +87,7 @@ test.describe('Full clinic flow (blocked by #27)', () => {
     await page.goto('/')
 
     // 2. create fictional patient
-    await page.getByRole('link', { name: 'Patients' }).click()
+    await page.getByRole('link', { name: 'Patients', exact: true }).click()
     await page.getByRole('link', { name: 'New patient' }).click()
     await page.getByLabel('Legal name').fill(legalName)
     await page.getByLabel('Date of birth').fill('1990-01-01')
