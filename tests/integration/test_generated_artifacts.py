@@ -226,11 +226,13 @@ def test_fhir_base_profile_constrains_a_real_hl7_resource():
 FHIR_VALIDATOR_JAR = GENERATED_DIR.parent / "tools" / "validator_cli.jar"
 
 
-@pytest.mark.skipif(
+requires_fhir_validator = pytest.mark.skipif(
     shutil.which("java") is None or not FHIR_VALIDATOR_JAR.exists(),
     reason="opt-in HL7 FHIR Validator gate (IMPLEMENTATION_PLAN.md Task 15.4) - "
     "run './scripts/install-fhir-validator.sh' first (requires Java)",
 )
+
+
 def _validate_fhir_profile(profile: str) -> subprocess.CompletedProcess[str]:
     # The shared pii/classification annotation-marker extensions live at
     # generated/fhir-profile/'s root, not under the profile's own name
@@ -261,6 +263,7 @@ def _validate_fhir_profile(profile: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+@requires_fhir_validator
 def test_fhir_profiles_pass_the_hl7_validator():
     """UPSTREAM_FINDINGS.md #43/#45, fixed as of Modelable 1.9.5 (#417/#418,
     and this showcase's own upstream contribution #419 for the #45 residual):
@@ -278,6 +281,7 @@ def test_fhir_profiles_pass_the_hl7_validator():
         )
 
 
+@requires_fhir_validator
 def test_observation_fhir_profile_still_fails_on_the_known_codeableconcept_gap():
     """UPSTREAM_FINDINGS.md #46 flip test: Observation.code maps to a
     composite value type, and the emitter's generic BackboneElement fallback
