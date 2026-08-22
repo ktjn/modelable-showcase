@@ -115,7 +115,7 @@ Every patient name, date of birth, diagnosis, invoice, and payment anywhere in t
 |---|---|---|
 | `make bootstrap` fails installing Modelable | `uv` not installed | Install uv: https://docs.astral.sh/uv/getting-started/installation/ |
 | `modelable compile --descriptor-set` or protobuf/gRPC probes fail to find `protoc` | Didn't source the env script | `source scripts/modelable-env.sh` (also run automatically inside every `make` recipe) |
-| `apps/api` integration tests fail with `relation "..." does not exist` | Schema not applied to a fresh Postgres | `uv run scripts/setup-full-database.py` (full schema, what `apps/api`'s own tests need) - not `scripts/setup-e2e-database.py`, which applies a narrower Task-12.1-scoped subset |
+| `apps/api` integration tests fail with `relation "..." does not exist` | Schema not applied to a fresh Postgres | `uv run scripts/setup-full-database.py` |
 | `make bootstrap && make generate` on Windows with only Git Bash | `install-protoc.sh` targets POSIX shells | Follow the script's own printed instructions: place `protoc-<version>-win64.zip`'s `bin/` on `PATH` under `tools/protoc-<version>/bin` |
 | `test_fhir_profiles_pass_the_hl7_validator` / `validate-fhir-profiles.py` skip | Optional HL7 FHIR Validator not installed | `./scripts/install-fhir-validator.sh` (requires Java; pinned + checksum-verified, not part of `make bootstrap`) |
 | `integration-apicurio`/`integration-marquez` tests skip | Their optional Compose profile isn't running | `docker compose --profile apicurio up -d apicurio` / `docker compose --profile marquez up -d marquez` first |

@@ -7,15 +7,11 @@
 schema, for apps/api's own test suite (Task 9.x) and CI (Task 16.1's
 `product` job) - both need every table apps/api reads/writes, including the
 FK-bearing `appointment_db`/`encounter_db`/`invoice_db` that
-`scripts/setup-e2e-database.py` deliberately excludes (that script's FK-free
-subset is a separate, narrower scoping decision for the Task 12.1 Playwright
-harness specifically - see its own module docstring - and is out of scope
-for this script to revisit).
+The same full generated schema is used by the Task 12.1 Playwright harness.
 
-UPSTREAM_FINDINGS.md #27 (the FK-bound-table-name bug that motivated
-`setup-e2e-database.py`'s FK-free subset) is fixed as of the pinned 1.9.4
-release, so the full generated `sql-postgres` set applies cleanly in one
-pass - this script does not special-case it.
+UPSTREAM_FINDINGS.md #27 (the FK-bound-table-name bug) is fixed as of the
+pinned 1.9.4 release, so the full generated `sql-postgres` set applies cleanly
+in one pass - this script does not special-case it.
 
 Applies the full `generated/sql-postgres` and `generated/sql-clickhouse`
 sets in dependency order, plus the same two Postgres tables and one
@@ -59,7 +55,6 @@ ch_ddl = _load_module("apply_clickhouse_ddl", REPO_ROOT / "scripts" / "apply-cli
 
 # Hand-written tables for event-only models with no generated projection at
 # all (not a rewrite of anything Modelable generates - see module docstring).
-# Kept byte-identical to scripts/setup-e2e-database.py's copies.
 OBSERVATION_DB_SQL = """
 CREATE TABLE IF NOT EXISTS observation_db (
     observation_id TEXT NOT NULL PRIMARY KEY,
