@@ -2,28 +2,15 @@ import { expect, test } from '@playwright/test'
 
 // IMPLEMENTATION_PLAN.md Task 12.1.
 //
-// UPSTREAM_FINDINGS.md #27: the generated sql-postgres DDL for
-// invoice_db/appointment_db/encounter_db carries an inline FOREIGN KEY
-// clause that references a relation that never exists, so those three
-// CREATE TABLE statements fail outright and the tables are never created.
-// scripts/setup-e2e-database.py (this suite's DB bootstrap, see its module
-// docstring for the full reasoning and the rejected alternatives) applies
-// only the FK-free subset of the generated schema plus the genuinely
-// hand-written observation_db/payment_db/payment_event tables. That leaves
-// every endpoint that touches an appointment, encounter, or invoice
-// returning 500 (POST /api/appointments, POST /api/encounters,
-// POST /api/invoices, and GET /api/patients/:id/summary, which joins across
-// all three) - so most of the task's originally-specified 12-step flow
-// (book appointment -> ... -> record payment) cannot run against this
-// schema. `blocked by #27` below is the full flow as originally specified,
-// kept ready to un-skip once #27 is fixed upstream; the tests above it cover
-// exactly what the current schema supports.
+// The E2E bootstrap applies the full generated PostgreSQL and ClickHouse
+// schemas, including the FK-bearing appointment, encounter, and invoice
+// tables. Modelable 1.9.4 fixed UPSTREAM_FINDINGS.md #27.
 
 function uniqueRunId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-test.describe('Patient identity (reachable on the current #27-constrained schema)', () => {
+test.describe('Patient identity', () => {
   test('create a patient, find it via search, and view its detail page', async ({ page }) => {
     const runId = uniqueRunId()
     const legalName = `Ada Example ${runId}`
@@ -43,15 +30,6 @@ test.describe('Patient identity (reachable on the current #27-constrained schema
     await expect(page.getByRole('heading', { name: legalName })).toBeVisible()
     await expect(page.getByText(`ada.${runId}@example.com`)).toBeVisible()
 
-    // The billing summary section on this page (Task 10.3) queries
-    // appointment_db via GET /api/patients/:id/summary - blocked by #27 on
-    // this schema. Assert the page degrades to a visible error rather than
-    // crashing the whole detail page (apps/web/src/pages/PatientDetail.tsx
-    // isolates PatientBilling's query error from the rest of the page).
-    // The default QueryClient (apps/web/src/main.tsx) retries failed queries
-    // with backoff, so the error state takes a few seconds to land.
-    await expect(page.getByRole('alert')).toBeVisible({ timeout: 15000 })
-
     await page.getByRole('link', { name: 'Patients', exact: true }).click()
     await page.getByLabel('Name').fill(legalName)
     await page.getByRole('button', { name: 'Search' }).click()
@@ -60,7 +38,7 @@ test.describe('Patient identity (reachable on the current #27-constrained schema
 
   test('analytics page renders zeroed aggregates from the real ClickHouse-backed endpoint', async ({ page }) => {
     // Unlike Postgres, ClickHouse's generated DDL has no FOREIGN KEY concept
-    // and the full set applies cleanly (scripts/setup-e2e-database.py), so
+    // and the full set applies cleanly (scripts/setup-full-database.py), so
     // GET /api/analytics/clinic (Task 9.5) works on this schema - it just
     // reports no activity, since nothing writes to it without appointments/
     // invoices/payments.
@@ -70,13 +48,7 @@ test.describe('Patient identity (reachable on the current #27-constrained schema
   })
 })
 
-test.describe('Full clinic flow (blocked by #27)', () => {
-  test.skip(
-    true,
-    'appointment_db/encounter_db/invoice_db are not created on this schema (UPSTREAM_FINDINGS.md #27) - ' +
-      're-enable once the upstream FK fix lands and scripts/setup-e2e-database.py applies the full generated set.',
-  )
-
+test.describe('Full clinic flow', () => {
   test('book -> reschedule -> start encounter -> observe -> complete -> invoice -> pay -> verify', async ({
     page,
   }) => {

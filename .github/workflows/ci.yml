@@ -138,7 +138,7 @@ jobs:
               - 'apps/web/**'
               - 'tests/e2e/**'
               - 'docker-compose.yml'
-              - 'scripts/setup-e2e-database.py'
+              - 'scripts/setup-full-database.py'
       - name: Run everything (non-push/pull_request trigger, e.g. canary)
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: fallback

@@ -2,20 +2,9 @@ import type { EncounterReply } from '@generated/clinical.EncounterReply.v1'
 import type { EncounterRequest } from '@generated/clinical.EncounterRequest.v1'
 import { patch, post } from './client'
 
-// UPSTREAM_FINDINGS.md #38/#40: see appointments.ts's AppointmentCreateInput
-// - the same ref<> (here `appointmentId: ref<scheduling.Appointment@1>`) and
-// optionality corrections apply to EncounterRequest.
-export type EncounterStartInput = Omit<
-  EncounterRequest,
-  'appointmentId' | 'endedAt' | 'expectedDuration' | 'reasonCode' | 'diagnoses' | 'status'
-> &
-  Partial<{
-    appointmentId: string
-    endedAt: string
-    expectedDuration: string
-    reasonCode: string
-    diagnoses: unknown[]
-  }>
+// Modelable's TypeScript ref<> output still models `appointmentId` as the
+// referenced object, while the API accepts its identifier on the wire.
+export type EncounterStartInput = Omit<EncounterRequest, 'appointmentId' | 'status'> & { appointmentId?: string }
 
 export function startEncounter(request: EncounterStartInput): Promise<EncounterReply> {
   return post<EncounterReply>('/api/encounters', { ...request, status: 'in_progress' })

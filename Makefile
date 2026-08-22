@@ -110,7 +110,7 @@ integration-marquez:
 e2e: generate
 	docker compose down -v
 	docker compose up --build -d
-	@. ./scripts/modelable-env.sh; uv run scripts/setup-e2e-database.py
+	@. ./scripts/modelable-env.sh; uv run scripts/setup-full-database.py
 	@cd tests/e2e && npm install && npx playwright install --with-deps chromium
 	@( cd tests/e2e && npx playwright test ); status=$$?; \
 	docker compose down; \
