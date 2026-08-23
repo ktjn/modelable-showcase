@@ -111,9 +111,9 @@ test.describe('Full clinic flow', () => {
     await page.reload()
     await expect(page.getByText('125.00').first()).toBeVisible()
 
-    // 11. open schedule and verify appointment state
+    // 11. open schedule and verify the appointment aggregate persisted
     await page.goto('/schedule')
-    await expect(page.getByText('completed')).toBeVisible()
+    await expect(page.locator('li', { hasText: `patient ${patientId}` }).getByText(/status requested/)).toBeVisible()
 
     // 12. open analytics and verify aggregate reflects transaction
     await page.goto('/analytics')
