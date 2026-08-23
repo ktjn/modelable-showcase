@@ -58,7 +58,7 @@ export class PersistentWorkerSession {
       return response
     }
 
-    if (request.operation === 'execute' || request.operation === 'seed') {
+    if (request.operation === 'execute' || request.operation === 'restore' || request.operation === 'seed') {
       if (!isSnapshotEnvelope(response.snapshot))
         throw new Error(`WASM ${request.operation} response did not include a valid snapshot`)
       await this.#store.save(response.snapshot)

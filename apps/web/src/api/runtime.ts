@@ -1,11 +1,12 @@
 import { WasmShowcaseRuntime } from '../wasm/showcase-runtime'
 import { ApiError } from './runtime-contract'
-import type { RuntimeRequest, ShowcaseRuntime } from './runtime-contract'
+import type { RuntimeInfo, RuntimeRequest, ShowcaseRuntime } from './runtime-contract'
 
 export { ApiError } from './runtime-contract'
-export type { RuntimeKind, RuntimeMethod, RuntimeRequest, ShowcaseRuntime } from './runtime-contract'
+export type { RuntimeInfo, RuntimeKind, RuntimeMethod, RuntimeRequest, ShowcaseRuntime } from './runtime-contract'
 
 export class HttpRuntime implements ShowcaseRuntime {
+  readonly kind = 'http' as const
   readonly #baseUrl: string
   readonly #fetch: typeof fetch | undefined
 
@@ -28,6 +29,10 @@ export class HttpRuntime implements ShowcaseRuntime {
     if (!response.ok)
       throw new ApiError(response.status, responseBody)
     return responseBody as T
+  }
+
+  info(): Promise<RuntimeInfo> {
+    return this.request<RuntimeInfo>({ method: 'GET', path: '/api/runtime' })
   }
 }
 

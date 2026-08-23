@@ -20,7 +20,8 @@ export function createShowcaseClient(runtime: ShowcaseRuntime): ShowcaseClient {
   }
 }
 
-const client = createShowcaseClient(createConfiguredRuntime())
+export const runtime = createConfiguredRuntime()
+const client = createShowcaseClient(runtime)
 
 export const get = client.get
 export const post = client.post

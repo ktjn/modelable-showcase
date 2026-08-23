@@ -1,12 +1,18 @@
 import { ApiError } from '../api/runtime-contract'
-import type { RuntimeRequest, ShowcaseRuntime } from '../api/runtime-contract'
+import type { RuntimeInfo, RuntimeRequest, ShowcaseRuntime } from '../api/runtime-contract'
 import { PersistentWorkerSession } from './persistent-session'
 import type { SnapshotStore } from './persistent-session'
-import type { RuntimeErrorCategory, WorkerRequest, WorkerResponse } from './protocol'
-import { ClinicSnapshotStore } from './snapshot-store'
+import { MAX_SNAPSHOT_BYTES } from './protocol'
+import type { RuntimeErrorCategory, SnapshotEnvelope, WorkerRequest, WorkerResponse } from './protocol'
+import { ClinicSnapshotStore, isSnapshotEnvelope } from './snapshot-store'
 
 type WorkerFactory = () => Worker
 type IdFactory = () => string
+
+interface WasmEngineInfo {
+  modelableVersion: string
+  schemaIdentity: string
+}
 
 const STATUS_BY_CATEGORY: Record<RuntimeErrorCategory, number> = {
   bad_request: 400,
@@ -93,10 +99,11 @@ class WorkerTransport {
 
 /** Runtime-neutral client backed exclusively by the Rust WASM worker. */
 export class WasmShowcaseRuntime implements ShowcaseRuntime {
+  readonly kind = 'wasm' as const
   readonly #session: PersistentWorkerSession
   readonly #transport: WorkerTransport
   readonly #nextId: IdFactory
-  #initialized: Promise<void> | undefined
+  #initialized: Promise<WasmEngineInfo> | undefined
 
   constructor(
     createWorker: WorkerFactory = createRuntimeWorker,
@@ -121,6 +128,16 @@ export class WasmShowcaseRuntime implements ShowcaseRuntime {
     return this.#result<T>(response)
   }
 
+  async info(): Promise<RuntimeInfo> {
+    const info = await this.#initialize()
+    return {
+      runtime: 'Rust / WebAssembly',
+      modelableVersion: info.modelableVersion,
+      schemaIdentity: info.schemaIdentity,
+      storage: 'IndexedDB',
+    }
+  }
+
   async seed<T = unknown>(): Promise<T> {
     await this.#initialize()
     return this.#result<T>(await this.#session.request({
@@ -137,14 +154,38 @@ export class WasmShowcaseRuntime implements ShowcaseRuntime {
     }))
   }
 
+  async snapshot(): Promise<SnapshotEnvelope> {
+    await this.#initialize()
+    const snapshot = this.#result<unknown>(await this.#session.request({
+      id: this.#nextId(),
+      operation: 'snapshot',
+    }))
+    if (!isSnapshotEnvelope(snapshot))
+      throw new Error('WASM runtime returned an invalid clinic snapshot')
+    return snapshot
+  }
+
+  async restore(snapshot: unknown): Promise<void> {
+    if (!isSnapshotEnvelope(snapshot))
+      throw new Error('The selected file is not a valid clinic snapshot')
+    if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > MAX_SNAPSHOT_BYTES)
+      throw new Error('The selected clinic snapshot exceeds the 2 MiB limit')
+    await this.#initialize()
+    this.#result(await this.#session.request({
+      id: this.#nextId(),
+      operation: 'restore',
+      snapshot,
+    }))
+  }
+
   terminate(): void {
     this.#transport.terminate()
   }
 
-  #initialize(): Promise<void> {
-    this.#initialized ??= this.#session.initialize(this.#nextId()).then((response) => {
-      this.#result(response)
-    })
+  #initialize(): Promise<WasmEngineInfo> {
+    this.#initialized ??= this.#session.initialize(this.#nextId()).then(response => (
+      this.#result<WasmEngineInfo>(response)
+    ))
     return this.#initialized
   }
 

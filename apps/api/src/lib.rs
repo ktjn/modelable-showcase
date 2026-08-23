@@ -101,6 +101,7 @@ pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/api/runtime", get(runtime_info))
         .merge(patient::patient_routes())
         .merge(scheduling::scheduling_routes())
         .merge(clinical::clinical_routes())
@@ -233,6 +234,24 @@ async fn health() -> impl IntoResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeInfoBody {
+    runtime: &'static str,
+    modelable_version: &'static str,
+    schema_identity: String,
+    storage: &'static str,
+}
+
+async fn runtime_info() -> impl IntoResponse {
+    Json(RuntimeInfoBody {
+        runtime: "Rust / Axum",
+        modelable_version: showcase_core::modelable_version(),
+        schema_identity: showcase_core::schema_identity(),
+        storage: "PostgreSQL + ClickHouse",
+    })
+}
+
+#[derive(Serialize)]
 struct ReadyBody {
     status: &'static str,
     postgres: bool,
@@ -300,6 +319,16 @@ mod tests {
             body["contract"]["patient_content_signature"].as_array().unwrap().len(),
             32
         );
+    }
+
+    #[tokio::test]
+    async fn runtime_identifies_the_native_execution_path() {
+        let (status, body) = call(app(stub_state(true, true)), "/api/runtime").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["runtime"], "Rust / Axum");
+        assert_eq!(body["modelableVersion"], "1.10.1");
+        assert!(body["schemaIdentity"].as_str().unwrap().contains("patient.PatientDb"));
+        assert_eq!(body["storage"], "PostgreSQL + ClickHouse");
     }
 
     #[tokio::test]

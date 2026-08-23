@@ -33,31 +33,33 @@ test.describe('Rust WASM clinic runtime', () => {
     await expect(page.getByRole('alert')).toContainText('overlap')
   })
 
-  test('seed persists useful analytics and reset clears the sandbox', async ({ page }) => {
+  test('manages a local snapshot through the visible sandbox controls', async ({ page }) => {
     await page.goto('/')
-    const result = await page.evaluate(async () => {
-      const modulePath = '/src/wasm/showcase-runtime.ts'
-      const { WasmShowcaseRuntime } = await import(modulePath)
-      const seededRuntime = new WasmShowcaseRuntime()
-      const seeded = await seededRuntime.seed<{ counts: { patients: number } }>()
-      seededRuntime.terminate()
+    const identity = page.getByRole('complementary', { name: 'Runtime identity' })
+    await expect(identity).toContainText('Rust / WebAssembly')
+    await expect(identity).toContainText('1.10.1')
+    await expect(identity).toContainText('IndexedDB')
 
-      const restoredRuntime = new WasmShowcaseRuntime()
-      const analytics = await restoredRuntime.request<{ billedTotal: string, paidTotal: string }>({
-        method: 'GET',
-        path: '/api/analytics/clinic',
-      })
-      await restoredRuntime.reset()
-      restoredRuntime.terminate()
+    await page.getByRole('button', { name: 'Seed demo data' }).click()
+    await expect(page.getByRole('status')).toContainText('Synthetic demo data loaded')
+    await page.getByRole('link', { name: 'Analytics' }).click()
+    await expect(page.getByText('125.00')).toBeVisible()
 
-      const resetRuntime = new WasmShowcaseRuntime()
-      const patients = await resetRuntime.request<unknown[]>({ method: 'GET', path: '/api/patients' })
-      resetRuntime.terminate()
-      return { seeded, analytics, patients }
-    })
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Export snapshot' }).click()
+    const download = await downloadPromise
+    const snapshotPath = await download.path()
+    expect(snapshotPath).toBeTruthy()
 
-    expect(result.seeded.counts.patients).toBeGreaterThan(0)
-    expect(result.analytics).toMatchObject({ billedTotal: '125.00', paidTotal: '75.00' })
-    expect(result.patients).toEqual([])
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: 'Reset sandbox' }).click()
+    await expect(page.getByRole('status')).toContainText('Browser sandbox reset')
+    await page.reload()
+    await page.getByRole('link', { name: 'Analytics' }).click()
+    await expect(page.getByText('0.00').first()).toBeVisible()
+
+    await page.getByLabel('Import snapshot file').setInputFiles(snapshotPath!)
+    await expect(page.getByRole('status')).toContainText('Snapshot imported')
+    await expect(page.getByText('125.00')).toBeVisible()
   })
 })

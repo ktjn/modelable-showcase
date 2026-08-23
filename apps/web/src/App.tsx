@@ -5,6 +5,7 @@ import { PatientCreate } from './pages/PatientCreate'
 import { PatientDetail } from './pages/PatientDetail'
 import { Patients } from './pages/Patients'
 import { Schedule } from './pages/Schedule'
+import { RuntimePanel } from './components/RuntimePanel'
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
       </header>
       <main>
         <div className="page">
+          <RuntimePanel />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/patients" element={<Patients />} />

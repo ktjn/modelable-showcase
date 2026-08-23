@@ -6,7 +6,9 @@ import type {
   WorkerResponse,
   WorkerSuccess,
 } from './protocol'
+import { MAX_SNAPSHOT_BYTES } from './protocol'
 import { dispatchRoute, isRuntimeRequest, RouteDispatchError } from './route-adapter'
+import { isSnapshotEnvelope } from './snapshot-store'
 
 export interface WasmRuntime {
   initialize(snapshotJson?: string | null): string
@@ -39,7 +41,7 @@ const ERROR_CATEGORIES = new Set<RuntimeErrorCategory>([
   'validation',
   'internal',
 ])
-const OPERATIONS = new Set(['initialize', 'execute', 'query', 'snapshot', 'reset', 'seed'])
+const OPERATIONS = new Set(['initialize', 'execute', 'query', 'snapshot', 'restore', 'reset', 'seed'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -165,6 +167,15 @@ export class WorkerRuntimeHost {
         }
         case 'snapshot':
           return this.#invoke(request.id, runtime.snapshot())
+        case 'restore': {
+          if (!isSnapshotEnvelope(request.snapshot))
+            return failure(request.id, 'bad_request', 'invalid clinic snapshot envelope')
+          const snapshot = JSON.stringify(request.snapshot)
+          if (new TextEncoder().encode(snapshot).byteLength > MAX_SNAPSHOT_BYTES)
+            return failure(request.id, 'bad_request', 'clinic snapshot exceeds the 2 MiB limit')
+          const response = this.#invoke(request.id, runtime.initialize(snapshot))
+          return response.ok ? this.#withSnapshot(runtime, response) : response
+        }
         case 'reset': {
           const response = this.#invoke(request.id, runtime.reset())
           return response.ok ? this.#withSnapshot(runtime, response) : response

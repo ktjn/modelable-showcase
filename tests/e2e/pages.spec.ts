@@ -31,4 +31,18 @@ test.describe('GitHub Pages static build', () => {
     expect(loaded.some(([url]) => url.endsWith('/wasm/showcase_wasm_bg.wasm'))).toBe(true)
     expect(loaded.every(([url]) => new URL(url).pathname.startsWith('/modelable-showcase/'))).toBe(true)
   })
+
+  test('identifies and safely resets the browser-local sandbox', async ({ page }) => {
+    await page.goto('./')
+    const identity = page.getByRole('complementary', { name: 'Runtime identity' })
+    await expect(identity).toContainText('Rust / WebAssembly')
+    await expect(identity).toContainText('IndexedDB')
+    await expect(identity).toContainText('do not enter real patient data')
+
+    await page.getByRole('button', { name: 'Seed demo data' }).click()
+    await expect(page.getByRole('status')).toContainText('Synthetic demo data loaded')
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: 'Reset sandbox' }).click()
+    await expect(page.getByRole('status')).toContainText('Browser sandbox reset')
+  })
 })

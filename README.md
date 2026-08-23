@@ -15,11 +15,12 @@ It is simultaneously:
 
 See [`SPEC.md`](SPEC.md) for the authoritative requirements and Definition of Done, [`UPSTREAM_POLICY.md`](UPSTREAM_POLICY.md) for how upstream gaps are handled (fix Modelable first, never a permanent local workaround), [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for how it was built task by task, and [`UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md) for the running log of real Modelable bugs/gaps this showcase has found - check it before re-discovering the same crash twice.
 
-The current product runs in full-stack mode through Rust/Axum, PostgreSQL, and
-ClickHouse. A second browser/WASM runtime is planned for static GitHub Pages
-hosting; it will run the same clinic product with shared portable Rust behavior
-and browser persistence while keeping the full-stack infrastructure path intact.
-See [`WASM_IMPLEMENTATION_PLAN.md`](WASM_IMPLEMENTATION_PLAN.md) for the ordered
+The same product has two runtime modes. Full-stack mode runs through Rust/Axum,
+PostgreSQL, and ClickHouse. The [public browser sandbox](https://ktjn.github.io/modelable-showcase/)
+runs the portable Rust core as WebAssembly in a worker and persists its local
+snapshot in IndexedDB. Both modes expose their runtime, Modelable version, schema
+identity, and storage directly in the UI. See
+[`WASM_IMPLEMENTATION_PLAN.md`](WASM_IMPLEMENTATION_PLAN.md) for the completed
 delivery slices and acceptance criteria.
 
 All patient/clinical/billing data anywhere in this repository is synthetic and obviously fictional. **This is a technical showcase, not clinical software.**
@@ -73,10 +74,18 @@ uv run scripts/seed-demo-data.py        # optional: populate a handful of synthe
 
 Then open `http://localhost:5173/` (the app) or `http://localhost:8080/docs` (Swagger UI over the generated OpenAPI document). Without the seed step the app starts empty - `seed-demo-data.py` calls the real HTTP API (never a direct DB write) to create a few fictional patients (SPEC.md's synthetic-data rule) with appointments, encounters, observations, and invoices/payments, so `/patients`, `/schedule`, and `/analytics` all have something to show.
 
+For a self-contained browser build instead, run `make pages-build` and then
+`npm --prefix apps/web run preview -- --host 127.0.0.1 --port 4175`. Open
+`http://127.0.0.1:4175/modelable-showcase/`. Browser mode has controls to seed or
+reset synthetic data and export or import a versioned snapshot. Imported data
+never leaves the browser, snapshot files are validated and limited to 2 MiB,
+and this sandbox is not production-grade clinical storage. Do not enter real
+patient data.
+
 | Service | Port (bound to `127.0.0.1`) | Notes |
 |---|---|---|
 | `web` | `5173` | React SPA, served by nginx, proxies `/api`/`/openapi.json`/`/docs` to `api` |
-| `api` | `8080` | Axum API directly - `/health`, `/docs`, `/openapi.json` |
+| `api` | `8080` | Axum API directly - `/health`, `/api/runtime`, `/docs`, `/openapi.json` |
 | `postgres` | `5433` | `psql -h 127.0.0.1 -p 5433 -U showcase showcase` |
 | `clickhouse` | `8123` | HTTP interface |
 
@@ -86,7 +95,11 @@ Then open `http://localhost:5173/` (the app) or `http://localhost:8080/docs` (Sw
 make acceptance
 ```
 
-Runs, in fail-fast order: `validate` → `compat` → `generate` → `determinism` → `probes` → `integration` → `e2e` → LSP smoke. This is what `.github/workflows/ci.yml` runs on every push/PR, split into parallel jobs (`model`, `generate`, one job per language, `databases`, `product`, `e2e`).
+Runs, in fail-fast order: `validate` → `compat` → `generate` → `determinism` →
+`probes` → `integration` → native `e2e` → WASM compile/test/build/browser gates
+→ LSP smoke. This is what `.github/workflows/ci.yml` runs on every push/PR,
+split into parallel jobs including explicit `WASM static build` and
+`WASM browser E2E` gates.
 
 Optional profiles not part of `acceptance` (each needs its own local service, started on demand):
 
