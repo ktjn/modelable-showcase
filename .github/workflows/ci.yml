@@ -161,6 +161,7 @@ jobs:
               - 'scripts/install-wasm-bindgen.py'
               - 'scripts/validate-wasm-pages.py'
               - 'scripts/setup-full-database.py'
+              - '.github/workflows/pages.yml'
       - name: Run everything (non-push/pull_request trigger, e.g. canary)
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: fallback

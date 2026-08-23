@@ -6,7 +6,7 @@
 SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report wasm-check-generated wasm-build clean up down modelable-version
+.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report wasm-check-generated wasm-build pages-build clean up down modelable-version
 
 GENERATED_DIRS := generated dist .modelable
 CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist apps/web/public/wasm .pytest_cache
@@ -37,6 +37,7 @@ help:
 	@echo "  coverage-report  print upstream capability coverage table"
 	@echo "  wasm-check-generated  compile clinic-generated Rust for wasm32"
 	@echo "  wasm-build       build the self-contained static browser clinic"
+	@echo "  pages-build      build and validate the GitHub Pages artifact"
 	@echo "  clean            remove disposable build/test output"
 	@echo "  up               docker compose up --build"
 	@echo "  down             docker compose down"
@@ -146,6 +147,8 @@ wasm-build:
 	@cd apps/web && npm ci
 	@cd apps/web && VITE_SHOWCASE_RUNTIME=wasm VITE_SHOWCASE_STATIC=true npm run build
 	uv run scripts/validate-wasm-pages.py
+
+pages-build: wasm-build
 
 up:
 	docker compose up --build -d
