@@ -60,6 +60,7 @@ jobs:
       generate: ${{ steps.filter.outputs.generate || steps.fallback.outputs.generate }}
       rust: ${{ steps.filter.outputs.rust || steps.fallback.outputs.rust }}
       wasm_generated: ${{ steps.filter.outputs.wasm_generated || steps.fallback.outputs.wasm_generated }}
+      wasm_core: ${{ steps.filter.outputs.wasm_core || steps.fallback.outputs.wasm_core }}
       csharp: ${{ steps.filter.outputs.csharp || steps.fallback.outputs.csharp }}
       java: ${{ steps.filter.outputs.java || steps.fallback.outputs.java }}
       python_lang: ${{ steps.filter.outputs.python_lang || steps.fallback.outputs.python_lang }}
@@ -97,11 +98,15 @@ jobs:
             rust:
               - *shared
               - 'apps/api/**'
+              - 'crates/showcase-core/**'
               - 'tests/integration/test_rust_codegen.py'
             wasm_generated:
               - *shared
               - 'apps/api/Cargo.toml'
               - 'scripts/check-generated-rust-wasm.py'
+            wasm_core:
+              - *shared
+              - 'crates/showcase-core/**'
             csharp:
               - *shared
               - 'probes/csharp/**'
@@ -134,12 +139,14 @@ jobs:
             product:
               - *shared
               - 'apps/api/**'
+              - 'crates/showcase-core/**'
               - 'apps/web/**'
               - 'docker-compose.yml'
               - 'scripts/setup-full-database.py'
             e2e:
               - *shared
               - 'apps/api/**'
+              - 'crates/showcase-core/**'
               - 'apps/web/**'
               - 'tests/e2e/**'
               - 'docker-compose.yml'
@@ -148,7 +155,7 @@ jobs:
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: fallback
         run: |
-          for name in model generate rust wasm_generated csharp java python_lang go protobuf_grpc databases product e2e; do
+          for name in model generate rust wasm_generated wasm_core csharp java python_lang go protobuf_grpc databases product e2e; do
             echo "${name}=true" >> "$GITHUB_OUTPUT"
           done
 
@@ -248,6 +255,24 @@ jobs:
         run: ./scripts/install-modelable.sh
       - name: Check generated Rust for wasm32
         run: make wasm-check-generated
+
+  showcase-core-wasm:
+    name: showcase core / native + wasm32
+    needs: changes
+    if: needs.changes.outputs.wasm_core == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "crates/showcase-core -> target"
+      - name: Test platform-neutral core
+        run: cargo test --locked --manifest-path crates/showcase-core/Cargo.toml
+      - name: Check platform-neutral core for wasm32
+        run: cargo check --locked --target wasm32-unknown-unknown --manifest-path crates/showcase-core/Cargo.toml
 
   lang-csharp:
     name: languages / csharp

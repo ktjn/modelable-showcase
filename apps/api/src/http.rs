@@ -32,6 +32,12 @@ impl ApiError {
     }
 }
 
+impl From<showcase_core::ShowcaseError> for ApiError {
+    fn from(error: showcase_core::ShowcaseError) -> Self {
+        Self::bad_request(error.to_string())
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (self.status, Json(serde_json::json!({ "error": self.message }))).into_response()

@@ -19,6 +19,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 clinic-core = { path = "../../generated/rust/clinic-core" }
 clinical-core = { path = "../../generated/rust/clinical-core" }
 billing-core = { path = "../../generated/rust/billing-core" }
+showcase-core = { path = "../../crates/showcase-core" }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

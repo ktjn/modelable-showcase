@@ -24,17 +24,13 @@ use axum::{Json, Router};
 use chrono::{DateTime, NaiveDate, Utc};
 use clinic_core::scheduling::appointment_id::AppointmentId;
 use clinic_core::scheduling::practitioner_id::PractitionerId;
-use clinic_core::scheduling::scheduling_appointment_db_v1::{
-    SchedulingAppointmentDbV1, SchedulingAppointmentDbV1Status,
-};
 use clinic_core::scheduling::scheduling_appointment_reply_v1::{
     SchedulingAppointmentReplyV1, SchedulingAppointmentReplyV1Status,
 };
-use clinic_core::scheduling::scheduling_appointment_request_v1::{
-    SchedulingAppointmentRequestV1, SchedulingAppointmentRequestV1Status,
-};
+use clinic_core::scheduling::scheduling_appointment_request_v1::SchedulingAppointmentRequestV1;
 use clinic_core::scheduling::scheduling_time_range_v0::SchedulingTimeRangeV0;
 use serde::Deserialize;
+use showcase_core::scheduling as scheduling_core;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -53,44 +49,6 @@ pub fn scheduling_routes() -> Router<AppState> {
         .route("/api/patients/{id}/appointments", get(patient_appointments))
 }
 
-// --- status + time helpers -------------------------------------------------------
-
-fn request_status_to_db(status: SchedulingAppointmentRequestV1Status) -> SchedulingAppointmentDbV1Status {
-    match status {
-        SchedulingAppointmentRequestV1Status::Requested => SchedulingAppointmentDbV1Status::Requested,
-        SchedulingAppointmentRequestV1Status::Confirmed => SchedulingAppointmentDbV1Status::Confirmed,
-        SchedulingAppointmentRequestV1Status::Cancelled => SchedulingAppointmentDbV1Status::Cancelled,
-        SchedulingAppointmentRequestV1Status::Completed => SchedulingAppointmentDbV1Status::Completed,
-        SchedulingAppointmentRequestV1Status::NoShow => SchedulingAppointmentDbV1Status::NoShow,
-    }
-}
-
-fn db_status_to_reply(status: SchedulingAppointmentDbV1Status) -> SchedulingAppointmentReplyV1Status {
-    match status {
-        SchedulingAppointmentDbV1Status::Requested => SchedulingAppointmentReplyV1Status::Requested,
-        SchedulingAppointmentDbV1Status::Confirmed => SchedulingAppointmentReplyV1Status::Confirmed,
-        SchedulingAppointmentDbV1Status::Cancelled => SchedulingAppointmentReplyV1Status::Cancelled,
-        SchedulingAppointmentDbV1Status::Completed => SchedulingAppointmentReplyV1Status::Completed,
-        SchedulingAppointmentDbV1Status::NoShow => SchedulingAppointmentReplyV1Status::NoShow,
-    }
-}
-
-fn validate_slot(slot: &SchedulingTimeRangeV0) -> Result<(), ApiError> {
-    if slot.end <= slot.start {
-        return Err(ApiError::bad_request(format!(
-            "slot end '{}' is not after start '{}'",
-            slot.end, slot.start
-        )));
-    }
-    Ok(())
-}
-
-fn slots_overlap(a: &SchedulingTimeRangeV0, b: &SchedulingTimeRangeV0) -> Result<bool, ApiError> {
-    validate_slot(a)?;
-    validate_slot(b)?;
-    Ok(a.start < b.end && b.start < a.end)
-}
-
 fn parse_date(value: &str) -> Result<NaiveDate, ApiError> {
     NaiveDate::parse_from_str(value, "%Y-%m-%d")
         .map_err(|err| ApiError::bad_request(format!("invalid date '{value}': {err}")))
@@ -99,43 +57,6 @@ fn parse_date(value: &str) -> Result<NaiveDate, ApiError> {
 fn parse_uuid(value: &str, label: &str) -> Result<Uuid, ApiError> {
     Uuid::parse_str(value)
         .map_err(|err| ApiError::bad_request(format!("invalid {label} '{value}': {err}")))
-}
-
-// --- mapping helpers ------------------------------------------------------------
-
-fn request_to_db(
-    request: &SchedulingAppointmentRequestV1,
-    created_at: DateTime<Utc>,
-) -> SchedulingAppointmentDbV1 {
-    SchedulingAppointmentDbV1 {
-        appointment_id: request.appointment_id,
-        patient_id: request.patient_id.clone(),
-        practitioner_id: request.practitioner_id,
-        scheduled_date: request.scheduled_date,
-        slot: request.slot.clone(),
-        buffer_duration: request.buffer_duration,
-        status: request_status_to_db(request.status.clone()),
-        reason: request.reason.clone(),
-        notes: request.notes.clone(),
-        created_at,
-        updated_at: None,
-    }
-}
-
-fn db_to_reply(db: SchedulingAppointmentDbV1) -> SchedulingAppointmentReplyV1 {
-    SchedulingAppointmentReplyV1 {
-        appointment_id: db.appointment_id,
-        patient_id: db.patient_id,
-        practitioner_id: db.practitioner_id,
-        scheduled_date: db.scheduled_date,
-        slot: db.slot,
-        status: db_status_to_reply(db.status),
-        created_at: db.created_at,
-        buffer_duration: db.buffer_duration,
-        reason: db.reason,
-        notes: db.notes,
-        updated_at: db.updated_at,
-    }
 }
 
 fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<SchedulingAppointmentReplyV1, ApiError> {
@@ -249,7 +170,7 @@ async fn any_overlapping(
         let slot_json: sqlx::types::Json<SchedulingTimeRangeV0> = row
             .try_get("slot")
             .map_err(|err| ApiError::internal(format!("decoding slot: {err}")))?;
-        if slots_overlap(&slot_json.0, slot)? {
+        if scheduling_core::slots_overlap(&slot_json.0, slot)? {
             return Ok(true);
         }
     }
@@ -262,7 +183,7 @@ async fn create_appointment(
     State(state): State<AppState>,
     JsonBody(request): JsonBody<SchedulingAppointmentRequestV1>,
 ) -> Result<(StatusCode, Json<SchedulingAppointmentReplyV1>), ApiError> {
-    validate_slot(&request.slot)?;
+    scheduling_core::validate_slot(&request.slot)?;
     parse_uuid(&request.patient_id, "patient id")?;
     let practitioner_id = request.practitioner_id.to_string();
     let appointment_id = request.appointment_id.to_string();
@@ -283,7 +204,7 @@ async fn create_appointment(
     }
 
     let created_at = http::utc_now();
-    let db_row = request_to_db(&request, created_at);
+    let db_row = scheduling_core::request_to_db(&request, created_at);
 
     // appointment_id is the generated PK; atomic duplicate detection.
     let insert = sqlx::query(
@@ -298,7 +219,7 @@ async fn create_appointment(
     .bind(db_row.scheduled_date)
     .bind(sqlx::types::Json(&db_row.slot))
     .bind(db_row.buffer_duration.map(|duration| duration.to_string()))
-    .bind(db_status_to_str(&db_row.status))
+    .bind(scheduling_core::db_status_name(&db_row.status))
     .bind(&db_row.reason)
     .bind(&db_row.notes)
     .bind(db_row.created_at)
@@ -318,22 +239,12 @@ async fn create_appointment(
         &practitioner_id,
         db_row.scheduled_date,
         &serde_json::to_string(&db_row.slot).unwrap_or_default(),
-        db_status_to_str(&db_row.status),
+        scheduling_core::db_status_name(&db_row.status),
         db_row.created_at,
     )
     .await;
 
-    Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
-}
-
-fn db_status_to_str(status: &SchedulingAppointmentDbV1Status) -> &'static str {
-    match status {
-        SchedulingAppointmentDbV1Status::Requested => "requested",
-        SchedulingAppointmentDbV1Status::Confirmed => "confirmed",
-        SchedulingAppointmentDbV1Status::Cancelled => "cancelled",
-        SchedulingAppointmentDbV1Status::Completed => "completed",
-        SchedulingAppointmentDbV1Status::NoShow => "no_show",
-    }
+    Ok((StatusCode::CREATED, Json(scheduling_core::db_to_reply(db_row))))
 }
 
 #[derive(Deserialize, Default)]
@@ -365,7 +276,7 @@ async fn reschedule_appointment(
         None => current.scheduled_date,
     };
     let slot = request.slot.clone().unwrap_or_else(|| current.slot.clone());
-    validate_slot(&slot)?;
+    scheduling_core::validate_slot(&slot)?;
 
     if any_overlapping(
         &state.pool,

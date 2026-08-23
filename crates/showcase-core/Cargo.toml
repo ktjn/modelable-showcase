@@ -1,0 +1,12 @@
+[package]
+name = "showcase-core"
+version = "0.1.0"
+edition = "2021"
+description = "Platform-neutral domain behavior for Modelable Showcase"
+license = "MIT"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+clinic-core = { path = "../../generated/rust/clinic-core" }
+clinical-core = { path = "../../generated/rust/clinical-core" }
+billing-core = { path = "../../generated/rust/billing-core" }
