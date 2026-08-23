@@ -100,6 +100,10 @@ impl ClinicEngine {
         self.state
     }
 
+    pub(crate) fn replace_state(&mut self, state: ClinicState) {
+        self.state = state;
+    }
+
     pub fn create_patient(
         &mut self,
         request: &PatientPatientRequestV2,

@@ -26,7 +26,7 @@ use clinical_core::clinical::encounter_id::EncounterId;
 /// maps match identity lookups used throughout the product; observations and
 /// payments stay as vectors because their current queries group them by their
 /// parent encounter or invoice and showcase datasets are deliberately small.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClinicState {
     pub(crate) patients: HashMap<PatientId, PatientPatientDbV2>,
     pub(crate) appointments: HashMap<AppointmentId, SchedulingAppointmentDbV1>,
@@ -62,7 +62,8 @@ impl ClinicState {
 }
 
 /// Stable diagnostic view of the records held by [`ClinicState`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClinicStateCounts {
     pub patients: usize,
     pub appointments: usize,
