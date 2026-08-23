@@ -9,7 +9,7 @@ SHELL := /bin/bash
 .PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report wasm-check-generated wasm-build clean up down modelable-version
 
 GENERATED_DIRS := generated dist .modelable
-CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist .pytest_cache
+CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist apps/web/public/wasm .pytest_cache
 
 # Prints a deterministic, non-zero-exit "not implemented yet" message for a
 # target whose real implementation lands in a later IMPLEMENTATION_PLAN.md
@@ -36,7 +36,7 @@ help:
 	@echo "  acceptance       all required non-optional gates"
 	@echo "  coverage-report  print upstream capability coverage table"
 	@echo "  wasm-check-generated  compile clinic-generated Rust for wasm32"
-	@echo "  wasm-build       build and package the browser clinic runtime"
+	@echo "  wasm-build       build the self-contained static browser clinic"
 	@echo "  clean            remove disposable build/test output"
 	@echo "  up               docker compose up --build"
 	@echo "  down             docker compose down"
@@ -115,7 +115,6 @@ e2e: generate
 	docker compose down -v
 	docker compose up --build -d
 	@. ./scripts/modelable-env.sh; uv run scripts/setup-full-database.py
-	@cd apps/web && npm ci
 	@cd tests/e2e && npm install && npx playwright install --with-deps chromium
 	@( cd tests/e2e && npx playwright test ); status=$$?; \
 	docker compose down; \
@@ -144,6 +143,9 @@ wasm-check-generated:
 
 wasm-build:
 	uv run scripts/build-showcase-wasm.py
+	@cd apps/web && npm ci
+	@cd apps/web && VITE_SHOWCASE_RUNTIME=wasm VITE_SHOWCASE_STATIC=true npm run build
+	uv run scripts/validate-wasm-pages.py
 
 up:
 	docker compose up --build -d

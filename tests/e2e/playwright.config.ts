@@ -15,7 +15,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /wasm\.spec\.ts/,
+      testIgnore: /(wasm|pages)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -26,12 +26,29 @@ export default defineConfig({
         baseURL: process.env.E2E_WASM_BASE_URL ?? 'http://127.0.0.1:4174',
       },
     },
+    {
+      name: 'pages-chromium',
+      testMatch: /pages\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.E2E_PAGES_BASE_URL ?? 'http://127.0.0.1:4175/modelable-showcase/',
+      },
+    },
   ],
-  webServer: {
-    command: 'npm --prefix ../../apps/web run dev -- --host 127.0.0.1 --port 4174',
-    env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm' },
-    url: 'http://127.0.0.1:4174',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  webServer: [
+    {
+      command: 'npm --prefix ../../apps/web run dev -- --host 127.0.0.1 --port 4174',
+      env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm' },
+      url: 'http://127.0.0.1:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: 'npm --prefix ../../apps/web run preview -- --host 127.0.0.1 --port 4175',
+      env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm', VITE_SHOWCASE_STATIC: 'true' },
+      url: 'http://127.0.0.1:4175/modelable-showcase/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
 })
