@@ -20,7 +20,7 @@ LOCK_FILE = MANIFEST.parent / "Cargo.lock"
 VERSION_FILE = REPO_ROOT / ".wasm-bindgen-version"
 TARGET = "wasm32-unknown-unknown"
 TARGET_DIR = REPO_ROOT / ".modelable" / "showcase-wasm-target"
-DEFAULT_OUTPUT = REPO_ROOT / "generated" / "wasm"
+DEFAULT_OUTPUT = REPO_ROOT / "apps" / "web" / "public" / "wasm"
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
         "--out-dir",
         type=Path,
         default=DEFAULT_OUTPUT,
-        help="package output directory (default: generated/wasm)",
+        help="package output directory (default: apps/web/public/wasm)",
     )
     parser.add_argument(
         "--skip-install",
