@@ -6,7 +6,7 @@
 SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report clean up down modelable-version
+.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report wasm-check-generated clean up down modelable-version
 
 GENERATED_DIRS := generated dist .modelable
 CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist .pytest_cache
@@ -35,6 +35,7 @@ help:
 	@echo "  determinism      double-generation hash comparison"
 	@echo "  acceptance       all required non-optional gates"
 	@echo "  coverage-report  print upstream capability coverage table"
+	@echo "  wasm-check-generated  compile clinic-generated Rust for wasm32"
 	@echo "  clean            remove disposable build/test output"
 	@echo "  up               docker compose up --build"
 	@echo "  down             docker compose down"
@@ -132,6 +133,10 @@ acceptance:
 
 coverage-report:
 	@. ./scripts/modelable-env.sh; uv run scripts/coverage-report.py
+
+wasm-check-generated:
+	rustup target add wasm32-unknown-unknown
+	@. ./scripts/modelable-env.sh; uv run scripts/check-generated-rust-wasm.py
 
 up:
 	docker compose up --build -d

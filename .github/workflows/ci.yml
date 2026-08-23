@@ -59,6 +59,7 @@ jobs:
       model: ${{ steps.filter.outputs.model || steps.fallback.outputs.model }}
       generate: ${{ steps.filter.outputs.generate || steps.fallback.outputs.generate }}
       rust: ${{ steps.filter.outputs.rust || steps.fallback.outputs.rust }}
+      wasm_generated: ${{ steps.filter.outputs.wasm_generated || steps.fallback.outputs.wasm_generated }}
       csharp: ${{ steps.filter.outputs.csharp || steps.fallback.outputs.csharp }}
       java: ${{ steps.filter.outputs.java || steps.fallback.outputs.java }}
       python_lang: ${{ steps.filter.outputs.python_lang || steps.fallback.outputs.python_lang }}
@@ -97,6 +98,10 @@ jobs:
               - *shared
               - 'apps/api/**'
               - 'tests/integration/test_rust_codegen.py'
+            wasm_generated:
+              - *shared
+              - 'apps/api/Cargo.toml'
+              - 'scripts/check-generated-rust-wasm.py'
             csharp:
               - *shared
               - 'probes/csharp/**'
@@ -143,7 +148,7 @@ jobs:
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: fallback
         run: |
-          for name in model generate rust csharp java python_lang go protobuf_grpc databases product e2e; do
+          for name in model generate rust wasm_generated csharp java python_lang go protobuf_grpc databases product e2e; do
             echo "${name}=true" >> "$GITHUB_OUTPUT"
           done
 
@@ -225,6 +230,24 @@ jobs:
         run: . ./scripts/modelable-env.sh && uv run pytest -q tests/integration/test_rust_codegen.py
       - name: Build generated Rust crates + apps/api
         run: cargo build --manifest-path apps/api/Cargo.toml --all-targets
+
+  generated-rust-wasm:
+    name: generated Rust / wasm32
+    needs: changes
+    if: needs.changes.outputs.wasm_generated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install pinned Modelable
+        run: ./scripts/install-modelable.sh
+      - name: Check generated Rust for wasm32
+        run: make wasm-check-generated
 
   lang-csharp:
     name: languages / csharp
