@@ -12,8 +12,12 @@ test.describe('GitHub Pages static build', () => {
 
     await page.goto('./#/schedule')
     await expect(page.getByRole('heading', { name: 'Schedule' })).toBeVisible()
+    await expect(page.getByText('Loading schedule…')).toBeHidden()
+    await expect(page.getByRole('alert')).toHaveCount(0)
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Schedule' })).toBeVisible()
+    await expect(page.getByText('Loading schedule…')).toBeHidden()
+    await expect(page.getByRole('alert')).toHaveCount(0)
 
     expect(new URL(page.url()).pathname).toBe('/modelable-showcase/')
     expect(new URL(page.url()).hash).toBe('#/schedule')
