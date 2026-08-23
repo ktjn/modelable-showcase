@@ -65,7 +65,8 @@ The product is intentionally small. Features exist to prove Modelable contracts,
 
 ## 4. Runtime architecture
 
-Use the following architecture unless an implementation slice documents a compelling incompatibility with a generated artifact:
+The showcase MUST support two runtime modes for the same Modelable Clinic
+product. The full-stack mode remains the infrastructure acceptance path:
 
 ```text
 React + TypeScript web application
@@ -78,6 +79,28 @@ Rust + Axum API
  PostgreSQL      ClickHouse
  product state   analytics
 ```
+
+The browser/WASM mode is an additional static-runtime acceptance path:
+
+```text
+React + TypeScript web application
+              |
+              | browser runtime protocol
+              v
+Rust/WASM clinic runtime
+              |
+              v
+browser persistence
+```
+
+Use these architectures unless an implementation slice documents a compelling
+incompatibility with a generated artifact. Both modes MUST run the same clinic
+product and preserve equivalent observable behavior wherever infrastructure
+semantics do not intentionally differ. The browser/WASM mode MAY replace
+PostgreSQL persistence and ClickHouse analytics storage with browser adapters,
+but it MUST continue to exercise Modelable-generated contracts and the shared
+portable clinic behavior. It MUST NOT weaken or replace the full-stack
+PostgreSQL, ClickHouse, Axum, or generated-SQL acceptance requirements.
 
 ### 4.1 Web
 
@@ -142,6 +165,23 @@ After startup:
 - containers MUST start from a clean checkout without manually generated files.
 
 A non-containerized developer flow SHOULD also exist for faster web/API iteration.
+
+### 4.6 Browser/WASM execution
+
+The browser/WASM mode MUST run from static files after its page assets are
+loaded. It MUST NOT require a server process, database, container, secret,
+external SaaS dependency, or network service at runtime.
+
+Browser persistence and local analytics MAY use browser-specific adapters while
+the portable Rust application behavior remains shared with the full-stack mode.
+Generated Modelable Rust contracts MUST remain the domain/API source of truth;
+the browser runtime MUST NOT introduce handwritten Rust or TypeScript copies of
+those generated domain types.
+
+GitHub Pages deployment is the required hosted acceptance target for the
+browser/WASM mode. Until that mode is implemented, the full-stack mode remains
+the current runnable product and all of its existing acceptance gates remain
+required.
 
 ## 5. Repository layout
 
@@ -986,7 +1026,9 @@ The repository is complete when all of the following are true:
 25. No permanent showcase patch layer exists for Modelable-generated artifacts (see `UPSTREAM_POLICY.md` §7).
 26. Every general Modelable defect or missing capability encountered during implementation is either fixed upstream or explicitly documented as an intentional upstream limitation with a corresponding showcase boundary test.
 27. The deterministic, non-AI-gated CLI surface listed in §15 — `graph export`, `codegen`, `attach`, `spec`, and the import path of `generate` — has passing coverage, not only the compiler/validation commands used earlier in this list.
-28. The federated-registry CLI entry points (`registry ...`, `dependents`, `lineage verify`) have an explicit deferred-boundary test per §14, not silence.
+28. The same clinic product runs in browser/WASM mode from GitHub Pages with no runtime backend or external service dependency after assets load.
+29. Browser/WASM acceptance proves the portable Rust layer compiles for `wasm32-unknown-unknown` and preserves the required observable clinic behavior without weakening the full-stack infrastructure gates.
+30. The federated-registry CLI entry points (`registry ...`, `dependents`, `lineage verify`) have an explicit deferred-boundary test per §14, not silence.
 
 Items 20-26 restate `UPSTREAM_POLICY.md` §11 verbatim as part of this single merged checklist; that document remains the authoritative process description for *how* to reach them, this list is the authoritative statement of *whether the repository is done*.
 
