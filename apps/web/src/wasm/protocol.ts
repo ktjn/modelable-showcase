@@ -10,6 +10,13 @@ export interface RuntimeError {
   message: string
 }
 
+export interface SnapshotEnvelope {
+  formatVersion: number
+  modelableVersion: string
+  schemaIdentity: string
+  state: Record<string, unknown>
+}
+
 export type WorkerOperation = 'initialize' | 'execute' | 'query' | 'snapshot' | 'reset' | 'seed'
 
 export interface WorkerRequest {
