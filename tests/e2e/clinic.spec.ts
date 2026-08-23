@@ -109,7 +109,7 @@ test.describe('Full clinic flow', () => {
 
     // 10. open patient summary and verify clinical + billing data
     await page.reload()
-    await expect(page.getByText('125.00')).toBeVisible()
+    await expect(page.getByText('125.00').first()).toBeVisible()
 
     // 11. open schedule and verify appointment state
     await page.goto('/schedule')
@@ -117,6 +117,6 @@ test.describe('Full clinic flow', () => {
 
     // 12. open analytics and verify aggregate reflects transaction
     await page.goto('/analytics')
-    await expect(page.getByText('125.00')).toBeVisible()
+    await expect(page.getByText('125.00').first()).toBeVisible()
   })
 })
