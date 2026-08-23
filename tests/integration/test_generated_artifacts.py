@@ -259,43 +259,30 @@ def _validate_fhir_profile(profile: str) -> subprocess.CompletedProcess[str]:
             "4.0.1",
         ],
         capture_output=True,
+        check=False,
         text=True,
     )
 
 
 @requires_fhir_validator
 def test_fhir_profiles_pass_the_hl7_validator():
-    """UPSTREAM_FINDINGS.md #43/#45, fixed as of Modelable 1.9.5 (#417/#418,
-    and this showcase's own upstream contribution #419 for the #45 residual):
-    clinical.PatientFhirView.v1 and clinical.EncounterFhirView.v1 now
-    validate cleanly against the real HL7 FHIR Validator.
+    """UPSTREAM_FINDINGS.md #43/#45/#46 regression coverage.
 
-    clinical.ObservationFhirView.v1 is asserted separately below
-    (`test_observation_fhir_profile_still_fails_on_the_known_codeableconcept_gap`)
-    - it hits a distinct, still-open defect (UPSTREAM_FINDINGS.md #46)."""
-    for profile in ["clinical.PatientFhirView.v1", "clinical.EncounterFhirView.v1"]:
+    Modelable 1.9.5 fixed the shared extension and snapshot defects (#43/#45),
+    while 1.10.0 fixed the remaining composite base-type mapping (#46). All
+    three representative resource profiles now validate with the real HL7
+    FHIR Validator.
+    """
+    for profile in [
+        "clinical.PatientFhirView.v1",
+        "clinical.EncounterFhirView.v1",
+        "clinical.ObservationFhirView.v1",
+    ]:
         result = _validate_fhir_profile(profile)
         assert "*FAILURE*" not in result.stdout, (
             f"{profile}: expected the real HL7 FHIR Validator to accept the generated profile - "
-            f"if this now fails, #43/#45 regressed upstream.\n{result.stdout}"
+            f"if this now fails, #43/#45/#46 regressed upstream.\n{result.stdout}"
         )
-
-
-@requires_fhir_validator
-def test_observation_fhir_profile_still_fails_on_the_known_codeableconcept_gap():
-    """UPSTREAM_FINDINGS.md #46 flip test: Observation.code maps to a
-    composite value type, and the emitter's generic BackboneElement fallback
-    (correct for the Patient.contact-shaped case #45 fixed) is invalid here -
-    base FHIR requires Observation.code specifically to be a CodeableConcept.
-    This pins that reality so a fix landing upstream turns this test red -
-    the signal to fold ObservationFhirView back into the success-only
-    assertion above and update #46's status."""
-    result = _validate_fhir_profile("clinical.ObservationFhirView.v1")
-    assert "*FAILURE*" in result.stdout, (
-        "expected the known #46 validator failure (Observation.code needs CodeableConcept) - "
-        f"if this now succeeds, #46 is fixed upstream.\n{result.stdout}"
-    )
-    assert "invalid constrained type BackboneElement from CodeableConcept" in result.stdout, result.stdout
 
 
 # --- OpenMetadata ---------------------------------------------------------

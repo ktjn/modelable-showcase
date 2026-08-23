@@ -59,8 +59,9 @@
 | 43 | [`compile --target fhir-profile` emits extension sidecar `StructureDefinition`s that fail the official HL7 FHIR Validator, and references two annotation-marker extension URLs for which no `StructureDefinition` is ever emitted at all](#43-compile---target-fhir-profile-emits-extension-sidecar-structuredefinitions-that-fail-the-official-hl7-fhir-validator-and-references-two-annotation-marker-extension-urls-piiclassification-for-which-no-structuredefinition-is-ever-emitted-at-all) | Invalid generated output | A | Fixed in v1.9.5 (via [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417)) |
 | 44 | [`compile --target avro` crashes on any field with a default value - `TypeError: cannot use 'dict' as a set element`](#44-compile---target-avro-crashes-on-any-field-with-a-default-value---typeerror-cannot-use-dict-as-a-set-element) | Crash | A | Fixed in v1.9.5 (via [ktjn/modelable#417](https://github.com/ktjn/modelable/pull/417)) |
 | 45 | [`compile --target fhir-profile` emits `Extension.url` elements with no explicit type, so snapshot generation still fails the official HL7 FHIR Validator even after #417](#45-compile---target-fhir-profile-emits-extensionurl-elements-with-no-explicit-type-so-snapshot-generation-still-fails-the-official-hl7-fhir-validator-even-after-417) | Invalid generated output | A | Fixed in v1.9.5 (via this showcase's own [ktjn/modelable#419](https://github.com/ktjn/modelable/pull/419)) |
-| 46 | [`compile --target fhir-profile` uses a generic `BackboneElement` fallback for composite fields that map to a more specific base FHIR type (e.g. `Observation.code` needing `CodeableConcept`)](#46-compile---target-fhir-profile-uses-a-generic-backboneelement-fallback-for-composite-fields-that-map-to-a-more-specific-base-fhir-type-eg-observationcode-needing-codeableconcept) | Invalid generated output | A | Open |
+| 46 | [`compile --target fhir-profile` uses a generic `BackboneElement` fallback for composite fields that map to a more specific base FHIR type (e.g. `Observation.code` needing `CodeableConcept`)](#46-compile---target-fhir-profile-uses-a-generic-backboneelement-fallback-for-composite-fields-that-map-to-a-more-specific-base-fhir-type-eg-observationcode-needing-codeableconcept) | Invalid generated output | A | Fixed in v1.10.0 (via [ktjn/modelable#425](https://github.com/ktjn/modelable/pull/425)) |
 | 47 | [`compile --target avro` never resolves any multi-field named-type reference (value or entity, same-domain or cross-domain) - it degrades to a lossy `string` fallback instead](#47-compile---target-avro-never-resolves-any-multi-field-named-type-reference-value-or-entity-same-domain-or-cross-domain---it-degrades-to-a-lossy-string-fallback-instead) | Invalid generated output | A | Open |
+| 48 | [`compile --target rust` enables UUID v4 randomness in every generated package that stores UUIDs, preventing `wasm32-unknown-unknown` compilation](#48-compile---target-rust-enables-uuid-v4-randomness-in-every-generated-package-that-stores-uuids-preventing-wasm32-unknown-unknown-compilation) | Crash (broken generated code) | A | Fixed in v1.10.1 (via [ktjn/modelable#441](https://github.com/ktjn/modelable/pull/441)) |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -2158,11 +2159,11 @@ Every extension `StructureDefinition` this emitter produces (both `_emit_extensi
 
 **Expected:** the full generated `fhir-profile` set - extensions and the top-level profile together - validates with zero errors against the real HL7 FHIR Validator, not just the individual extension files in isolation.
 
-**Showcase workaround:** None needed - fixed upstream (via this showcase's own contribution, #419) and released in 1.9.5. `tests/integration/test_generated_artifacts.py::test_fhir_profiles_pass_the_hl7_validator` now asserts success for `clinical.PatientFhirView.v1` and `clinical.EncounterFhirView.v1` against the pinned 1.9.5 release (a distinct, separate defect for `clinical.ObservationFhirView.v1` remains - see [## 46](#46-compile---target-fhir-profile-uses-a-generic-backboneelement-fallback-for-composite-fields-that-map-to-a-more-specific-base-fhir-type-eg-observationcode-needing-codeableconcept)).
+**Showcase workaround:** None needed - fixed upstream (via this showcase's own contribution, #419) and released in 1.9.5. `tests/integration/test_generated_artifacts.py::test_fhir_profiles_pass_the_hl7_validator` asserts success for `clinical.PatientFhirView.v1` and `clinical.EncounterFhirView.v1`; the distinct Observation composite-type defect recorded as #46 was subsequently fixed in 1.10.0.
 
 ## 46. `compile --target fhir-profile` uses a generic `BackboneElement` fallback for composite fields that map to a more specific base FHIR type (e.g. `Observation.code` needing `CodeableConcept`)
 
-**Status:** Open. Surfaced while verifying #45's fix against the pinned 1.9.5 release - #419 (this showcase's own fix for #45) correctly resolved the case where a composite direct field's real base type genuinely is `BackboneElement` (`Patient.contact`), but the emitter has no way to know when a *different*, more specific composite type is required instead.
+**Status:** Fixed in **v1.10.0** via [ktjn/modelable#425](https://github.com/ktjn/modelable/pull/425). The emitter now uses a per-resource element-type table for supported base resources, so `Observation.code` constrains to `CodeableConcept` while genuine backbone elements such as `Patient.contact` retain the fallback.
 
 **Discovered:** Re-running the real HL7 FHIR Validator against every profile in this showcase's generated `fhir-profile` set after the 1.9.5 re-pin (not just the three representative profiles #45's own reproduction targeted) - `clinical.ObservationFhirView.v1` still fails, while `clinical.PatientFhirView.v1` and `clinical.EncounterFhirView.v1` now pass.
 
@@ -2192,7 +2193,7 @@ CodeableConcept in http://hl7.org/fhir/StructureDefinition/Observation
 
 **Expected:** `_fhir_type` (or its caller, `_field_element`) needs real knowledge of each supported base resource's own field-to-type mapping (Patient/Observation/Encounter, matching `emitters/fhir.py`'s own `_BASE_RESOURCE_ELEMENTS` table, which already enumerates valid field names per resource but not their types) to emit the correct specific type per field, falling back to `BackboneElement` only when no more specific mapping is known.
 
-**Showcase workaround:** None - `clinical.ObservationFhirView.v1` is deliberately excluded from the success-only HL7 validator assertion; `tests/integration/test_generated_artifacts.py::test_observation_fhir_profile_still_fails_on_the_known_codeableconcept_gap` pins this exact failure signature as the flip test.
+**Showcase workaround:** None. Against the pinned 1.10.1 release, `clinical.ObservationFhirView.v1` is included in `tests/integration/test_generated_artifacts.py::test_fhir_profiles_pass_the_hl7_validator` alongside the Patient and Encounter profiles and passes the official HL7 validator.
 
 ## 47. `compile --target avro` never resolves any multi-field named-type reference (value or entity, same-domain or cross-domain) - it degrades to a lossy `string` fallback instead
 
@@ -2231,3 +2232,69 @@ The `NamedType` branch only ever attempts `resolve_semantic_type_ref` - which re
 **Expected:** `_type_schema`'s `NamedType` branch should resolve any named type (semantic, value, or entity - not just semantic), matching the pattern every other emitter already uses (`resolve_model_ref` in `emitters/fhir.py`, `emitters/python.py`, etc.), so a value-typed field renders as its own resolved Avro record instead of a bare lossy `string`.
 
 **Showcase workaround:** None - `tests/integration/test_avro_codegen.py::test_multi_field_named_type_references_are_lossy` pins this exact reality (asserting `PatientEvent.v2.avsc`'s `address` field is `["null", "string"]` and `Patient.v2.avsc`'s `contact` field is bare `"string"`) as the flip test.
+
+## 48. `compile --target rust` enables UUID v4 randomness in every generated package that stores UUIDs, preventing `wasm32-unknown-unknown` compilation
+
+**Status:** Fixed in **v1.10.1** via this showcase's upstream contribution
+[ktjn/modelable#441](https://github.com/ktjn/modelable/pull/441). The showcase
+is pinned to 1.10.1 and `make wasm-check-generated` compiles every generated
+Rust package consumed by the clinic for `wasm32-unknown-unknown` without
+rewriting the output.
+
+**Discovered:** WASM implementation plan Slice 1, while compiling the real
+generated `clinic-core`, `clinical-core`, and `billing-core` packages for the
+browser target.
+
+**Minimal reproduction:**
+
+```bash
+mkdir -p /tmp/modelable-rust-wasm && cd /tmp/modelable-rust-wasm
+cat > workspace.mdl <<'EOF'
+workspace "rust-wasm" {
+  package "probe-core" { include: ["probe"] }
+}
+
+domain probe {
+  owner: "test"
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+  }
+}
+EOF
+modelable compile . --target rust --out out \
+  --registry registry.db --registry-ids registry-ids.lock
+rustup target add wasm32-unknown-unknown
+cargo check --target wasm32-unknown-unknown \
+  --manifest-path out/probe-core/Cargo.toml
+```
+
+**Observed on Modelable 1.10.0 and earlier:** the generated manifest contained
+`uuid = { version = "1", features = ["v4", "serde"] }`. Current `uuid` then
+stopped the WASM build with:
+
+```text
+error: to use `uuid` on `wasm32-unknown-unknown`, specify a source of
+randomness using one of the `js`, `rng-getrandom`, or `rng-rand` features
+```
+
+The real clinic reproduced the same failure in all three generated packages.
+No generated Rust source called `Uuid::new_v4`; the packages only stored,
+converted, and serialized UUID values.
+
+**Root cause (read from source, not guessed):** Modelable's Rust emitter
+unconditionally added the `v4` feature whenever an artifact required the
+`uuid` crate. That feature compiles UUID randomness support even though the
+emitter generates no UUID values, and the randomness path requires an explicit
+browser provider on `wasm32-unknown-unknown`.
+
+**Expected:** generated contract packages that only represent UUID values
+should enable Serde support without enabling UUID generation. An application
+that generates UUIDs can choose its own platform-appropriate randomness
+feature in its direct dependency.
+
+**Showcase workaround:** None. Modelable 1.10.1 emits
+`uuid = { version = "1", features = ["serde"] }`. The Slice 1 probe generates
+fresh Rust output into an isolated directory and checks every package currently
+referenced by `apps/api/Cargo.toml` for the browser target, so this portability
+regression cannot be hidden by editing disposable generated artifacts.
