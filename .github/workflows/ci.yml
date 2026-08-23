@@ -150,11 +150,16 @@ jobs:
               - 'scripts/setup-full-database.py'
             e2e:
               - *shared
+              - '.wasm-bindgen-version'
               - 'apps/api/**'
               - 'crates/showcase-core/**'
+              - 'crates/showcase-wasm/**'
               - 'apps/web/**'
               - 'tests/e2e/**'
               - 'docker-compose.yml'
+              - 'scripts/build-showcase-wasm.py'
+              - 'scripts/install-wasm-bindgen.py'
+              - 'scripts/validate-wasm-pages.py'
               - 'scripts/setup-full-database.py'
       - name: Run everything (non-push/pull_request trigger, e.g. canary)
         if: github.event_name != 'push' && github.event_name != 'pull_request'
