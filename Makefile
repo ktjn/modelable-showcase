@@ -6,7 +6,7 @@
 SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report wasm-check-generated wasm-build pages-build clean up down modelable-version
+.PHONY: help bootstrap generate validate probes compat integration integration-apicurio integration-marquez e2e determinism acceptance coverage-report wasm-check-generated wasm-test wasm-build wasm-e2e pages-build clean up down modelable-version
 
 GENERATED_DIRS := generated dist .modelable
 CLEAN_DIRS := $(GENERATED_DIRS) apps/web/node_modules apps/web/dist apps/web/public/wasm .pytest_cache
@@ -36,7 +36,9 @@ help:
 	@echo "  acceptance       all required non-optional gates"
 	@echo "  coverage-report  print upstream capability coverage table"
 	@echo "  wasm-check-generated  compile clinic-generated Rust for wasm32"
+	@echo "  wasm-test        test the portable core and WASM transport"
 	@echo "  wasm-build       build the self-contained static browser clinic"
+	@echo "  wasm-e2e         run browser-only WASM and Pages journeys"
 	@echo "  pages-build      build and validate the GitHub Pages artifact"
 	@echo "  clean            remove disposable build/test output"
 	@echo "  up               docker compose up --build"
@@ -112,12 +114,11 @@ integration-marquez:
 	docker compose stop marquez marquez-db
 
 e2e: generate
-	$(MAKE) wasm-build
 	docker compose down -v
 	docker compose up --build -d
 	@. ./scripts/modelable-env.sh; uv run scripts/setup-full-database.py
 	@cd tests/e2e && npm install && npx playwright install --with-deps chromium
-	@( cd tests/e2e && npx playwright test ); status=$$?; \
+	@( cd tests/e2e && npx playwright test --project=chromium ); status=$$?; \
 	docker compose down; \
 	exit $$status
 
@@ -142,6 +143,13 @@ wasm-check-generated:
 	rustup target add wasm32-unknown-unknown
 	@. ./scripts/modelable-env.sh; uv run scripts/check-generated-rust-wasm.py
 
+wasm-test: generate
+	rustup target add wasm32-unknown-unknown
+	cargo test --locked --manifest-path crates/showcase-core/Cargo.toml
+	cargo check --locked --target wasm32-unknown-unknown --manifest-path crates/showcase-core/Cargo.toml
+	cargo test --locked --manifest-path crates/showcase-wasm/Cargo.toml
+	cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/showcase-wasm/Cargo.toml
+
 wasm-build:
 	uv run scripts/build-showcase-wasm.py
 	@cd apps/web && npm ci
@@ -149,6 +157,11 @@ wasm-build:
 	uv run scripts/validate-wasm-pages.py
 
 pages-build: wasm-build
+
+wasm-e2e: generate
+	$(MAKE) pages-build
+	@cd tests/e2e && npm ci && npx playwright install --with-deps chromium
+	@cd tests/e2e && npx playwright test --project=wasm-chromium --project=pages-chromium
 
 up:
 	docker compose up --build -d

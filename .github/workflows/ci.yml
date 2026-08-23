@@ -61,6 +61,8 @@ jobs:
       rust: ${{ steps.filter.outputs.rust || steps.fallback.outputs.rust }}
       wasm_generated: ${{ steps.filter.outputs.wasm_generated || steps.fallback.outputs.wasm_generated }}
       wasm_core: ${{ steps.filter.outputs.wasm_core || steps.fallback.outputs.wasm_core }}
+      wasm_build: ${{ steps.filter.outputs.wasm_build || steps.fallback.outputs.wasm_build }}
+      wasm_e2e: ${{ steps.filter.outputs.wasm_e2e || steps.fallback.outputs.wasm_e2e }}
       csharp: ${{ steps.filter.outputs.csharp || steps.fallback.outputs.csharp }}
       java: ${{ steps.filter.outputs.java || steps.fallback.outputs.java }}
       python_lang: ${{ steps.filter.outputs.python_lang || steps.fallback.outputs.python_lang }}
@@ -112,6 +114,23 @@ jobs:
               - 'crates/showcase-wasm/**'
               - 'scripts/build-showcase-wasm.py'
               - 'scripts/install-wasm-bindgen.py'
+            wasm_build: &wasm_build
+              - *shared
+              - '.wasm-bindgen-version'
+              - 'crates/showcase-core/**'
+              - 'crates/showcase-wasm/**'
+              - 'apps/web/**'
+              - 'scripts/build-showcase-wasm.py'
+              - 'scripts/install-wasm-bindgen.py'
+              - 'scripts/validate-wasm-pages.py'
+            wasm_e2e:
+              - *wasm_build
+              - 'tests/e2e/clinic-journey.ts'
+              - 'tests/e2e/wasm.spec.ts'
+              - 'tests/e2e/pages.spec.ts'
+              - 'tests/e2e/playwright.config.ts'
+              - 'tests/e2e/package.json'
+              - 'tests/e2e/package-lock.json'
             csharp:
               - *shared
               - 'probes/csharp/**'
@@ -150,23 +169,20 @@ jobs:
               - 'scripts/setup-full-database.py'
             e2e:
               - *shared
-              - '.wasm-bindgen-version'
               - 'apps/api/**'
-              - 'crates/showcase-core/**'
-              - 'crates/showcase-wasm/**'
               - 'apps/web/**'
-              - 'tests/e2e/**'
+              - 'tests/e2e/clinic-journey.ts'
+              - 'tests/e2e/clinic.spec.ts'
+              - 'tests/e2e/playwright.config.ts'
+              - 'tests/e2e/package.json'
+              - 'tests/e2e/package-lock.json'
               - 'docker-compose.yml'
-              - 'scripts/build-showcase-wasm.py'
-              - 'scripts/install-wasm-bindgen.py'
-              - 'scripts/validate-wasm-pages.py'
               - 'scripts/setup-full-database.py'
-              - '.github/workflows/pages.yml'
       - name: Run everything (non-push/pull_request trigger, e.g. canary)
         if: github.event_name != 'push' && github.event_name != 'pull_request'
         id: fallback
         run: |
-          for name in model generate rust wasm_generated wasm_core csharp java python_lang go protobuf_grpc databases product e2e; do
+          for name in model generate rust wasm_generated wasm_core wasm_build wasm_e2e csharp java python_lang go protobuf_grpc databases product e2e; do
             echo "${name}=true" >> "$GITHUB_OUTPUT"
           done
 
@@ -297,6 +313,86 @@ jobs:
         run: cargo test --locked --manifest-path crates/showcase-wasm/Cargo.toml
       - name: Build WASM runtime release
         run: cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/showcase-wasm/Cargo.toml
+
+  wasm-build:
+    name: WASM static build
+    needs: changes
+    if: needs.changes.outputs.wasm_build == 'true' || needs.changes.outputs.wasm_e2e == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            crates/showcase-core -> target
+            crates/showcase-wasm -> target
+      - name: make bootstrap
+        run: make bootstrap
+      - name: make generate
+        run: make generate
+      - name: make pages-build
+        run: make pages-build
+      - name: Upload browser artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-showcase-${{ github.run_id }}
+          path: |
+            apps/web/dist/
+            apps/web/public/wasm/
+          if-no-files-found: error
+          retention-days: 1
+
+  wasm-e2e:
+    name: WASM browser E2E
+    needs: [changes, wasm-build]
+    if: needs.changes.outputs.wasm_e2e == 'true' && needs.wasm-build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            tests/e2e/package-lock.json
+      - name: Download browser artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm-showcase-${{ github.run_id }}
+          path: apps/web
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Install browser test dependencies
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run WASM browser journeys
+        working-directory: tests/e2e
+        run: npx playwright test --project=wasm-chromium --project=pages-chromium
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-playwright-report
+          path: |
+            tests/e2e/playwright-report/
+            tests/e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   lang-csharp:
     name: languages / csharp
