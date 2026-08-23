@@ -72,7 +72,7 @@ test.describe('Full clinic flow', () => {
     // 3. book appointment
     await page.goto('/schedule')
     await page.getByLabel('Patient ID').fill(patientId)
-    await page.getByLabel('Practitioner ID').fill('a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1')
+    await page.getByLabel('Practitioner ID', { exact: true }).fill('a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1')
     await page.getByRole('button', { name: 'Book appointment' }).click()
     const row = page.locator('li', { hasText: `patient ${patientId}` })
     await expect(row).toBeVisible()
