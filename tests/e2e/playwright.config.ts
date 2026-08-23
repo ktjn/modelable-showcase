@@ -1,5 +1,24 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const webServer = process.env.E2E_SKIP_WASM_SERVERS === '1'
+  ? undefined
+  : [
+      {
+        command: 'npm --prefix ../../apps/web run dev -- --host 127.0.0.1 --port 4174',
+        env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm' },
+        url: 'http://127.0.0.1:4174',
+        reuseExistingServer: !process.env.CI,
+        timeout: 30_000,
+      },
+      {
+        command: 'npm --prefix ../../apps/web run preview -- --host 127.0.0.1 --port 4175',
+        env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm', VITE_SHOWCASE_STATIC: 'true' },
+        url: 'http://127.0.0.1:4175/modelable-showcase/',
+        reuseExistingServer: !process.env.CI,
+        timeout: 30_000,
+      },
+    ]
+
 // IMPLEMENTATION_PLAN.md Task 12.1. Runs against the docker-compose `web`
 // service (nginx, proxying /api to the `api` service - apps/web/nginx.conf),
 // so this exercises the same containers Task 11.1 built, not a dev server.
@@ -35,20 +54,5 @@ export default defineConfig({
       },
     },
   ],
-  webServer: [
-    {
-      command: 'npm --prefix ../../apps/web run dev -- --host 127.0.0.1 --port 4174',
-      env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm' },
-      url: 'http://127.0.0.1:4174',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-    },
-    {
-      command: 'npm --prefix ../../apps/web run preview -- --host 127.0.0.1 --port 4175',
-      env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm', VITE_SHOWCASE_STATIC: 'true' },
-      url: 'http://127.0.0.1:4175/modelable-showcase/',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-    },
-  ],
+  webServer,
 })
