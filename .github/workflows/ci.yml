@@ -263,12 +263,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "crates/showcase-core -> target"
+      - name: Install pinned Modelable
+        run: ./scripts/install-modelable.sh
+      - name: Generate Rust contracts
+        run: . ./scripts/modelable-env.sh && modelable compile model --target rust --out generated/rust
       - name: Test platform-neutral core
         run: cargo test --locked --manifest-path crates/showcase-core/Cargo.toml
       - name: Check platform-neutral core for wasm32
