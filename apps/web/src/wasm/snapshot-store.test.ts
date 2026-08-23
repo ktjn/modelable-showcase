@@ -58,6 +58,25 @@ describe('PersistentWorkerSession', () => {
     })
   })
 
+  it('seeds deterministic sample data only on the first static visit', async () => {
+    const store = new ClinicSnapshotStore(new IDBFactory(), 'first-visit-seed-test')
+    const seeded = snapshot('seeded-schema')
+    const requestWorker = vi.fn(async (request: WorkerRequest) => (
+      request.operation === 'seed' ? success(request.id, seeded) : success(request.id)
+    ))
+    const first = new PersistentWorkerSession(requestWorker, store)
+
+    await first.initialize('initialize', 'seed')
+    expect(requestWorker.mock.calls.map(([request]) => request.operation)).toEqual(['initialize', 'seed'])
+    expect(await store.load()).toEqual(seeded)
+
+    requestWorker.mockClear()
+    const reloaded = new PersistentWorkerSession(requestWorker, store)
+    await reloaded.initialize('reload', 'do-not-seed')
+    expect(requestWorker).toHaveBeenCalledOnce()
+    expect(requestWorker).toHaveBeenCalledWith({ id: 'reload', operation: 'initialize', snapshot: seeded })
+  })
+
   it.each(['execute', 'seed'] as const)('persists snapshots after successful %s', async (operation) => {
     const store = new ClinicSnapshotStore(new IDBFactory(), `${operation}-test`)
     const nextSnapshot = snapshot(`${operation}-schema`)
@@ -84,14 +103,14 @@ describe('PersistentWorkerSession', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
-  it('clears persisted state after a successful reset', async () => {
+  it('persists empty state after reset so an intentional reset stays empty', async () => {
     const store = new ClinicSnapshotStore(new IDBFactory(), 'reset-test')
     await store.save(snapshot())
     const session = new PersistentWorkerSession(async request => success(request.id, snapshot()), store)
 
     await session.request({ id: 'reset', operation: 'reset' })
 
-    expect(await store.load()).toBeUndefined()
+    expect(await store.load()).toEqual(snapshot())
   })
 
   it('turns corrupt and incompatible stored state into an explicit reset path', async () => {
@@ -118,6 +137,7 @@ describe('PersistentWorkerSession', () => {
     await expect(incompatible.initialize('incompatible')).rejects.toThrow(/reset the sandbox/)
 
     await incompatible.recoverByReset('recover')
-    expect(incompatibleStore.clear).toHaveBeenCalledOnce()
+    expect(incompatibleStore.save).toHaveBeenCalledWith(snapshot())
+    expect(incompatibleStore.clear).not.toHaveBeenCalled()
   })
 })

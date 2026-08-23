@@ -42,8 +42,9 @@ test.describe('Rust WASM clinic runtime', () => {
 
     await page.getByRole('button', { name: 'Seed demo data' }).click()
     await expect(page.getByRole('status')).toContainText('Synthetic demo data loaded')
-    await page.getByRole('link', { name: 'Analytics' }).click()
-    await expect(page.getByText('125.00')).toBeVisible()
+    await page.getByRole('link', { name: 'Analytics', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible()
+    await expect(page.getByText('125.00', { exact: true })).toBeVisible()
 
     const downloadPromise = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Export snapshot' }).click()
@@ -55,11 +56,12 @@ test.describe('Rust WASM clinic runtime', () => {
     await page.getByRole('button', { name: 'Reset sandbox' }).click()
     await expect(page.getByRole('status')).toContainText('Browser sandbox reset')
     await page.reload()
-    await page.getByRole('link', { name: 'Analytics' }).click()
-    await expect(page.getByText('0.00').first()).toBeVisible()
+    await page.getByRole('link', { name: 'Analytics', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible()
+    await expect(page.getByText('0.00', { exact: true }).first()).toBeVisible()
 
     await page.getByLabel('Import snapshot file').setInputFiles(snapshotPath!)
     await expect(page.getByRole('status')).toContainText('Snapshot imported')
-    await expect(page.getByText('125.00')).toBeVisible()
+    await expect(page.getByText('125.00', { exact: true })).toBeVisible()
   })
 })

@@ -287,6 +287,16 @@ section section {
   font-size: 2.1rem;
 }
 
+.hero__eyebrow,
+.section-heading__kicker {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--accent);
+  font: 700 0.7rem/1.3 ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .hero__lede {
   max-width: 640px;
   margin: 0.75rem 0 1.5rem;
@@ -297,6 +307,159 @@ section section {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* --- feature trail / sample record ------------------------------------ */
+
+.section-heading {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.35fr) minmax(16rem, 1fr);
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  letter-spacing: -0.015em;
+}
+
+.feature-trail {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin: 2rem 0 1.5rem;
+  counter-reset: feature-step;
+}
+
+.feature-trail li {
+  position: relative;
+  padding: 1.1rem 1.1rem 0 0;
+  border: 0;
+  border-top: 2px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  counter-increment: feature-step;
+}
+
+.feature-trail li::before {
+  content: counter(feature-step, decimal-leading-zero);
+  position: absolute;
+  top: -0.78rem;
+  right: 1rem;
+  padding: 0 0.35rem;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: 600 0.68rem/1.4 ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+}
+
+.feature-trail li:first-child {
+  border-top-color: var(--accent);
+}
+
+.feature-trail__label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.feature-trail strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.94rem;
+}
+
+.feature-trail p {
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.docs-links,
+.demo-record__links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.docs-links {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.docs-links a,
+.demo-record__links a {
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-underline-offset: 0.2em;
+}
+
+.demo-record {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.1fr) minmax(18rem, 0.9fr);
+  gap: 1.5rem 3rem;
+  overflow: hidden;
+}
+
+.demo-record h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+}
+
+.demo-record__facts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  max-width: none;
+  margin: 0;
+  border-left: 2px solid var(--accent);
+}
+
+.demo-record__facts > div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.75rem;
+  padding: 0.42rem 0 0.42rem 1rem;
+}
+
+.demo-record__links {
+  grid-column: 1 / -1;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 760px) {
+  .section-heading,
+  .demo-record {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-trail {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem 0;
+  }
+
+  .demo-record__links {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 460px) {
+  .feature-trail {
+    grid-template-columns: 1fr;
+  }
+
+  .page > section {
+    padding: 1.35rem 1.2rem;
+  }
+
+  .page > section.hero {
+    padding-inline: 0;
+  }
 }
 
 /* --- forms ------------------------------------------------------------ */

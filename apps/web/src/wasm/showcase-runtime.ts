@@ -103,12 +103,14 @@ export class WasmShowcaseRuntime implements ShowcaseRuntime {
   readonly #session: PersistentWorkerSession
   readonly #transport: WorkerTransport
   readonly #nextId: IdFactory
+  readonly #seedOnFirstVisit: boolean
   #initialized: Promise<WasmEngineInfo> | undefined
 
   constructor(
     createWorker: WorkerFactory = createRuntimeWorker,
     store: SnapshotStore = new ClinicSnapshotStore(),
     nextId: IdFactory = sequentialIds(),
+    seedOnFirstVisit = import.meta.env.VITE_SHOWCASE_STATIC === 'true',
   ) {
     this.#transport = new WorkerTransport(createWorker())
     this.#session = new PersistentWorkerSession(
@@ -116,6 +118,7 @@ export class WasmShowcaseRuntime implements ShowcaseRuntime {
       store,
     )
     this.#nextId = nextId
+    this.#seedOnFirstVisit = seedOnFirstVisit
   }
 
   async request<T>(request: RuntimeRequest): Promise<T> {
@@ -183,7 +186,10 @@ export class WasmShowcaseRuntime implements ShowcaseRuntime {
   }
 
   #initialize(): Promise<WasmEngineInfo> {
-    this.#initialized ??= this.#session.initialize(this.#nextId()).then(response => (
+    this.#initialized ??= this.#session.initialize(
+      this.#nextId(),
+      this.#seedOnFirstVisit ? this.#nextId() : undefined,
+    ).then(response => (
       this.#result<WasmEngineInfo>(response)
     ))
     return this.#initialized

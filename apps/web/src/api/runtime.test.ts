@@ -188,6 +188,29 @@ describe('runtime-neutral showcase client', () => {
     await expect(runtime.reset()).resolves.toEqual({ operation: 'reset' })
 
     expect(worker.requests.map(request => request.operation)).toEqual(['initialize', 'seed', 'reset'])
+    expect(store.saved).toEqual([SNAPSHOT, SNAPSHOT])
+    runtime.terminate()
+  })
+
+  it('auto-seeds a static sandbox once and restores it without reseeding', async () => {
+    const store = memoryStore()
+    const worker = new RespondingWorker(request => ({
+      id: request.id,
+      ok: true,
+      result: { modelableVersion: '1.10.1', schemaIdentity: 'clinic-v1' },
+      ...(request.operation === 'seed' ? { snapshot: SNAPSHOT } : {}),
+    }))
+    let id = 0
+    const runtime = new WasmShowcaseRuntime(
+      () => worker as unknown as Worker,
+      store,
+      () => `auto-${++id}`,
+      true,
+    )
+
+    await runtime.info()
+
+    expect(worker.requests.map(request => request.operation)).toEqual(['initialize', 'seed'])
     expect(store.saved).toEqual([SNAPSHOT])
     runtime.terminate()
   })
