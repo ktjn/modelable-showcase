@@ -134,6 +134,9 @@ acceptance:
 	$(MAKE) probes
 	$(MAKE) integration
 	$(MAKE) e2e
+	$(MAKE) wasm-check-generated
+	$(MAKE) wasm-test
+	$(MAKE) wasm-e2e
 	@. ./scripts/modelable-env.sh; uv run pytest -q tests/integration/test_lsp_smoke.py
 
 coverage-report:

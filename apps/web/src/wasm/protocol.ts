@@ -17,7 +17,9 @@ export interface SnapshotEnvelope {
   state: Record<string, unknown>
 }
 
-export type WorkerOperation = 'initialize' | 'execute' | 'query' | 'snapshot' | 'reset' | 'seed'
+export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+
+export type WorkerOperation = 'initialize' | 'execute' | 'query' | 'snapshot' | 'restore' | 'reset' | 'seed'
 
 export interface WorkerRequest {
   id: string

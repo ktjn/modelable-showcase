@@ -7,8 +7,17 @@ export interface RuntimeRequest {
   body?: unknown
 }
 
+export interface RuntimeInfo {
+  runtime: string
+  modelableVersion: string
+  schemaIdentity: string
+  storage: string
+}
+
 export interface ShowcaseRuntime {
+  readonly kind: RuntimeKind
   request<T>(request: RuntimeRequest): Promise<T>
+  info(): Promise<RuntimeInfo>
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

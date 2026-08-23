@@ -155,6 +155,29 @@ describe('WorkerRuntimeHost', () => {
     expect(response).toHaveProperty('snapshot')
   })
 
+  it('validates and restores a snapshot through the Rust boundary', async () => {
+    const runtime = fakeRuntime()
+    const host = new WorkerRuntimeHost(async () => runtime)
+    const snapshot = {
+      formatVersion: 1,
+      modelableVersion: '1.10.1',
+      schemaIdentity: 'clinic-v1',
+      state: { patients: {} },
+    }
+
+    const invalid = await host.handle({ id: 'invalid', operation: 'restore', snapshot: { state: {} } })
+    const restored = await host.handle({ id: 'restore', operation: 'restore', snapshot })
+
+    expect(invalid).toEqual({
+      id: 'invalid',
+      ok: false,
+      error: { category: 'bad_request', message: 'invalid clinic snapshot envelope' },
+    })
+    expect(runtime.initialize).toHaveBeenCalledWith(JSON.stringify(snapshot))
+    expect(runtime.snapshot).toHaveBeenCalledTimes(1)
+    expect(restored).toHaveProperty('snapshot')
+  })
+
   it('does not snapshot a rejected mutation', async () => {
     const runtime = fakeRuntime()
     vi.mocked(runtime.execute).mockReturnValue(JSON.stringify({

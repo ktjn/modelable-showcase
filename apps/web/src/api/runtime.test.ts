@@ -56,6 +56,21 @@ function memoryStore(initial?: SnapshotEnvelope): SnapshotStore & { saved: Snaps
 }
 
 describe('runtime-neutral showcase client', () => {
+  it('reads native runtime provenance through the HTTP API', async () => {
+    const info = {
+      runtime: 'Rust / Axum',
+      modelableVersion: '1.10.1',
+      schemaIdentity: 'clinic-v1',
+      storage: 'PostgreSQL + ClickHouse',
+    }
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(info)))
+    const runtime = new HttpRuntime('/root', fetchMock)
+
+    await expect(runtime.info()).resolves.toEqual(info)
+    expect(runtime.kind).toBe('http')
+    expect(fetchMock).toHaveBeenCalledWith('/root/api/runtime', expect.objectContaining({ method: 'GET' }))
+  })
+
   it('keeps the same GET/POST/PATCH request contract for an HTTP runtime', async () => {
     const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => (
       new Response(JSON.stringify({ method: init?.method, body: init?.body ?? null }))
@@ -173,6 +188,40 @@ describe('runtime-neutral showcase client', () => {
     await expect(runtime.reset()).resolves.toEqual({ operation: 'reset' })
 
     expect(worker.requests.map(request => request.operation)).toEqual(['initialize', 'seed', 'reset'])
+    expect(store.saved).toEqual([SNAPSHOT])
+    runtime.terminate()
+  })
+
+  it('reports WASM provenance and validates, restores, and persists snapshots', async () => {
+    const store = memoryStore()
+    const worker = new RespondingWorker(request => ({
+      id: request.id,
+      ok: true,
+      result: request.operation === 'initialize'
+        ? { modelableVersion: '1.10.1', schemaIdentity: 'clinic-v1' }
+        : request.operation === 'snapshot'
+          ? SNAPSHOT
+          : { restored: true },
+      ...(request.operation === 'restore' ? { snapshot: SNAPSHOT } : {}),
+    }))
+    let id = 0
+    const runtime = new WasmShowcaseRuntime(
+      () => worker as unknown as Worker,
+      store,
+      () => `snapshot-${++id}`,
+    )
+
+    await expect(runtime.info()).resolves.toEqual({
+      runtime: 'Rust / WebAssembly',
+      modelableVersion: '1.10.1',
+      schemaIdentity: 'clinic-v1',
+      storage: 'IndexedDB',
+    })
+    await expect(runtime.snapshot()).resolves.toEqual(SNAPSHOT)
+    await expect(runtime.restore({ nope: true })).rejects.toThrow('not a valid clinic snapshot')
+    await expect(runtime.restore(SNAPSHOT)).resolves.toBeUndefined()
+
+    expect(worker.requests.map(request => request.operation)).toEqual(['initialize', 'snapshot', 'restore'])
     expect(store.saved).toEqual([SNAPSHOT])
     runtime.terminate()
   })
