@@ -26,7 +26,8 @@ use serde::Serialize;
 
 use crate::{billing, clinical, patient, scheduling, ClinicState, ShowcaseError};
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppointmentReschedule {
     pub scheduled_date: Option<NaiveDate>,
     pub slot: Option<SchedulingTimeRangeV0>,
@@ -35,7 +36,8 @@ pub struct AppointmentReschedule {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EncounterUpdate {
     pub status: ClinicalEncounterDbV1Status,
     pub ended_at: Option<DateTime<Utc>>,
