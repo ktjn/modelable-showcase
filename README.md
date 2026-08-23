@@ -15,6 +15,13 @@ It is simultaneously:
 
 See [`SPEC.md`](SPEC.md) for the authoritative requirements and Definition of Done, [`UPSTREAM_POLICY.md`](UPSTREAM_POLICY.md) for how upstream gaps are handled (fix Modelable first, never a permanent local workaround), [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for how it was built task by task, and [`UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md) for the running log of real Modelable bugs/gaps this showcase has found - check it before re-discovering the same crash twice.
 
+The current product runs in full-stack mode through Rust/Axum, PostgreSQL, and
+ClickHouse. A second browser/WASM runtime is planned for static GitHub Pages
+hosting; it will run the same clinic product with shared portable Rust behavior
+and browser persistence while keeping the full-stack infrastructure path intact.
+See [`WASM_IMPLEMENTATION_PLAN.md`](WASM_IMPLEMENTATION_PLAN.md) for the ordered
+delivery slices and acceptance criteria.
+
 All patient/clinical/billing data anywhere in this repository is synthetic and obviously fictional. **This is a technical showcase, not clinical software.**
 
 ## 2. What it tests
