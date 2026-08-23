@@ -8,6 +8,10 @@
 use chrono::NaiveTime;
 use std::fmt;
 
+mod state;
+
+pub use state::{ClinicState, ClinicStateCounts};
+
 /// A semantic failure produced by deterministic showcase behavior.
 ///
 /// Variants are added only when shared core behavior has a concrete consumer.
@@ -237,7 +241,7 @@ pub mod clinical {
     ) -> ClinicalEncounterDbV1 {
         ClinicalEncounterDbV1 {
             encounter_id: request.encounter_id,
-            patient_id: request.patient_id.clone(),
+            patient_id: request.patient_id,
             practitioner_id: request.practitioner_id,
             appointment_id: request.appointment_id.clone(),
             status: request_status_to_db(request.status.clone()),
@@ -327,7 +331,7 @@ pub mod billing {
     ) -> BillingInvoiceDbV2 {
         BillingInvoiceDbV2 {
             invoice_id: request.invoice_id,
-            patient_id: request.patient_id.clone(),
+            patient_id: request.patient_id,
             encounter_id: request.encounter_id.clone(),
             lines: request.lines.clone(),
             subtotal: request.subtotal.clone(),
