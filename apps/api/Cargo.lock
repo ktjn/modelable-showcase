@@ -1523,6 +1523,7 @@ dependencies = [
  "clinic-core",
  "clinical-core",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

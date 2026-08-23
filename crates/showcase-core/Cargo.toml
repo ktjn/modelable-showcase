@@ -11,6 +11,4 @@ clinic-core = { path = "../../generated/rust/clinic-core" }
 clinical-core = { path = "../../generated/rust/clinical-core" }
 billing-core = { path = "../../generated/rust/billing-core" }
 serde = { version = "1", features = ["derive"] }
-
-[dev-dependencies]
 serde_json = "1"

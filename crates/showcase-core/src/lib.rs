@@ -9,12 +9,14 @@ use chrono::NaiveTime;
 use std::fmt;
 
 mod engine;
+mod snapshot;
 mod state;
 
 pub use engine::{
     AppointmentReschedule, AppointmentsPerDay, ClinicAnalytics, ClinicEngine, EncounterUpdate,
     PatientSummary, PractitionerAppointmentCount,
 };
+pub use snapshot::{modelable_version, schema_identity, SnapshotEnvelope, SNAPSHOT_FORMAT_VERSION};
 pub use state::{ClinicState, ClinicStateCounts};
 
 /// Stable category surfaced by transport adapters for a core failure.
@@ -52,6 +54,15 @@ pub enum ShowcaseError {
         resource: &'static str,
         message: String,
     },
+    CorruptSnapshot {
+        message: String,
+    },
+    IncompatibleSnapshot {
+        reason: String,
+    },
+    Internal {
+        message: String,
+    },
 }
 
 impl ShowcaseError {
@@ -62,6 +73,9 @@ impl ShowcaseError {
             | Self::InvoiceArithmetic { .. } => ErrorCategory::Validation,
             Self::NotFound { .. } => ErrorCategory::NotFound,
             Self::Conflict { .. } => ErrorCategory::Conflict,
+            Self::CorruptSnapshot { .. } => ErrorCategory::BadRequest,
+            Self::IncompatibleSnapshot { .. } => ErrorCategory::Validation,
+            Self::Internal { .. } => ErrorCategory::Internal,
         }
     }
 }
@@ -78,6 +92,11 @@ impl fmt::Display for ShowcaseError {
             Self::InvoiceArithmetic { message } => formatter.write_str(message),
             Self::NotFound { resource, id } => write!(formatter, "{resource} {id} not found"),
             Self::Conflict { message, .. } => formatter.write_str(message),
+            Self::CorruptSnapshot { message } => write!(formatter, "corrupt snapshot: {message}"),
+            Self::IncompatibleSnapshot { reason } => {
+                write!(formatter, "incompatible snapshot: {reason}")
+            }
+            Self::Internal { message } => formatter.write_str(message),
         }
     }
 }
