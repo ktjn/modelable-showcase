@@ -98,6 +98,7 @@ test.describe('Full clinic flow', () => {
     // 8. create invoice
     await page.goto(patientUrl)
     await page.getByLabel('Amount').fill('100.00')
+    await page.getByLabel('Tax').fill('25.00')
     await page.getByRole('button', { name: 'Create invoice' }).click()
     const invoiceItem = page.locator('li', { hasText: 'Invoice' })
     await expect(invoiceItem).toBeVisible()
