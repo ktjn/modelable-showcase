@@ -151,4 +151,29 @@ describe('runtime-neutral showcase client', () => {
       .rejects.toEqual(new ApiError(409, { error: 'already exists', category: 'conflict' }))
     runtime.terminate()
   })
+
+  it('exposes seed and reset through the persistent worker session', async () => {
+    const store = memoryStore()
+    const worker = new RespondingWorker(request => ({
+      id: request.id,
+      ok: true,
+      result: { operation: request.operation },
+      ...(request.operation === 'seed' || request.operation === 'reset'
+        ? { snapshot: SNAPSHOT }
+        : {}),
+    }))
+    let id = 0
+    const runtime = new WasmShowcaseRuntime(
+      () => worker as unknown as Worker,
+      store,
+      () => `control-${++id}`,
+    )
+
+    await expect(runtime.seed()).resolves.toEqual({ operation: 'seed' })
+    await expect(runtime.reset()).resolves.toEqual({ operation: 'reset' })
+
+    expect(worker.requests.map(request => request.operation)).toEqual(['initialize', 'seed', 'reset'])
+    expect(store.saved).toEqual([SNAPSHOT])
+    runtime.terminate()
+  })
 })

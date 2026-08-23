@@ -111,9 +111,11 @@ integration-marquez:
 	docker compose stop marquez marquez-db
 
 e2e: generate
+	$(MAKE) wasm-build
 	docker compose down -v
 	docker compose up --build -d
 	@. ./scripts/modelable-env.sh; uv run scripts/setup-full-database.py
+	@cd apps/web && npm ci
 	@cd tests/e2e && npm install && npx playwright install --with-deps chromium
 	@( cd tests/e2e && npx playwright test ); status=$$?; \
 	docker compose down; \

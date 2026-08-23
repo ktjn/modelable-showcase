@@ -121,6 +121,22 @@ export class WasmShowcaseRuntime implements ShowcaseRuntime {
     return this.#result<T>(response)
   }
 
+  async seed<T = unknown>(): Promise<T> {
+    await this.#initialize()
+    return this.#result<T>(await this.#session.request({
+      id: this.#nextId(),
+      operation: 'seed',
+    }))
+  }
+
+  async reset<T = unknown>(): Promise<T> {
+    await this.#initialize()
+    return this.#result<T>(await this.#session.request({
+      id: this.#nextId(),
+      operation: 'reset',
+    }))
+  }
+
   terminate(): void {
     this.#transport.terminate()
   }

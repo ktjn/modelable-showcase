@@ -534,7 +534,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: tests/e2e/package-lock.json
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            tests/e2e/package-lock.json
       - name: make bootstrap
         run: make bootstrap
       - name: make e2e

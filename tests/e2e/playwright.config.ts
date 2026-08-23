@@ -15,7 +15,23 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /wasm\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'wasm-chromium',
+      testMatch: /wasm\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.E2E_WASM_BASE_URL ?? 'http://127.0.0.1:4174',
+      },
+    },
   ],
+  webServer: {
+    command: 'npm --prefix ../../apps/web run dev -- --host 127.0.0.1 --port 4174',
+    env: { ...process.env, VITE_SHOWCASE_RUNTIME: 'wasm' },
+    url: 'http://127.0.0.1:4174',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+  },
 })
