@@ -281,6 +281,8 @@ dependencies = [
  "chrono",
  "clinic-core",
  "clinical-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

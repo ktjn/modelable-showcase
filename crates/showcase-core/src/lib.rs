@@ -8,16 +8,62 @@
 use chrono::NaiveTime;
 use std::fmt;
 
+mod engine;
 mod state;
 
+pub use engine::{
+    AppointmentReschedule, AppointmentsPerDay, ClinicAnalytics, ClinicEngine, EncounterUpdate,
+    PatientSummary, PractitionerAppointmentCount,
+};
 pub use state::{ClinicState, ClinicStateCounts};
+
+/// Stable category surfaced by transport adapters for a core failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCategory {
+    BadRequest,
+    NotFound,
+    Conflict,
+    Validation,
+    Internal,
+}
 
 /// A semantic failure produced by deterministic showcase behavior.
 ///
 /// Variants are added only when shared core behavior has a concrete consumer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShowcaseError {
-    InvalidSlot { start: NaiveTime, end: NaiveTime },
+    InvalidSlot {
+        start: NaiveTime,
+        end: NaiveTime,
+    },
+    InvalidMoney {
+        field: &'static str,
+        value: String,
+    },
+    InvoiceArithmetic {
+        message: String,
+    },
+    NotFound {
+        resource: &'static str,
+        id: String,
+    },
+    Conflict {
+        resource: &'static str,
+        message: String,
+    },
+}
+
+impl ShowcaseError {
+    pub fn category(&self) -> ErrorCategory {
+        match self {
+            Self::InvalidSlot { .. }
+            | Self::InvalidMoney { .. }
+            | Self::InvoiceArithmetic { .. } => ErrorCategory::Validation,
+            Self::NotFound { .. } => ErrorCategory::NotFound,
+            Self::Conflict { .. } => ErrorCategory::Conflict,
+        }
+    }
 }
 
 impl fmt::Display for ShowcaseError {
@@ -26,6 +72,12 @@ impl fmt::Display for ShowcaseError {
             Self::InvalidSlot { start, end } => {
                 write!(formatter, "slot end '{end}' is not after start '{start}'")
             }
+            Self::InvalidMoney { field, value } => {
+                write!(formatter, "invalid {field} decimal '{value}'")
+            }
+            Self::InvoiceArithmetic { message } => formatter.write_str(message),
+            Self::NotFound { resource, id } => write!(formatter, "{resource} {id} not found"),
+            Self::Conflict { message, .. } => formatter.write_str(message),
         }
     }
 }
@@ -274,6 +326,7 @@ pub mod clinical {
 }
 
 pub mod billing {
+    use super::ShowcaseError;
     use billing_core::billing::billing_invoice_db_v2::{
         BillingInvoiceDbV2, BillingInvoiceDbV2Status,
     };
@@ -323,6 +376,85 @@ pub mod billing {
             BillingPaymentReceivedV1Method::BankTransfer => "bank_transfer",
             BillingPaymentReceivedV1Method::Insurance => "insurance",
         }
+    }
+
+    /// Parse the generated decimal string into its exact two-decimal minor unit.
+    pub(crate) fn money_cents(field: &'static str, value: &str) -> Result<i64, ShowcaseError> {
+        let invalid = || ShowcaseError::InvalidMoney {
+            field,
+            value: value.to_string(),
+        };
+        let (negative, unsigned) = if let Some(rest) = value.strip_prefix('-') {
+            (true, rest)
+        } else {
+            (false, value.strip_prefix('+').unwrap_or(value))
+        };
+        let mut parts = unsigned.split('.');
+        let integer = parts.next().ok_or_else(invalid)?;
+        let fraction = parts.next().unwrap_or("");
+        if parts.next().is_some()
+            || integer.is_empty()
+            || !integer.bytes().all(|byte| byte.is_ascii_digit())
+            || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+            || fraction.len() > 2
+            || integer.trim_start_matches('0').len() > 8
+        {
+            return Err(invalid());
+        }
+        let major = integer.parse::<i64>().map_err(|_| invalid())?;
+        let minor = match fraction.len() {
+            0 => 0,
+            1 => fraction.parse::<i64>().map_err(|_| invalid())? * 10,
+            2 => fraction.parse::<i64>().map_err(|_| invalid())?,
+            _ => unreachable!("fraction length was validated"),
+        };
+        let cents = major
+            .checked_mul(100)
+            .and_then(|value| value.checked_add(minor))
+            .ok_or_else(invalid)?;
+        Ok(if negative { -cents } else { cents })
+    }
+
+    /// Validate invoice line and total arithmetic before either adapter stores it.
+    pub fn validate_invoice(request: &BillingInvoiceRequestV2) -> Result<(), ShowcaseError> {
+        let mut lines_total = 0_i64;
+        for line in &request.lines {
+            let unit_price = money_cents("invoice line unit price", &line.unit_price)?;
+            let expected_line_total = unit_price.checked_mul(line.quantity).ok_or_else(|| {
+                ShowcaseError::InvoiceArithmetic {
+                    message: "invoice line total is out of range".into(),
+                }
+            })?;
+            let line_total = money_cents("invoice line total", &line.line_total)?;
+            if expected_line_total != line_total {
+                return Err(ShowcaseError::InvoiceArithmetic {
+                    message: format!(
+                        "invoice line '{}' total does not equal quantity times unit price",
+                        line.description
+                    ),
+                });
+            }
+            lines_total = lines_total.checked_add(line_total).ok_or_else(|| {
+                ShowcaseError::InvoiceArithmetic {
+                    message: "invoice subtotal is out of range".into(),
+                }
+            })?;
+        }
+
+        let subtotal = money_cents("invoice subtotal", &request.subtotal)?;
+        let tax = money_cents("invoice tax", &request.tax)?;
+        let total = money_cents("invoice total", &request.total)?;
+        if lines_total != subtotal {
+            return Err(ShowcaseError::InvoiceArithmetic {
+                message: "invoice subtotal does not equal the sum of line totals".into(),
+            });
+        }
+        if subtotal.checked_add(tax) != Some(total) {
+            return Err(ShowcaseError::InvoiceArithmetic {
+                message: "invoice total does not equal subtotal plus tax".into(),
+            });
+        }
+        Ok(())
     }
 
     pub fn request_to_db(
@@ -443,5 +575,18 @@ mod tests {
             billing::payment_method_name(&BillingPaymentReceivedV1Method::BankTransfer),
             "bank_transfer"
         );
+    }
+
+    #[test]
+    fn money_validation_rejects_malformed_and_over_precision_values() {
+        assert_eq!(billing::money_cents("amount", "125.5"), Ok(12_550));
+        assert!(matches!(
+            billing::money_cents("amount", "-+1.00"),
+            Err(ShowcaseError::InvalidMoney { .. })
+        ));
+        assert!(matches!(
+            billing::money_cents("amount", "1.001"),
+            Err(ShowcaseError::InvalidMoney { .. })
+        ));
     }
 }

@@ -24,6 +24,7 @@ use axum::{Json, Router};
 use chrono::{DateTime, NaiveDate, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use showcase_core::{AppointmentsPerDay, ClinicAnalytics, PractitionerAppointmentCount};
 
 use crate::http::ApiError;
 use crate::AppState;
@@ -226,29 +227,6 @@ fn decimal_total_query(column: &str, table: &str) -> String {
         "SELECT concat(toString(intDiv(cents, 100)), '.', leftPad(toString(cents % 100), 2, '0')) AS total \
          FROM (SELECT toInt64(round(coalesce(sum({column}), 0) * 100)) AS cents FROM {table})"
     )
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppointmentsPerDay {
-    pub day: String,
-    pub appointment_count: u64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PractitionerAppointmentCount {
-    pub practitioner_id: String,
-    pub appointment_count: u64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ClinicAnalytics {
-    pub appointments_per_day: Vec<AppointmentsPerDay>,
-    pub billed_total: String,
-    pub paid_total: String,
-    pub practitioner_appointment_counts: Vec<PractitionerAppointmentCount>,
 }
 
 async fn clinic_analytics(State(state): State<AppState>) -> Result<Json<ClinicAnalytics>, ApiError> {

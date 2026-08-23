@@ -126,6 +126,12 @@ async fn invoice_invalid_inputs_are_rejected() {
     bad["status"] = json!("cancelled");
     let (status, body) = post_json(&mut router, "/api/invoices", bad).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+
+    let mut bad = invoice_body();
+    bad["total"] = json!("124.99");
+    let (status, body) = post_json(&mut router, "/api/invoices", bad).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("subtotal plus tax"), "{body}");
 }
 
 #[tokio::test]

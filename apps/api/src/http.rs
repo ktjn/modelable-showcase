@@ -34,7 +34,13 @@ impl ApiError {
 
 impl From<showcase_core::ShowcaseError> for ApiError {
     fn from(error: showcase_core::ShowcaseError) -> Self {
-        Self::bad_request(error.to_string())
+        match error.category() {
+            showcase_core::ErrorCategory::BadRequest
+            | showcase_core::ErrorCategory::Validation => Self::bad_request(error.to_string()),
+            showcase_core::ErrorCategory::NotFound => Self::not_found(error.to_string()),
+            showcase_core::ErrorCategory::Conflict => Self::conflict(error.to_string()),
+            showcase_core::ErrorCategory::Internal => Self::internal(error.to_string()),
+        }
     }
 }
 
