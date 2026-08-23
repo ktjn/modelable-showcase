@@ -1,4 +1,5 @@
 generated/
+apps/web/public/wasm/
 dist/
 .modelable/
 node_modules/
