@@ -30,7 +30,7 @@ export class PersistentWorkerSession {
     this.#store = store
   }
 
-  async initialize(id: string): Promise<WorkerResponse> {
+  async initialize(id: string, seedId?: string): Promise<WorkerResponse> {
     const snapshot = await this.#store.load()
     if (snapshot !== undefined && !isSnapshotEnvelope(snapshot))
       throw new StoredSnapshotError('the saved value is corrupt; reset the sandbox to continue')
@@ -42,6 +42,8 @@ export class PersistentWorkerSession {
     })
     if (!response.ok && snapshot !== undefined)
       throw new StoredSnapshotError(`${response.error.message}; reset the sandbox to continue`)
+    if (response.ok && snapshot === undefined && seedId !== undefined)
+      return this.request({ id: seedId, operation: 'seed' })
     return response
   }
 
@@ -54,7 +56,9 @@ export class PersistentWorkerSession {
       return response
 
     if (request.operation === 'reset') {
-      await this.#store.clear()
+      if (!isSnapshotEnvelope(response.snapshot))
+        throw new Error('WASM reset response did not include a valid snapshot')
+      await this.#store.save(response.snapshot)
       return response
     }
 
@@ -70,8 +74,11 @@ export class PersistentWorkerSession {
   /** Clear an unreadable snapshot and reset the in-memory runtime. */
   async recoverByReset(id: string): Promise<WorkerResponse> {
     const response = await this.#requestWorker({ id, operation: 'reset' })
-    if (response.ok)
-      await this.#store.clear()
+    if (response.ok) {
+      if (!isSnapshotEnvelope(response.snapshot))
+        throw new Error('WASM reset response did not include a valid snapshot')
+      await this.#store.save(response.snapshot)
+    }
     return response
   }
 }

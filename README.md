@@ -77,10 +77,12 @@ Then open `http://localhost:5173/` (the app) or `http://localhost:8080/docs` (Sw
 For a self-contained browser build instead, run `make pages-build` and then
 `npm --prefix apps/web run preview -- --host 127.0.0.1 --port 4175`. Open
 `http://127.0.0.1:4175/modelable-showcase/`. Browser mode has controls to seed or
-reset synthetic data and export or import a versioned snapshot. Imported data
-never leaves the browser, snapshot files are validated and limited to 2 MiB,
-and this sandbox is not production-grade clinical storage. Do not enter real
-patient data.
+reset synthetic data and export or import a versioned snapshot. A new browser
+starts with one deterministic fictional clinic journey so the patient summary,
+schedule, and analytics are immediately inspectable; reset persists an empty
+sandbox until data is seeded or imported again. Imported data never leaves the
+browser, snapshot files are validated and limited to 2 MiB, and this sandbox is
+not production-grade clinical storage. Do not enter real patient data.
 
 | Service | Port (bound to `127.0.0.1`) | Notes |
 |---|---|---|

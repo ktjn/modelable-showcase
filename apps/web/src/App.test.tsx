@@ -69,6 +69,12 @@ describe('App shell', () => {
   it('renders the home route by default', () => {
     renderApp('/')
     expect(screen.getByRole('heading', { name: 'Modelable Clinic' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'A contract’s path through a working system' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Read Modelable docs' })).toHaveAttribute(
+      'href',
+      'https://ktjn.github.io/modelable/',
+    )
+    expect(screen.getByRole('heading', { name: 'Ada’s clinic journey is ready to inspect' })).toBeInTheDocument()
   })
 
   it('renders the patients route, which searches the generated Patient-domain API', () => {
