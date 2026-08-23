@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "name": "clinic contracts preserve observable semantics",
+      "now": "2026-09-01T08:00:00Z",
+      "steps": [
+        {
+          "name": "create patient with optional values",
+          "method": "POST",
+          "path": "/api/patients",
+          "body": {
+            "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+            "legalName": "Ada Parity",
+            "preferredName": null,
+            "dateOfBirth": "1815-12-10",
+            "contact": { "email": "ada.parity@example.test", "phone": null },
+            "address": null,
+            "preferredLanguage": "sv",
+            "alternatePhoneNumbers": null,
+            "notes": null,
+            "clinicalNotes": null
+          },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+              "/dateOfBirth": "1815-12-10",
+              "/preferredLanguage": "sv",
+              "/contact/email": "ada.parity@example.test"
+            }
+          }
+        },
+        {
+          "name": "reject duplicate patient identity",
+          "method": "POST",
+          "path": "/api/patients",
+          "body": {
+            "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+            "legalName": "Ada Parity",
+            "dateOfBirth": "1815-12-10",
+            "contact": { "email": "ada.parity@example.test" },
+            "preferredLanguage": "sv"
+          },
+          "expect": { "category": "conflict", "fields": {} }
+        },
+        {
+          "name": "create appointment with duration and enum",
+          "method": "POST",
+          "path": "/api/appointments",
+          "body": {
+            "appointmentId": "11111111-1111-1111-1111-111111111111",
+            "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+            "practitionerId": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1",
+            "scheduledDate": "2026-09-01",
+            "slot": { "start": "09:00:00", "end": "09:30:00" },
+            "bufferDuration": "PT900S",
+            "status": "requested",
+            "reason": null,
+            "notes": null
+          },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/scheduledDate": "2026-09-01",
+              "/slot/start": "09:00:00",
+              "/bufferDuration": "PT900S",
+              "/status": "requested"
+            }
+          }
+        },
+        {
+          "name": "reject overlapping appointment",
+          "method": "POST",
+          "path": "/api/appointments",
+          "body": {
+            "appointmentId": "22222222-2222-2222-2222-222222222222",
+            "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+            "practitionerId": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1",
+            "scheduledDate": "2026-09-01",
+            "slot": { "start": "09:15:00", "end": "09:45:00" },
+            "bufferDuration": null,
+            "status": "requested",
+            "reason": null,
+            "notes": null
+          },
+          "expect": { "category": "conflict", "fields": {} }
+        },
+        {
+          "name": "create encounter with duration",
+          "method": "POST",
+          "path": "/api/encounters",
+          "body": {
+            "encounterId": "e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1",
+            "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+            "practitionerId": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1",
+            "appointmentId": "11111111-1111-1111-1111-111111111111",
+            "status": "in_progress",
+            "startedAt": "2026-09-01T09:00:00Z",
+            "endedAt": null,
+            "expectedDuration": "PT1800S",
+            "reasonCode": null,
+            "diagnoses": null
+          },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/status": "in_progress",
+              "/startedAt": "2026-09-01T09:00:00Z",
+              "/expectedDuration": "PT1800S"
+            }
+          }
+        },
+        {
+          "name": "record observation with optional metadata",
+          "method": "POST",
+          "path": "/api/encounters/e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1/observations",
+          "body": {
+            "observationId": "01010101-0101-0101-0101-010101010101",
+            "code": "temperature",
+            "temperatureCelsius": 36.8,
+            "weightKg": null,
+            "bloodPressureSystolic": null,
+            "bloodPressureDiastolic": null,
+            "pulseBpm": null,
+            "isAbnormal": false,
+            "deviceId": null,
+            "metadata": { "unit": "celsius" },
+            "recordedAt": "2026-09-01T09:15:00Z"
+          },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/code": "temperature",
+              "/temperatureCelsius": 36.8,
+              "/isAbnormal": false,
+              "/metadata/unit": "celsius"
+            }
+          }
+        },
+        {
+          "name": "cancel encounter",
+          "method": "PATCH",
+          "path": "/api/encounters/e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1",
+          "body": { "status": "cancelled", "endedAt": "2026-09-01T09:30:00Z" },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/status": "cancelled",
+              "/endedAt": "2026-09-01T09:30:00Z"
+            }
+          }
+        },
+        {
+          "name": "reject transition from terminal encounter",
+          "method": "PATCH",
+          "path": "/api/encounters/e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1",
+          "body": { "status": "completed", "endedAt": "2026-09-01T09:30:00Z" },
+          "expect": { "category": "conflict", "fields": {} }
+        },
+        {
+          "name": "create invoice with fixed decimal money",
+          "method": "POST",
+          "path": "/api/invoices",
+          "body": {
+            "invoiceId": "10101010-1010-1010-1010-101010101010",
+            "patientId": "9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d",
+            "encounterId": "e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1",
+            "lines": [
+              { "description": "Consultation", "quantity": 1, "unitPrice": "100.00", "lineTotal": "100.00" }
+            ],
+            "subtotal": "100.00",
+            "tax": "25.00",
+            "total": "125.00",
+            "currency": "SEK",
+            "billingPeriod": "2026-09",
+            "status": "issued",
+            "issuedAt": "2026-09-01T10:00:00Z",
+            "dueDate": "2026-10-01"
+          },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/subtotal": "100.00",
+              "/tax": "25.00",
+              "/total": "125.00",
+              "/currency": "SEK",
+              "/status": "issued"
+            }
+          }
+        },
+        {
+          "name": "record partial payment",
+          "method": "POST",
+          "path": "/api/invoices/10101010-1010-1010-1010-101010101010/payments",
+          "body": {
+            "paymentId": "02020202-0202-0202-0202-020202020202",
+            "amount": "75.00",
+            "method": "card",
+            "receivedAt": "2026-09-02T11:00:00Z"
+          },
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/invoiceId": "10101010-1010-1010-1010-101010101010",
+              "/amount": "75.00",
+              "/method": "card",
+              "/receivedAt": "2026-09-02T11:00:00Z"
+            }
+          }
+        },
+        {
+          "name": "project patient summary",
+          "method": "GET",
+          "path": "/api/patients/9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d/summary",
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/preferredName": null,
+              "/preferredLanguage": "sv",
+              "/appointmentCount": 1,
+              "/encounterCount": 1,
+              "/observationCount": 1,
+              "/invoiceCount": 1,
+              "/totalInvoiced": "125.00",
+              "/totalPaid": "75.00",
+              "/outstanding": "125.00",
+              "/lastEncounterAt": "2026-09-01T09:00:00Z"
+            }
+          }
+        },
+        {
+          "name": "project clinic analytics",
+          "method": "GET",
+          "path": "/api/analytics/clinic",
+          "expect": {
+            "category": "ok",
+            "fields": {
+              "/appointmentsPerDay/0/day": "2026-09-01",
+              "/appointmentsPerDay/0/appointmentCount": 1,
+              "/billedTotal": "125.00",
+              "/paidTotal": "75.00",
+              "/practitionerAppointmentCounts/0/practitionerId": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1",
+              "/practitionerAppointmentCounts/0/appointmentCount": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

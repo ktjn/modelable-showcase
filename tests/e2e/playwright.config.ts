@@ -34,12 +34,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /(wasm|pages)\.spec\.ts/,
+      testIgnore: /(wasm|pages|parity)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'wasm-chromium',
-      testMatch: /wasm\.spec\.ts/,
+      testMatch: /(wasm|parity)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         baseURL: process.env.E2E_WASM_BASE_URL ?? 'http://127.0.0.1:4174',

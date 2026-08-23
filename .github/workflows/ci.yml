@@ -102,6 +102,7 @@ jobs:
               - 'apps/api/**'
               - 'crates/showcase-core/**'
               - 'crates/showcase-wasm/**'
+              - 'tests/parity/**'
               - 'tests/integration/test_rust_codegen.py'
             wasm_generated:
               - *shared
@@ -112,6 +113,7 @@ jobs:
               - '.wasm-bindgen-version'
               - 'crates/showcase-core/**'
               - 'crates/showcase-wasm/**'
+              - 'tests/parity/**'
               - 'scripts/build-showcase-wasm.py'
               - 'scripts/install-wasm-bindgen.py'
             wasm_build: &wasm_build
@@ -128,9 +130,11 @@ jobs:
               - 'tests/e2e/clinic-journey.ts'
               - 'tests/e2e/wasm.spec.ts'
               - 'tests/e2e/pages.spec.ts'
+              - 'tests/e2e/parity.spec.ts'
               - 'tests/e2e/playwright.config.ts'
               - 'tests/e2e/package.json'
               - 'tests/e2e/package-lock.json'
+              - 'tests/parity/**'
             csharp:
               - *shared
               - 'probes/csharp/**'
@@ -165,6 +169,7 @@ jobs:
               - 'apps/api/**'
               - 'crates/showcase-core/**'
               - 'apps/web/**'
+              - 'tests/parity/**'
               - 'docker-compose.yml'
               - 'scripts/setup-full-database.py'
             e2e:
