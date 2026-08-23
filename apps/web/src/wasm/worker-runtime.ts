@@ -6,6 +6,7 @@ import type {
   WorkerResponse,
   WorkerSuccess,
 } from './protocol'
+import { dispatchRoute, isRuntimeRequest, RouteDispatchError } from './route-adapter'
 
 export interface WasmRuntime {
   initialize(snapshotJson?: string | null): string
@@ -29,6 +30,7 @@ interface RuntimeFailure {
 type RuntimeResponse = RuntimeSuccess | RuntimeFailure
 type RuntimeLoader = () => Promise<WasmRuntime>
 type Clock = () => string
+type IdFactory = () => string
 
 const ERROR_CATEGORIES = new Set<RuntimeErrorCategory>([
   'bad_request',
@@ -90,12 +92,18 @@ function success(id: string, result: unknown, snapshot?: unknown): WorkerSuccess
 export class WorkerRuntimeHost {
   readonly #loadRuntime: RuntimeLoader
   readonly #clock: Clock
+  readonly #newId: IdFactory
   #runtimePromise: Promise<WasmRuntime> | undefined
   #queue: Promise<void> = Promise.resolve()
 
-  constructor(loadRuntime: RuntimeLoader, clock: Clock = () => new Date().toISOString()) {
+  constructor(
+    loadRuntime: RuntimeLoader,
+    clock: Clock = () => new Date().toISOString(),
+    newId: IdFactory = () => crypto.randomUUID(),
+  ) {
     this.#loadRuntime = loadRuntime
     this.#clock = clock
+    this.#newId = newId
   }
 
   handle(request: WorkerRequest): Promise<WorkerResponse> {
@@ -132,14 +140,29 @@ export class WorkerRuntimeHost {
           return this.#invoke(request.id, runtime.initialize(snapshot))
         }
         case 'execute': {
-          const command = isRecord(request.payload)
-            ? { ...request.payload, now: request.payload.now ?? this.#clock() }
-            : request.payload
+          let command = request.payload
+          if (isRuntimeRequest(request.payload)) {
+            const route = dispatchRoute(request.payload, this.#clock(), this.#newId)
+            if (route.operation !== 'execute')
+              throw new RouteDispatchError(`${request.payload.method} routes must use the query worker operation`)
+            command = route.payload
+          }
+          else if (isRecord(request.payload)) {
+            command = { ...request.payload, now: request.payload.now ?? this.#clock() }
+          }
           const response = this.#invoke(request.id, runtime.execute(JSON.stringify(command)))
           return response.ok ? this.#withSnapshot(runtime, response) : response
         }
-        case 'query':
-          return this.#invoke(request.id, runtime.query(JSON.stringify(request.payload)))
+        case 'query': {
+          let query = request.payload
+          if (isRuntimeRequest(request.payload)) {
+            const route = dispatchRoute(request.payload, this.#clock(), this.#newId)
+            if (route.operation !== 'query')
+              throw new RouteDispatchError(`${request.payload.method} routes must use the execute worker operation`)
+            query = route.payload
+          }
+          return this.#invoke(request.id, runtime.query(JSON.stringify(query)))
+        }
         case 'snapshot':
           return this.#invoke(request.id, runtime.snapshot())
         case 'reset': {
@@ -153,6 +176,8 @@ export class WorkerRuntimeHost {
       }
     }
     catch (error) {
+      if (error instanceof RouteDispatchError)
+        return failure(request.id, 'bad_request', error.message)
       return failure(request.id, 'internal', errorMessage(error))
     }
   }

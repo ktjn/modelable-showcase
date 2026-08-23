@@ -72,6 +72,78 @@ describe('WorkerRuntimeHost', () => {
     expect(runtime.snapshot).toHaveBeenCalledTimes(1)
   })
 
+  it('dispatches route-like requests into the tagged Rust command and query ABI', async () => {
+    const runtime = fakeRuntime()
+    const host = new WorkerRuntimeHost(
+      async () => runtime,
+      () => '2026-09-01T08:00:00.000Z',
+      () => 'observation-1',
+    )
+
+    await host.handle({
+      id: 'observation',
+      operation: 'execute',
+      payload: {
+        method: 'POST',
+        path: '/api/encounters/encounter-1/observations',
+        body: { code: 'pulse' },
+      },
+    })
+    await host.handle({
+      id: 'schedule',
+      operation: 'query',
+      payload: {
+        method: 'GET',
+        path: '/api/schedule?date=2026-09-01&practitioner=practitioner-1',
+      },
+    })
+
+    expect(runtime.execute).toHaveBeenCalledWith(JSON.stringify({
+      type: 'RecordObservation',
+      payload: {
+        code: 'pulse',
+        observationId: 'observation-1',
+        encounterId: 'encounter-1',
+        isAbnormal: false,
+        recordedAt: '2026-09-01T08:00:00.000Z',
+      },
+      now: '2026-09-01T08:00:00.000Z',
+    }))
+    expect(runtime.query).toHaveBeenCalledWith(JSON.stringify({
+      type: 'DailySchedule',
+      payload: { date: '2026-09-01', practitionerId: 'practitioner-1' },
+    }))
+  })
+
+  it('rejects unsupported and mismatched route requests as bad requests', async () => {
+    const runtime = fakeRuntime()
+    const host = new WorkerRuntimeHost(async () => runtime)
+
+    const unsupported = await host.handle({
+      id: 'unsupported',
+      operation: 'query',
+      payload: { method: 'GET', path: '/api/unknown' },
+    })
+    const mismatched = await host.handle({
+      id: 'mismatched',
+      operation: 'execute',
+      payload: { method: 'GET', path: '/api/patients' },
+    })
+
+    expect(unsupported).toEqual({
+      id: 'unsupported',
+      ok: false,
+      error: { category: 'bad_request', message: 'unsupported showcase route GET /api/unknown' },
+    })
+    expect(mismatched).toEqual({
+      id: 'mismatched',
+      ok: false,
+      error: { category: 'bad_request', message: 'GET routes must use the query worker operation' },
+    })
+    expect(runtime.query).not.toHaveBeenCalled()
+    expect(runtime.execute).not.toHaveBeenCalled()
+  })
+
   it.each(['reset', 'seed'] as const)('snapshots after %s', async (operation) => {
     const runtime = fakeRuntime()
     const host = new WorkerRuntimeHost(async () => runtime)
