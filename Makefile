@@ -118,7 +118,7 @@ e2e: generate
 	docker compose up --build -d
 	@. ./scripts/modelable-env.sh; uv run scripts/setup-full-database.py
 	@cd tests/e2e && npm install && npx playwright install --with-deps chromium
-	@( cd tests/e2e && npx playwright test --project=chromium ); status=$$?; \
+	@( cd tests/e2e && E2E_SKIP_WASM_SERVERS=1 npx playwright test --project=chromium ); status=$$?; \
 	docker compose down; \
 	exit $$status
 
