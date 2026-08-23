@@ -35,6 +35,7 @@ RUN bash -lc '. scripts/modelable-env.sh && modelable compile model --target ope
 FROM rust:1-slim-bookworm AS builder
 WORKDIR /workspace
 COPY --from=generator /workspace/generated/rust ./generated/rust
+COPY .modelable-version ./
 COPY crates/showcase-core ./crates/showcase-core
 COPY apps/api ./apps/api
 WORKDIR /workspace/apps/api
