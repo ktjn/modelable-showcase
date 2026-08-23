@@ -1,0 +1,18 @@
+[package]
+name = "showcase-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+billing-core = { path = "../../generated/rust/billing-core" }
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+clinic-core = { path = "../../generated/rust/clinic-core" }
+clinical-core = { path = "../../generated/rust/clinical-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+showcase-core = { path = "../showcase-core" }
+wasm-bindgen = "=0.2.127"

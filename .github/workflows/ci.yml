@@ -99,6 +99,7 @@ jobs:
               - *shared
               - 'apps/api/**'
               - 'crates/showcase-core/**'
+              - 'crates/showcase-wasm/**'
               - 'tests/integration/test_rust_codegen.py'
             wasm_generated:
               - *shared
@@ -106,7 +107,11 @@ jobs:
               - 'scripts/check-generated-rust-wasm.py'
             wasm_core:
               - *shared
+              - '.wasm-bindgen-version'
               - 'crates/showcase-core/**'
+              - 'crates/showcase-wasm/**'
+              - 'scripts/build-showcase-wasm.py'
+              - 'scripts/install-wasm-bindgen.py'
             csharp:
               - *shared
               - 'probes/csharp/**'
@@ -271,7 +276,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "crates/showcase-core -> target"
+          workspaces: |
+            crates/showcase-core -> target
+            crates/showcase-wasm -> target
       - name: Install pinned Modelable
         run: ./scripts/install-modelable.sh
       - name: Generate Rust contracts
@@ -280,6 +287,10 @@ jobs:
         run: cargo test --locked --manifest-path crates/showcase-core/Cargo.toml
       - name: Check platform-neutral core for wasm32
         run: cargo check --locked --target wasm32-unknown-unknown --manifest-path crates/showcase-core/Cargo.toml
+      - name: Test WASM runtime transport
+        run: cargo test --locked --manifest-path crates/showcase-wasm/Cargo.toml
+      - name: Build WASM runtime release
+        run: cargo build --locked --release --target wasm32-unknown-unknown --manifest-path crates/showcase-wasm/Cargo.toml
 
   lang-csharp:
     name: languages / csharp
