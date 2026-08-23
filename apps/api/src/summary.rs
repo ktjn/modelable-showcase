@@ -11,7 +11,7 @@
 use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Serialize;
+use showcase_core::PatientSummary;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -20,24 +20,6 @@ use crate::AppState;
 
 pub fn summary_routes() -> Router<AppState> {
     Router::new().route("/api/patients/{id}/summary", get(patient_summary))
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PatientSummary {
-    pub patient_id: String,
-    pub legal_name: String,
-    pub preferred_name: Option<String>,
-    pub date_of_birth: chrono::NaiveDate,
-    pub preferred_language: String,
-    pub appointment_count: i64,
-    pub encounter_count: i64,
-    pub observation_count: i64,
-    pub invoice_count: i64,
-    pub total_invoiced: Option<String>,
-    pub total_paid: Option<String>,
-    pub outstanding: Option<String>,
-    pub last_encounter_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 async fn patient_summary(

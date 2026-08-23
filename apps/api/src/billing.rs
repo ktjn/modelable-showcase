@@ -48,6 +48,7 @@ async fn create_invoice(
     parse_uuid(&request.patient_id.to_string(), "patient id")?;
     let invoice_id = request.invoice_id.to_string();
 
+    billing_core_logic::validate_invoice(&request)?;
     let created_at = http::utc_now();
     let db_row = billing_core_logic::request_to_db(&request, created_at);
 

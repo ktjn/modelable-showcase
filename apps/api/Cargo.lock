@@ -1522,6 +1522,7 @@ dependencies = [
  "chrono",
  "clinic-core",
  "clinical-core",
+ "serde",
 ]
 
 [[package]]
