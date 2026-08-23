@@ -18,12 +18,12 @@ use chrono::{DateTime, Utc};
 use clinic_core::patient::patient_address_v0::PatientAddressV0;
 use clinic_core::patient::patient_contact_details_v0::PatientContactDetailsV0;
 use clinic_core::patient::patient_id::PatientId;
-use clinic_core::patient::patient_patient_db_v2::PatientPatientDbV2;
 use clinic_core::patient::patient_patient_reply_v2::PatientPatientReplyV2;
 use clinic_core::patient::patient_patient_request_v2::PatientPatientRequestV2;
 use std::str::FromStr;
 
 use serde::Deserialize;
+use showcase_core::patient as patient_core;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -38,42 +38,6 @@ pub fn patient_routes() -> Router<AppState> {
     Router::new()
         .route("/api/patients", post(create_patient).get(list_patients))
         .route("/api/patients/{id}", get(get_patient))
-}
-
-// --- mapping helpers ------------------------------------------------------------
-
-fn request_to_db(request: &PatientPatientRequestV2, created_at: DateTime<Utc>) -> PatientPatientDbV2 {
-    PatientPatientDbV2 {
-        patient_id: request.patient_id,
-        legal_name: request.legal_name.clone(),
-        preferred_name: request.preferred_name.clone(),
-        date_of_birth: request.date_of_birth,
-        contact: request.contact.clone(),
-        address: request.address.clone(),
-        preferred_language: request.preferred_language.clone(),
-        alternate_phone_numbers: request.alternate_phone_numbers.clone(),
-        notes: request.notes.clone(),
-        clinical_notes: request.clinical_notes.clone(),
-        created_at,
-        updated_at: None,
-    }
-}
-
-fn db_to_reply(db: PatientPatientDbV2) -> PatientPatientReplyV2 {
-    PatientPatientReplyV2 {
-        patient_id: db.patient_id,
-        legal_name: db.legal_name,
-        preferred_name: db.preferred_name,
-        date_of_birth: db.date_of_birth,
-        contact: db.contact,
-        address: db.address,
-        preferred_language: db.preferred_language,
-        alternate_phone_numbers: db.alternate_phone_numbers,
-        notes: db.notes,
-        clinical_notes: db.clinical_notes,
-        created_at: db.created_at,
-        updated_at: db.updated_at,
-    }
 }
 
 fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<PatientPatientReplyV2, ApiError> {
@@ -141,7 +105,7 @@ async fn create_patient(
     JsonBody(request): JsonBody<PatientPatientRequestV2>,
 ) -> Result<(StatusCode, Json<PatientPatientReplyV2>), ApiError> {
     let created_at = http::utc_now();
-    let db_row = request_to_db(&request, created_at);
+    let db_row = patient_core::request_to_db(&request, created_at);
 
     // patient_id is the generated PK; atomic duplicate detection.
     let insert = sqlx::query(
@@ -170,7 +134,7 @@ async fn create_patient(
         return Err(ApiError::conflict(format!("patient {} already exists", db_row.patient_id.0)));
     }
 
-    Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
+    Ok((StatusCode::CREATED, Json(patient_core::db_to_reply(db_row))))
 }
 
 async fn get_patient(

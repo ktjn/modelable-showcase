@@ -15,15 +15,11 @@ use axum::http::StatusCode;
 use axum::routing::{patch, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
-use clinical_core::clinical::clinical_encounter_db_v1::{
-    ClinicalEncounterDbV1, ClinicalEncounterDbV1Status,
-};
+use clinical_core::clinical::clinical_encounter_db_v1::ClinicalEncounterDbV1Status;
 use clinical_core::clinical::clinical_encounter_reply_v1::{
     ClinicalEncounterReplyV1, ClinicalEncounterReplyV1Status,
 };
-use clinical_core::clinical::clinical_encounter_request_v1::{
-    ClinicalEncounterRequestV1, ClinicalEncounterRequestV1Status,
-};
+use clinical_core::clinical::clinical_encounter_request_v1::ClinicalEncounterRequestV1;
 use clinical_core::clinical::clinical_diagnosis_v0::ClinicalDiagnosisV0;
 use clinical_core::clinical::clinical_observation_v1::ClinicalObservationV1;
 use clinical_core::clinical::encounter_id::EncounterId;
@@ -32,6 +28,7 @@ use clinical_core::clinical::vital_sign_code::VitalSignCode;
 use clinic_core::patient::patient_id::PatientId;
 use clinic_core::scheduling::practitioner_id::PractitionerId;
 use serde::Deserialize;
+use showcase_core::clinical as clinical_core_logic;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -50,22 +47,6 @@ pub fn clinical_routes() -> Router<AppState> {
 
 // --- status + time helpers -----------------------------------------------------
 
-fn request_status_to_db(status: ClinicalEncounterRequestV1Status) -> ClinicalEncounterDbV1Status {
-    match status {
-        ClinicalEncounterRequestV1Status::InProgress => ClinicalEncounterDbV1Status::InProgress,
-        ClinicalEncounterRequestV1Status::Completed => ClinicalEncounterDbV1Status::Completed,
-        ClinicalEncounterRequestV1Status::Cancelled => ClinicalEncounterDbV1Status::Cancelled,
-    }
-}
-
-fn db_status_to_reply(status: ClinicalEncounterDbV1Status) -> ClinicalEncounterReplyV1Status {
-    match status {
-        ClinicalEncounterDbV1Status::InProgress => ClinicalEncounterReplyV1Status::InProgress,
-        ClinicalEncounterDbV1Status::Completed => ClinicalEncounterReplyV1Status::Completed,
-        ClinicalEncounterDbV1Status::Cancelled => ClinicalEncounterReplyV1Status::Cancelled,
-    }
-}
-
 fn parse_uuid(value: &str, label: &str) -> Result<Uuid, ApiError> {
     Uuid::parse_str(value)
         .map_err(|err| ApiError::bad_request(format!("invalid {label} '{value}': {err}")))
@@ -74,53 +55,6 @@ fn parse_uuid(value: &str, label: &str) -> Result<Uuid, ApiError> {
 fn parse_reply_status(value: &str) -> Result<ClinicalEncounterReplyV1Status, ApiError> {
     serde_json::from_str::<ClinicalEncounterReplyV1Status>(&format!("\"{value}\""))
         .map_err(|err| ApiError::internal(format!("invalid status '{value}' in encounter_db: {err}")))
-}
-
-// --- mapping helpers ------------------------------------------------------------
-
-fn request_to_db(
-    request: &ClinicalEncounterRequestV1,
-    created_at: DateTime<Utc>,
-) -> ClinicalEncounterDbV1 {
-    ClinicalEncounterDbV1 {
-        encounter_id: request.encounter_id,
-        patient_id: request.patient_id.clone(),
-        practitioner_id: request.practitioner_id,
-        appointment_id: request.appointment_id.clone(),
-        status: request_status_to_db(request.status.clone()),
-        started_at: request.started_at,
-        ended_at: request.ended_at,
-        expected_duration: request.expected_duration,
-        reason_code: request.reason_code.clone(),
-        diagnoses: request.diagnoses.clone(),
-        created_at,
-        updated_at: None,
-    }
-}
-
-fn db_to_reply(db: ClinicalEncounterDbV1) -> ClinicalEncounterReplyV1 {
-    ClinicalEncounterReplyV1 {
-        encounter_id: db.encounter_id,
-        patient_id: db.patient_id,
-        practitioner_id: db.practitioner_id,
-        appointment_id: db.appointment_id,
-        status: db_status_to_reply(db.status),
-        started_at: db.started_at,
-        ended_at: db.ended_at,
-        expected_duration: db.expected_duration,
-        reason_code: db.reason_code,
-        diagnoses: db.diagnoses,
-        created_at: db.created_at,
-        updated_at: db.updated_at,
-    }
-}
-
-fn db_status_to_str(status: &ClinicalEncounterDbV1Status) -> &'static str {
-    match status {
-        ClinicalEncounterDbV1Status::InProgress => "in_progress",
-        ClinicalEncounterDbV1Status::Completed => "completed",
-        ClinicalEncounterDbV1Status::Cancelled => "cancelled",
-    }
 }
 
 fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<ClinicalEncounterReplyV1, ApiError> {
@@ -209,7 +143,7 @@ async fn create_encounter(
     let encounter_id = request.encounter_id.to_string();
 
     let created_at = http::utc_now();
-    let db_row = request_to_db(&request, created_at);
+    let db_row = clinical_core_logic::request_to_db(&request, created_at);
 
     let insert = sqlx::query(
         "INSERT INTO encounter_db (encounter_id, patient_id, practitioner_id, appointment_id, status, \
@@ -221,7 +155,7 @@ async fn create_encounter(
     .bind(&db_row.patient_id.to_string())
     .bind(&practitioner_id)
     .bind(&db_row.appointment_id)
-    .bind(db_status_to_str(&db_row.status))
+    .bind(clinical_core_logic::db_status_name(&db_row.status))
     .bind(db_row.started_at)
     .bind(db_row.ended_at)
     .bind(db_row.expected_duration.map(|duration| duration.to_string()))
@@ -237,7 +171,7 @@ async fn create_encounter(
         return Err(ApiError::conflict(format!("encounter {encounter_id} already exists")));
     }
 
-    Ok((StatusCode::CREATED, Json(db_to_reply(db_row))))
+    Ok((StatusCode::CREATED, Json(clinical_core_logic::db_to_reply(db_row))))
 }
 
 #[derive(Deserialize)]
@@ -281,7 +215,7 @@ async fn update_encounter(
     let update = sqlx::query(
         "UPDATE encounter_db SET status = $1, ended_at = $2, updated_at = $3 WHERE encounter_id = $4",
     )
-    .bind(db_status_to_str(&status))
+    .bind(clinical_core_logic::db_status_name(&status))
     .bind(ended_at)
     .bind(updated_at)
     .bind(&id)

@@ -13,9 +13,8 @@
 #      that guarantee; apps/web/Dockerfile repeats the same stage for its own
 #      `--target typescript` output, so the two images stay independently
 #      buildable (a `docker build` of just one Dockerfile still works).
-#   2. builder - compiles the apps/api Rust binary against the generated
-#      crates (clinic-core/clinical-core/billing-core), which apps/api/
-#      Cargo.toml references by relative path.
+#   2. builder - compiles the apps/api Rust binary against showcase-core and
+#      the generated crates it consumes, all referenced by relative paths.
 #   3. runtime - the compiled binary alone, on a minimal base.
 #
 # Generated output is never committed or copied from the host; every build
@@ -36,6 +35,7 @@ RUN bash -lc '. scripts/modelable-env.sh && modelable compile model --target ope
 FROM rust:1-slim-bookworm AS builder
 WORKDIR /workspace
 COPY --from=generator /workspace/generated/rust ./generated/rust
+COPY crates/showcase-core ./crates/showcase-core
 COPY apps/api ./apps/api
 WORKDIR /workspace/apps/api
 RUN cargo build --release
