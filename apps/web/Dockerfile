@@ -26,7 +26,7 @@ COPY scripts/install-modelable.sh scripts/modelable-env.sh ./scripts/
 RUN bash scripts/install-modelable.sh
 RUN bash -lc '. scripts/modelable-env.sh && modelable compile model --target typescript --out generated/typescript'
 
-FROM node:22-slim AS builder
+FROM node:24-slim AS builder
 WORKDIR /workspace
 COPY --from=generator /workspace/generated/typescript ./generated/typescript
 COPY apps/web ./apps/web
