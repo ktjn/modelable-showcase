@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
 
   clickhouse:
-    image: clickhouse/clickhouse-server:24.12-alpine
+    image: clickhouse/clickhouse-server:26.7-alpine
     environment:
       CLICKHOUSE_USER: showcase
       CLICKHOUSE_PASSWORD: showcase
