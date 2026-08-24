@@ -11,7 +11,7 @@ name: modelable-showcase
 # There is no separate `generator` service here because of that.
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: showcase
       POSTGRES_PASSWORD: showcase
@@ -120,7 +120,7 @@ services:
   # SEARCH_ENABLED=false skips Marquez's optional OpenSearch dependency,
   # which this showcase's read-only lineage-sync check does not need.
   marquez-db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     profiles:
       - marquez
     environment:
