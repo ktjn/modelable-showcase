@@ -174,7 +174,14 @@ def test_clickhouse_secondary_indexes_are_now_emitted():
         tmp_path = Path(tmp)
         pg_out = tmp_path / "postgres"
         ch_out = tmp_path / "clickhouse"
-        common_args = ["--registry", str(tmp_path / "registry.db"), "--registry-ids", str(tmp_path / "registry-ids.lock")]
+        common_args = [
+            "--registry",
+            str(tmp_path / "registry.db"),
+            "--registry-ids",
+            str(tmp_path / "registry-ids.lock"),
+            "--enum-numbers",
+            str(tmp_path / "enum-numbers.lock"),
+        ]
 
         pg_result = run_modelable(
             "compile", str(MODEL_DIR), "--target", "sql-postgres", "--out", str(pg_out), *common_args
@@ -203,7 +210,14 @@ def test_nominal_semantic_identity_lost_beyond_rust():
         tmp_path = Path(tmp)
         rust_out = tmp_path / "rust"
         json_schema_out = tmp_path / "json-schema"
-        common_args = ["--registry", str(tmp_path / "registry.db"), "--registry-ids", str(tmp_path / "registry-ids.lock")]
+        common_args = [
+            "--registry",
+            str(tmp_path / "registry.db"),
+            "--registry-ids",
+            str(tmp_path / "registry-ids.lock"),
+            "--enum-numbers",
+            str(tmp_path / "enum-numbers.lock"),
+        ]
 
         rust_result = run_modelable(
             "compile", str(MODEL_DIR), "--target", "rust", "--out", str(rust_out), *common_args

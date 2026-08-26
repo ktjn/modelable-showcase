@@ -55,6 +55,7 @@
     <Compile Include="../../generated/csharp/scheduling.AppointmentEvent.v1.cs" Link="generated/scheduling.AppointmentEvent.v1.cs" />
     <Compile Include="../../generated/csharp/scheduling.AppointmentReply.v1.cs" Link="generated/scheduling.AppointmentReply.v1.cs" />
     <Compile Include="../../generated/csharp/scheduling.AppointmentRequest.v1.cs" Link="generated/scheduling.AppointmentRequest.v1.cs" />
+    <Compile Include="../../generated/csharp/scheduling.AppointmentStatus.cs" Link="generated/scheduling.AppointmentStatus.cs" />
     <Compile Include="../../generated/csharp/scheduling.AppointmentStatusChanged.v1.cs" Link="generated/scheduling.AppointmentStatusChanged.v1.cs" />
     <Compile Include="../../generated/csharp/scheduling.TimeRange.v0.cs" Link="generated/scheduling.TimeRange.v0.cs" />
     <Compile Include="../../generated/csharp/billing.InvoiceLine.v0.cs" Link="generated/billing.InvoiceLine.v0.cs" />

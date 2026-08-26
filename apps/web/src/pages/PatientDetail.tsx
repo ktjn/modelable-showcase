@@ -1,4 +1,5 @@
 import type { InvoiceReply } from '@generated/billing.InvoiceReply.v2'
+import { InvoiceStatus } from '@generated/billing.InvoiceStatus'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -73,7 +74,7 @@ function InvoiceCreateForm({ patientId, onCreated }: { patientId: string; onCrea
         subtotal: amount,
         tax,
         total,
-        status: 'issued',
+        status: InvoiceStatus.Issued,
       })
     },
     onSuccess: (invoice) => {

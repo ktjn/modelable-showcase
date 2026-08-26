@@ -89,6 +89,8 @@ def json_schema_dir(tmp_path: Path) -> Path:
         str(tmp_path / "registry.db"),
         "--registry-ids",
         str(tmp_path / "registry-ids.lock"),
+        "--enum-numbers",
+        str(tmp_path / "enum-numbers.lock"),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     return out_dir

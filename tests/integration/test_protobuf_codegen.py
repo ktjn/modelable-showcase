@@ -271,6 +271,8 @@ def test_schema_manifest_reservations_in_evolved_fixture():
             str(out),
             "--registry-ids",
             str(cwd / "registry-ids.lock"),
+            "--enum-numbers",
+            str(cwd / "enum-numbers.lock"),
             cwd=cwd,
         )
         assert result.returncode == 0, result.stdout + result.stderr

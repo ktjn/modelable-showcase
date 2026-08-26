@@ -234,6 +234,8 @@ def test_attach_reports_no_drift_when_source_matches():
             str(compiled_dir / "registry.db"),
             "--registry-ids",
             str(compiled_dir / "registry-ids.lock"),
+            "--enum-numbers",
+            str(compiled_dir / "enum-numbers.lock"),
         )
         assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
         source_yaml = compiled_dir / "importroundtrip.Widget.v1.yml"
@@ -354,6 +356,8 @@ def test_spec_status_reports_clean_when_source_matches():
             str(compiled_dir / "registry.db"),
             "--registry-ids",
             str(compiled_dir / "registry-ids.lock"),
+            "--enum-numbers",
+            str(compiled_dir / "enum-numbers.lock"),
         )
         assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
         source_yaml = compiled_dir / "importroundtrip.Widget.v1.yml"

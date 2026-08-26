@@ -48,6 +48,8 @@ def _compile(
         str(registry_db),
         "--registry-ids",
         str(registry_ids),
+        "--enum-numbers",
+        str(registry_ids.parent / "enum-numbers.lock"),
     ]
     if allow_orphaned:
         args.append("--allow-orphaned-registry-ids")

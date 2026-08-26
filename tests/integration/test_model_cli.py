@@ -32,10 +32,10 @@ def run_modelable(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def compile_to_tmp(tmp_path: Path, target: str) -> tuple[subprocess.CompletedProcess[str], Path]:
-    """Compile into an isolated temp dir with its own --registry/--registry-ids
-    paths, so tests never touch the repo's real .modelable/ or
-    registry-ids.lock (durable allocation state, not a disposable build
-    artifact - see IMPLEMENTATION_PLAN.md Task 14.1)."""
+    """Compile into an isolated temp dir with its own --registry/--registry-ids/
+    --enum-numbers paths, so tests never touch the repo's real .modelable/,
+    registry-ids.lock, or enum-numbers.lock (durable allocation state, not a
+    disposable build artifact - see IMPLEMENTATION_PLAN.md Task 14.1)."""
     out_dir = tmp_path / target
     result = run_modelable(
         "compile",
@@ -48,6 +48,8 @@ def compile_to_tmp(tmp_path: Path, target: str) -> tuple[subprocess.CompletedPro
         str(tmp_path / "registry.db"),
         "--registry-ids",
         str(tmp_path / "registry-ids.lock"),
+        "--enum-numbers",
+        str(tmp_path / "enum-numbers.lock"),
     )
     return result, out_dir
 

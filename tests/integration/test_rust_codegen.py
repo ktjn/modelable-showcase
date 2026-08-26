@@ -102,6 +102,8 @@ def test_cross_package_reference_compiles():
             str(Path(tmp) / "registry.db"),
             "--registry-ids",
             str(Path(tmp) / "registry-ids.lock"),
+            "--enum-numbers",
+            str(Path(tmp) / "enum-numbers.lock"),
         )
         assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
 

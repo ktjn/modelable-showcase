@@ -40,6 +40,8 @@ def compile_fixture(tmp_path: Path, fixture: Path, target: str) -> tuple[subproc
         str(tmp_path / "registry.db"),
         "--registry-ids",
         str(tmp_path / "registry-ids.lock"),
+        "--enum-numbers",
+        str(tmp_path / "enum-numbers.lock"),
     )
     return result, out_dir
 

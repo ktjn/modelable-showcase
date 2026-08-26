@@ -42,6 +42,8 @@ reality, which the showcase's flip tests pin exactly.
 | FR-14 | Resolve `ref<>` fields to a real component in generated OpenAPI | Finding #38 | Implemented upstream on the current fix branch |
 | FR-15 | Preserve canonical JSON field names in generated Rust | Finding #39 | Implemented upstream on the current fix branch |
 | FR-16 | Preserve optionality in generated TypeScript projections | Finding #40 | Implemented upstream on the current fix branch |
+| FR-17 | Erasable-syntax nominal `enum` emission for TypeScript (`erasableSyntaxOnly`/Node type-stripping compatible) | Finding #49 | Open |
+| FR-18 | Resolve named `semantic ... : enum(...)` references to their underlying enum-ness before choosing a `sql-clickhouse` column type | Finding #50 | Open |
 
 ---
 
@@ -412,3 +414,52 @@ fields as required, so the compiler could not enforce the model contract.
 
 **Acceptance.** A generated projection marks optional source fields with `?:`
 and keeps required fields without it.
+
+---
+
+## FR-17 — Erasable-syntax nominal `enum` emission for TypeScript
+
+**Status:** Open. [UPSTREAM_FINDINGS.md #49](UPSTREAM_FINDINGS.md#49-compile---target-typescript-emits-nominal-semantic--enum-declarations-as-a-real-enum-which-typescripts-erasablesyntaxonly-rejects-outright).
+
+**Friction.** Adopting 1.11.0/1.12.0's nominal semantic enum support (via
+`modelable extract-enum` on `scheduling.AppointmentStatus` and
+`billing.InvoiceStatus`) regressed `apps/web`'s typecheck: the generated
+`export enum Name { ... }` declaration is not erasable syntax, and
+TypeScript's `erasableSyntaxOnly` compiler option (which `tsconfig.app.json`
+had set) rejects it outright, independent of how the generated type is used
+downstream. The showcase's workaround was to stop setting
+`erasableSyntaxOnly`, a real loss of strictness for any TypeScript consumer
+that wants nominal enums and Node-native type-stripping compatibility at the
+same time.
+
+**Proposed behavior.** Emit the erasable union-of-string-literals +
+same-named `const` object pattern by default (or behind a target option),
+instead of a real `enum`, so a `semantic ... : enum(...)` declaration still
+gets a nominal type and a `Name.Member`-style value API without emitting
+non-erasable syntax.
+
+**Acceptance.** `tsc --erasableSyntaxOnly --noEmit` succeeds against a
+generated nominal-enum file, and `Name.Member` access still type-checks
+against the field's declared type.
+
+---
+
+## FR-18 — Resolve named `semantic ... : enum(...)` references before choosing a `sql-clickhouse` column type
+
+**Status:** Open. [UPSTREAM_FINDINGS.md #50](UPSTREAM_FINDINGS.md#50-compile---target-sql-clickhouse-renders-lowcardinalitystring-for-an-inline-anonymous-enum-field-but-plain-string-for-a-named-semantic--enum-reference-to-the-identical-member-set).
+
+**Friction.** Extracting `billing.Invoice.status`'s duplicated anonymous
+`enum(...)` shape into a shared `InvoiceStatus` semantic enum (via
+`modelable extract-enum`) silently dropped the `LowCardinality(String)`
+ClickHouse column optimization for that field - it now renders as plain
+`String`, identical to any other string column, even though the field is
+still a closed five-member enum on the Modelable side.
+
+**Proposed behavior.** `sql-clickhouse`'s column-type selection should
+resolve a field's type - inline `enum(...)` or a named reference to a
+`semantic` declaration whose underlying type is `enum(...)` - to the same
+enum-ness before deciding between `String` and `LowCardinality(String)`.
+
+**Acceptance.** A field typed as a named semantic enum reference renders
+`LowCardinality(String)` in generated `sql-clickhouse` DDL, matching what an
+inline `enum(...)` field with the same member set already renders.

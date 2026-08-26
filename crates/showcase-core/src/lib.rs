@@ -150,64 +150,22 @@ pub mod patient {
 pub mod scheduling {
     use super::ShowcaseError;
     use chrono::{DateTime, Utc};
-    use clinic_core::scheduling::scheduling_appointment_db_v1::{
-        SchedulingAppointmentDbV1, SchedulingAppointmentDbV1Status,
-    };
-    use clinic_core::scheduling::scheduling_appointment_reply_v1::{
-        SchedulingAppointmentReplyV1, SchedulingAppointmentReplyV1Status,
-    };
-    use clinic_core::scheduling::scheduling_appointment_request_v1::{
-        SchedulingAppointmentRequestV1, SchedulingAppointmentRequestV1Status,
-    };
+    use clinic_core::scheduling::appointment_status::AppointmentStatus;
+    use clinic_core::scheduling::scheduling_appointment_db_v1::SchedulingAppointmentDbV1;
+    use clinic_core::scheduling::scheduling_appointment_reply_v1::SchedulingAppointmentReplyV1;
+    use clinic_core::scheduling::scheduling_appointment_request_v1::SchedulingAppointmentRequestV1;
     use clinic_core::scheduling::scheduling_time_range_v0::SchedulingTimeRangeV0;
 
-    pub fn request_status_to_db(
-        status: SchedulingAppointmentRequestV1Status,
-    ) -> SchedulingAppointmentDbV1Status {
+    // `AppointmentStatus` is a nominal semantic enum (model/scheduling.mdl)
+    // shared verbatim by the request/db/reply projections, so no per-shape
+    // conversion is needed between them - only DB persistence needs a name.
+    pub fn db_status_name(status: &AppointmentStatus) -> &'static str {
         match status {
-            SchedulingAppointmentRequestV1Status::Requested => {
-                SchedulingAppointmentDbV1Status::Requested
-            }
-            SchedulingAppointmentRequestV1Status::Confirmed => {
-                SchedulingAppointmentDbV1Status::Confirmed
-            }
-            SchedulingAppointmentRequestV1Status::Cancelled => {
-                SchedulingAppointmentDbV1Status::Cancelled
-            }
-            SchedulingAppointmentRequestV1Status::Completed => {
-                SchedulingAppointmentDbV1Status::Completed
-            }
-            SchedulingAppointmentRequestV1Status::NoShow => SchedulingAppointmentDbV1Status::NoShow,
-        }
-    }
-
-    pub fn db_status_to_reply(
-        status: SchedulingAppointmentDbV1Status,
-    ) -> SchedulingAppointmentReplyV1Status {
-        match status {
-            SchedulingAppointmentDbV1Status::Requested => {
-                SchedulingAppointmentReplyV1Status::Requested
-            }
-            SchedulingAppointmentDbV1Status::Confirmed => {
-                SchedulingAppointmentReplyV1Status::Confirmed
-            }
-            SchedulingAppointmentDbV1Status::Cancelled => {
-                SchedulingAppointmentReplyV1Status::Cancelled
-            }
-            SchedulingAppointmentDbV1Status::Completed => {
-                SchedulingAppointmentReplyV1Status::Completed
-            }
-            SchedulingAppointmentDbV1Status::NoShow => SchedulingAppointmentReplyV1Status::NoShow,
-        }
-    }
-
-    pub fn db_status_name(status: &SchedulingAppointmentDbV1Status) -> &'static str {
-        match status {
-            SchedulingAppointmentDbV1Status::Requested => "requested",
-            SchedulingAppointmentDbV1Status::Confirmed => "confirmed",
-            SchedulingAppointmentDbV1Status::Cancelled => "cancelled",
-            SchedulingAppointmentDbV1Status::Completed => "completed",
-            SchedulingAppointmentDbV1Status::NoShow => "no_show",
+            AppointmentStatus::Requested => "requested",
+            AppointmentStatus::Confirmed => "confirmed",
+            AppointmentStatus::Cancelled => "cancelled",
+            AppointmentStatus::Completed => "completed",
+            AppointmentStatus::NoShow => "no_show",
         }
     }
 
@@ -241,7 +199,7 @@ pub mod scheduling {
             scheduled_date: request.scheduled_date,
             slot: request.slot.clone(),
             buffer_duration: request.buffer_duration,
-            status: request_status_to_db(request.status.clone()),
+            status: request.status.clone(),
             reason: request.reason.clone(),
             notes: request.notes.clone(),
             created_at,
@@ -256,7 +214,7 @@ pub mod scheduling {
             practitioner_id: db.practitioner_id,
             scheduled_date: db.scheduled_date,
             slot: db.slot,
-            status: db_status_to_reply(db.status),
+            status: db.status,
             created_at: db.created_at,
             buffer_duration: db.buffer_duration,
             reason: db.reason,
@@ -346,45 +304,23 @@ pub mod clinical {
 
 pub mod billing {
     use super::ShowcaseError;
-    use billing_core::billing::billing_invoice_db_v2::{
-        BillingInvoiceDbV2, BillingInvoiceDbV2Status,
-    };
-    use billing_core::billing::billing_invoice_reply_v2::{
-        BillingInvoiceReplyV2, BillingInvoiceReplyV2Status,
-    };
-    use billing_core::billing::billing_invoice_request_v2::{
-        BillingInvoiceRequestV2, BillingInvoiceRequestV2Status,
-    };
+    use billing_core::billing::billing_invoice_db_v2::BillingInvoiceDbV2;
+    use billing_core::billing::billing_invoice_reply_v2::BillingInvoiceReplyV2;
+    use billing_core::billing::billing_invoice_request_v2::BillingInvoiceRequestV2;
     use billing_core::billing::billing_payment_received_v1::BillingPaymentReceivedV1Method;
+    use billing_core::billing::invoice_status::InvoiceStatus;
     use chrono::{DateTime, Utc};
 
-    pub fn request_status_to_db(status: BillingInvoiceRequestV2Status) -> BillingInvoiceDbV2Status {
+    // `InvoiceStatus` is a nominal semantic enum (model/billing.mdl) shared
+    // verbatim by the request/db/reply projections, so no per-shape
+    // conversion is needed between them - only DB persistence needs a name.
+    pub fn db_status_name(status: &InvoiceStatus) -> &'static str {
         match status {
-            BillingInvoiceRequestV2Status::Draft => BillingInvoiceDbV2Status::Draft,
-            BillingInvoiceRequestV2Status::Issued => BillingInvoiceDbV2Status::Issued,
-            BillingInvoiceRequestV2Status::Paid => BillingInvoiceDbV2Status::Paid,
-            BillingInvoiceRequestV2Status::Overdue => BillingInvoiceDbV2Status::Overdue,
-            BillingInvoiceRequestV2Status::Void => BillingInvoiceDbV2Status::Void,
-        }
-    }
-
-    pub fn db_status_to_reply(status: BillingInvoiceDbV2Status) -> BillingInvoiceReplyV2Status {
-        match status {
-            BillingInvoiceDbV2Status::Draft => BillingInvoiceReplyV2Status::Draft,
-            BillingInvoiceDbV2Status::Issued => BillingInvoiceReplyV2Status::Issued,
-            BillingInvoiceDbV2Status::Paid => BillingInvoiceReplyV2Status::Paid,
-            BillingInvoiceDbV2Status::Overdue => BillingInvoiceReplyV2Status::Overdue,
-            BillingInvoiceDbV2Status::Void => BillingInvoiceReplyV2Status::Void,
-        }
-    }
-
-    pub fn db_status_name(status: &BillingInvoiceDbV2Status) -> &'static str {
-        match status {
-            BillingInvoiceDbV2Status::Draft => "draft",
-            BillingInvoiceDbV2Status::Issued => "issued",
-            BillingInvoiceDbV2Status::Paid => "paid",
-            BillingInvoiceDbV2Status::Overdue => "overdue",
-            BillingInvoiceDbV2Status::Void => "void",
+            InvoiceStatus::Draft => "draft",
+            InvoiceStatus::Issued => "issued",
+            InvoiceStatus::Paid => "paid",
+            InvoiceStatus::Overdue => "overdue",
+            InvoiceStatus::Void => "void",
         }
     }
 
@@ -490,7 +426,7 @@ pub mod billing {
             total: request.total.clone(),
             currency: request.currency.clone(),
             billing_period: request.billing_period.clone(),
-            status: request_status_to_db(request.status.clone()),
+            status: request.status.clone(),
             issued_at: request.issued_at,
             due_date: request.due_date,
             created_at,
@@ -509,7 +445,7 @@ pub mod billing {
             total: db.total,
             currency: db.currency,
             billing_period: db.billing_period,
-            status: db_status_to_reply(db.status),
+            status: db.status,
             issued_at: db.issued_at,
             due_date: db.due_date,
             created_at: db.created_at,
@@ -521,12 +457,10 @@ pub mod billing {
 #[cfg(test)]
 mod tests {
     use super::{billing, clinical, scheduling, ShowcaseError};
-    use billing_core::billing::billing_invoice_db_v2::BillingInvoiceDbV2Status;
-    use billing_core::billing::billing_invoice_reply_v2::BillingInvoiceReplyV2Status;
     use billing_core::billing::billing_payment_received_v1::BillingPaymentReceivedV1Method;
+    use billing_core::billing::invoice_status::InvoiceStatus;
     use chrono::NaiveTime;
-    use clinic_core::scheduling::scheduling_appointment_db_v1::SchedulingAppointmentDbV1Status;
-    use clinic_core::scheduling::scheduling_appointment_reply_v1::SchedulingAppointmentReplyV1Status;
+    use clinic_core::scheduling::appointment_status::AppointmentStatus;
     use clinic_core::scheduling::scheduling_time_range_v0::SchedulingTimeRangeV0;
     use clinical_core::clinical::clinical_encounter_db_v1::ClinicalEncounterDbV1Status;
     use clinical_core::clinical::clinical_encounter_reply_v1::ClinicalEncounterReplyV1Status;
@@ -566,12 +500,12 @@ mod tests {
 
     #[test]
     fn persistence_names_and_reply_statuses_are_stable() {
+        // scheduling::AppointmentStatus and billing::InvoiceStatus are nominal
+        // semantic enums shared verbatim across the request/db/reply
+        // projections, so there is no per-projection conversion left to test -
+        // only the DB persistence name mapping.
         assert_eq!(
-            scheduling::db_status_to_reply(SchedulingAppointmentDbV1Status::NoShow),
-            SchedulingAppointmentReplyV1Status::NoShow
-        );
-        assert_eq!(
-            scheduling::db_status_name(&SchedulingAppointmentDbV1Status::NoShow),
+            scheduling::db_status_name(&AppointmentStatus::NoShow),
             "no_show"
         );
         assert_eq!(
@@ -582,14 +516,7 @@ mod tests {
             clinical::db_status_name(&ClinicalEncounterDbV1Status::InProgress),
             "in_progress"
         );
-        assert_eq!(
-            billing::db_status_to_reply(BillingInvoiceDbV2Status::Overdue),
-            BillingInvoiceReplyV2Status::Overdue
-        );
-        assert_eq!(
-            billing::db_status_name(&BillingInvoiceDbV2Status::Overdue),
-            "overdue"
-        );
+        assert_eq!(billing::db_status_name(&InvoiceStatus::Overdue), "overdue");
         assert_eq!(
             billing::payment_method_name(&BillingPaymentReceivedV1Method::BankTransfer),
             "bank_transfer"

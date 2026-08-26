@@ -22,7 +22,11 @@
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
+    // Modelable 1.11+ emits real `enum` declarations for nominal semantic
+    // enums (model/scheduling.mdl AppointmentStatus, model/billing.mdl
+    // InvoiceStatus) - not erasable syntax, so this can no longer be on for
+    // a workspace that imports generated TypeScript. See
+    // UPSTREAM_FINDINGS.md.
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]
