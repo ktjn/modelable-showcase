@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { getClinicAnalytics } from '../api/analytics'
+import { ModelableGuide } from '../components/ModelableGuide'
 
 export function Analytics() {
   const { data, isLoading, isError, error } = useQuery({
@@ -10,6 +11,12 @@ export function Analytics() {
   return (
     <section>
       <h1>Analytics</h1>
+      <ModelableGuide
+        title="Reporting is where domains meet"
+        description="The totals and breakdowns are computed from billing and scheduling events, mirroring the cross-domain aggregates defined in reporting.mdl."
+        models={['reporting.MonthlyClinicStats@1', 'reporting.PractitionerRevenue@1', 'billing.PaymentReceived@1']}
+        sourceHref="https://github.com/ktjn/modelable-showcase/blob/main/model/reporting.mdl"
+      />
 
       {isLoading && <p>Loading analytics…</p>}
       {isError && <p role="alert">{error instanceof Error ? error.message : 'Failed to load analytics'}</p>}

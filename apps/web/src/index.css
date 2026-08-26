@@ -398,6 +398,75 @@ section section {
   text-underline-offset: 0.2em;
 }
 
+.modelable-guide {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.15fr) minmax(14rem, 0.85fr);
+  gap: 0.85rem 1.5rem;
+  margin: 1.25rem 0 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: linear-gradient(120deg, var(--accent-tint), transparent 72%);
+}
+
+.modelable-guide__copy .section-heading__kicker {
+  margin-bottom: 0.25rem;
+}
+
+.modelable-guide__copy strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.modelable-guide__copy p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.modelable-guide__contract {
+  display: flex;
+  align-content: center;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.modelable-guide code {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: 600 0.7rem/1.2 ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+}
+
+.modelable-guide__links {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.75rem 1.25rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+}
+
+.modelable-guide__links a {
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-underline-offset: 0.2em;
+}
+
+@media (max-width: 680px) {
+  .modelable-guide {
+    grid-template-columns: 1fr;
+  }
+
+  .modelable-guide__links {
+    grid-column: auto;
+  }
+}
+
 .demo-record {
   display: grid;
   grid-template-columns: minmax(15rem, 1.1fr) minmax(18rem, 0.9fr);

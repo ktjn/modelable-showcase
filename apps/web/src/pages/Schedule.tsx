@@ -10,6 +10,7 @@ import {
   type AppointmentCreateInput,
 } from '../api/appointments'
 import { addObservation, startEncounter, updateEncounterStatus } from '../api/encounters'
+import { ModelableGuide } from '../components/ModelableGuide'
 
 function today(): string {
   return new Date().toISOString().slice(0, 10)
@@ -264,6 +265,12 @@ export function Schedule() {
   return (
     <section>
       <h1>Schedule</h1>
+      <ModelableGuide
+        title="Scheduling joins identity to a daily projection"
+        description="Appointments are generated from a versioned entity, while the schedule endpoint joins each appointment to its Patient and exposes a reporting-friendly daily shape."
+        models={['scheduling.Appointment@1', 'reporting.DailySchedule@1', 'clinical.Encounter@1']}
+        sourceHref="https://github.com/ktjn/modelable-showcase/blob/main/model/scheduling.mdl"
+      />
 
       <form onSubmit={handleFilterSubmit}>
         <label>
