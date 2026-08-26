@@ -11,7 +11,7 @@ name: modelable-showcase
 # There is no separate `generator` service here because of that.
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: showcase
       POSTGRES_PASSWORD: showcase
@@ -24,7 +24,10 @@ services:
       timeout: 3s
       retries: 10
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # PostgreSQL 18 stores PGDATA under /var/lib/postgresql/18/docker.
+      # Mount the parent so the named volume contains the server's data
+      # directory (the pre-18 /var/lib/postgresql/data mount is unused).
+      - postgres-data:/var/lib/postgresql
     networks:
       - showcase-net
     restart: unless-stopped
@@ -120,7 +123,7 @@ services:
   # SEARCH_ENABLED=false skips Marquez's optional OpenSearch dependency,
   # which this showcase's read-only lineage-sync check does not need.
   marquez-db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     profiles:
       - marquez
     environment:

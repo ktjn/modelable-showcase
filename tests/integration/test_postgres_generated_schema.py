@@ -3,7 +3,7 @@ generated sql-postgres DDL applies to a real PostgreSQL and round-trips data,
 using psycopg - an actual DB client library - never shell greps.
 
 Prerequisite: the dev PostgreSQL from the repository docker-compose.yml
-(postgres:17-alpine, pinned major version) must be running:
+(postgres:18-alpine, pinned major version) must be running:
 
     docker compose up -d postgres
 
