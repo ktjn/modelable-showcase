@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPatient, type PatientCreateInput } from '../api/patients'
+import { ModelableGuide } from '../components/ModelableGuide'
 
 interface FormState {
   legalName: string
@@ -81,6 +82,12 @@ export function PatientCreate() {
   return (
     <section>
       <h1>New patient</h1>
+      <ModelableGuide
+        title="The form is generated-contract shaped"
+        description="The fields below map to PatientRequest@2. Server-owned timestamps are added by the API, while the browser supplies the registered PatientId."
+        models={['patient.Patient@2', 'patient.PatientRequest@2']}
+        sourceHref="https://github.com/ktjn/modelable-showcase/blob/main/model/patient.mdl"
+      />
       <form onSubmit={handleSubmit} noValidate>
         <label>
           Legal name

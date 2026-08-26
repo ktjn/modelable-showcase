@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { runtime } from '../api/client'
+import { ModelableGuide } from '../components/ModelableGuide'
 
 const DEMO_PATIENT_ID = '9c9c57ef-3f3b-4a8e-8d0b-1c2f3a4b5c6d'
 
@@ -67,6 +68,12 @@ export function Home() {
           <a href="https://ktjn.github.io/modelable/language-reference/">Language reference</a>
           <a href="https://github.com/ktjn/modelable-showcase/tree/main/model">View the clinic models</a>
         </div>
+        <ModelableGuide
+          title="The clinic is the model walkthrough"
+          description="The tour follows entities, events, and reporting projections from model/*.mdl into generated contracts and the two runtime modes."
+          models={['patient.Patient@2', 'scheduling.Appointment@1', 'reporting.PatientSummary@1']}
+          sourceHref="https://github.com/ktjn/modelable-showcase/tree/main/model"
+        />
       </section>
 
       <section className="demo-record" aria-labelledby="demo-record-title">

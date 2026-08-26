@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { addPayment, createInvoice, type PaymentInput } from '../api/billing'
 import { getPatient } from '../api/patients'
 import { getPatientSummary } from '../api/summary'
+import { ModelableGuide } from '../components/ModelableGuide'
 
 function money(value: string): number {
   const parsed = Number(value)
@@ -188,6 +189,12 @@ export function PatientDetail() {
   return (
     <section>
       <h1>{data.legalName}</h1>
+      <ModelableGuide
+        title="One patient, several generated domains"
+        description="Identity comes from Patient@2; the billing summary is a cross-domain reporting projection joining encounters and invoices for this patient."
+        models={['patient.Patient@2', 'reporting.PatientSummary@1', 'billing.Invoice@2']}
+        sourceHref="https://github.com/ktjn/modelable-showcase/blob/main/model/reporting.mdl"
+      />
       <dl>
         <dt>Patient ID</dt>
         <dd>{data.patientId}</dd>
