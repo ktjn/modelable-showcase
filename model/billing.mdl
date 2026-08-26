@@ -3,6 +3,8 @@ domain billing {
   contact: "billing@modelable-clinic.example"
   description: "Invoicing and payments for Modelable Clinic."
 
+  semantic InvoiceStatus @ 1 (additive): enum(draft, issued, overdue, paid, void)
+
   semantic InvoiceId: uuid(7) {
     registry: true
   }
@@ -26,7 +28,7 @@ domain billing {
     subtotal: decimal(10, 2)
     tax: decimal(10, 2) = 0
     total: decimal(10, 2)
-    status: enum(draft, issued, paid, overdue, void) = draft
+    status: InvoiceStatus @ 1 = draft
     issuedAt?: timestamp
     dueDate?: date
     @server
@@ -55,7 +57,7 @@ domain billing {
     // commonly store this instead of re-deriving it via date-truncation
     // on every query.
     billingPeriod?: string
-    status: enum(draft, issued, paid, overdue, void) = draft
+    status: InvoiceStatus @ 1 = draft
     issuedAt?: timestamp
     dueDate?: date
     @server

@@ -23,10 +23,9 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use chrono::{DateTime, NaiveDate, Utc};
 use clinic_core::scheduling::appointment_id::AppointmentId;
+use clinic_core::scheduling::appointment_status::AppointmentStatus;
 use clinic_core::scheduling::practitioner_id::PractitionerId;
-use clinic_core::scheduling::scheduling_appointment_reply_v1::{
-    SchedulingAppointmentReplyV1, SchedulingAppointmentReplyV1Status,
-};
+use clinic_core::scheduling::scheduling_appointment_reply_v1::SchedulingAppointmentReplyV1;
 use clinic_core::scheduling::scheduling_appointment_request_v1::SchedulingAppointmentRequestV1;
 use clinic_core::scheduling::scheduling_time_range_v0::SchedulingTimeRangeV0;
 use serde::Deserialize;
@@ -117,8 +116,8 @@ fn row_to_reply(row: &sqlx::postgres::PgRow) -> Result<SchedulingAppointmentRepl
     })
 }
 
-fn parse_reply_status(value: &str) -> Result<SchedulingAppointmentReplyV1Status, ApiError> {
-    serde_json::from_str::<SchedulingAppointmentReplyV1Status>(&format!("\"{value}\""))
+fn parse_reply_status(value: &str) -> Result<AppointmentStatus, ApiError> {
+    serde_json::from_str::<AppointmentStatus>(&format!("\"{value}\""))
         .map_err(|err| ApiError::internal(format!("invalid status '{value}' in appointment_db: {err}")))
 }
 
@@ -267,7 +266,7 @@ async fn reschedule_appointment(
     let current = fetch_appointment(&state.pool, &id)
         .await?
         .ok_or_else(|| ApiError::not_found(format!("appointment {id} not found")))?;
-    if current.status == SchedulingAppointmentReplyV1Status::Cancelled {
+    if current.status == AppointmentStatus::Cancelled {
         return Err(ApiError::conflict(format!("appointment {id} is cancelled")));
     }
 
@@ -343,7 +342,7 @@ async fn cancel_appointment(
     let current = fetch_appointment(&state.pool, &id)
         .await?
         .ok_or_else(|| ApiError::not_found(format!("appointment {id} not found")))?;
-    if current.status == SchedulingAppointmentReplyV1Status::Cancelled {
+    if current.status == AppointmentStatus::Cancelled {
         return Err(ApiError::conflict(format!("appointment {id} is already cancelled")));
     }
 

@@ -62,6 +62,7 @@
 | 46 | [`compile --target fhir-profile` uses a generic `BackboneElement` fallback for composite fields that map to a more specific base FHIR type (e.g. `Observation.code` needing `CodeableConcept`)](#46-compile---target-fhir-profile-uses-a-generic-backboneelement-fallback-for-composite-fields-that-map-to-a-more-specific-base-fhir-type-eg-observationcode-needing-codeableconcept) | Invalid generated output | A | Fixed in v1.10.0 (via [ktjn/modelable#425](https://github.com/ktjn/modelable/pull/425)) |
 | 47 | [`compile --target avro` never resolves any multi-field named-type reference (value or entity, same-domain or cross-domain) - it degrades to a lossy `string` fallback instead](#47-compile---target-avro-never-resolves-any-multi-field-named-type-reference-value-or-entity-same-domain-or-cross-domain---it-degrades-to-a-lossy-string-fallback-instead) | Invalid generated output | A | Open |
 | 48 | [`compile --target rust` enables UUID v4 randomness in every generated package that stores UUIDs, preventing `wasm32-unknown-unknown` compilation](#48-compile---target-rust-enables-uuid-v4-randomness-in-every-generated-package-that-stores-uuids-preventing-wasm32-unknown-unknown-compilation) | Crash (broken generated code) | A | Fixed in v1.10.1 (via [ktjn/modelable#441](https://github.com/ktjn/modelable/pull/441)) |
+| 49 | [`compile --target typescript` emits nominal `semantic ... : enum(...)` declarations as a real `enum`, which TypeScript's `erasableSyntaxOnly` rejects outright](#49-compile---target-typescript-emits-nominal-semantic--enum-declarations-as-a-real-enum-which-typescripts-erasablesyntaxonly-rejects-outright) | Invalid generated output | A | Open — showcase workaround: `apps/web` no longer sets `erasableSyntaxOnly` |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -2298,3 +2299,87 @@ feature in its direct dependency.
 fresh Rust output into an isolated directory and checks every package currently
 referenced by `apps/api/Cargo.toml` for the browser target, so this portability
 regression cannot be hidden by editing disposable generated artifacts.
+
+## 49. `compile --target typescript` emits nominal `semantic ... : enum(...)` declarations as a real `enum`, which TypeScript's `erasableSyntaxOnly` rejects outright
+
+**Status:** Open.
+
+**Discovered:** Re-pinning to 1.12.1 to adopt 1.11.0/1.12.0's nominal enum
+support - `modelable extract-enum` was used to give
+`scheduling.Appointment@1.status` (and the two `AppointmentStatusChanged@1`
+status fields) and `billing.Invoice@{1,2}.status` a shared named
+`semantic ... : enum(...)` declaration instead of three/two independently
+shape-typed anonymous `enum(...)` fields (the exact scenario 1.12.0's
+`ENUMSHAPE` diagnostic and `extract-enum` command exist for). Regenerating
+`typescript` for the changed model, then running this showcase's own
+`apps/web` typecheck (`tsc -b`, which had `erasableSyntaxOnly: true` in
+`tsconfig.app.json`/`tsconfig.node.json` before this finding), failed on the
+generated enum files themselves - not on any showcase code.
+
+**Minimal reproduction:**
+
+```bash
+mkdir -p /tmp/modelable-ts-enum && cd /tmp/modelable-ts-enum
+cat > workspace.mdl <<'EOF'
+workspace "ts-enum" {
+  package "probe-core" { include: ["probe"] }
+}
+
+domain probe {
+  owner: "test"
+  semantic Status @ 1 (additive): enum(open, closed)
+
+  entity Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    status: Status @ 1
+  }
+}
+EOF
+modelable compile . --target typescript --out out \
+  --registry registry.db --registry-ids registry-ids.lock
+npx tsc --erasableSyntaxOnly --noEmit out/probe.Status.ts
+```
+
+**Observed:**
+
+```text
+out/probe.Status.ts(1,13): error TS1294: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.
+```
+
+`out/probe.Status.ts` is:
+
+```typescript
+export enum Status {
+  Open = 'open',
+  Closed = 'closed',
+}
+```
+
+A real `enum` declaration is not erasable syntax (it lowers to a runtime
+object plus a reverse-mapping loop) - TypeScript 5.8+'s `erasableSyntaxOnly`
+compiler option, and Node's native `--experimental-strip-types`/type-stripping
+execution mode that option exists to support, both reject it categorically,
+regardless of how the generated type is consumed downstream.
+
+**Root cause:** the TypeScript emitter's nominal-enum support (1.11.0's
+per-target enum emission work) always lowers a `semantic ... : enum(...)`
+declaration to `export enum Name { ... }`. TypeScript has an equivalent
+erasable pattern for exactly this shape - a union of string-literal types plus
+a `const` object of the same name (`export type Name = 'open' | 'closed'; export
+const Name = { Open: 'open', Closed: 'closed' } as const;`) - that preserves
+both the nominal type and a `Name.Open`-style member API without emitting
+non-erasable syntax.
+
+**Expected:** either emit the erasable union+const-object pattern instead of
+`enum` by default, or expose a target option
+(e.g. `--target typescript --enum-style=erasable`) so a workspace that has
+opted into `erasableSyntaxOnly` (or ships as native-TypeScript/Node
+type-stripped source) can consume nominal enums without a project-wide
+compiler-option downgrade.
+
+**Showcase workaround:** `apps/web/tsconfig.app.json` no longer sets
+`erasableSyntaxOnly` (removed 2026-08, alongside the 1.12.1 re-pin). This is a
+real loss of strictness for the one property real `enum`s alone conflict
+with - `apps/web` is Vite/esbuild-bundled, not run via Node's native type
+stripping, so nothing else in the build depends on erasable syntax today.

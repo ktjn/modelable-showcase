@@ -3,6 +3,8 @@ domain scheduling {
   contact: "scheduling@modelable-clinic.example"
   description: "Appointment booking and scheduling for Modelable Clinic."
 
+  semantic AppointmentStatus @ 1 (additive): enum(cancelled, completed, confirmed, no_show, requested)
+
   semantic AppointmentId: uuid(7)
   semantic PractitionerId: uuid
 
@@ -24,7 +26,7 @@ domain scheduling {
     scheduledDate: date
     slot: TimeRange
     bufferDuration?: duration
-    status: enum(requested, confirmed, cancelled, completed, no_show) = requested
+    status: AppointmentStatus @ 1 = requested
     reason?: string
     notes?: string
     @server
@@ -36,8 +38,8 @@ domain scheduling {
   event AppointmentStatusChanged @ 1 (additive) {
     eventId: uuid
     appointmentId: AppointmentId
-    previousStatus: enum(requested, confirmed, cancelled, completed, no_show)
-    newStatus: enum(requested, confirmed, cancelled, completed, no_show)
+    previousStatus: AppointmentStatus @ 1
+    newStatus: AppointmentStatus @ 1
     reason?: string
     @server
     occurredAt: timestamp

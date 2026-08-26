@@ -1,4 +1,5 @@
 import type { AppointmentReply } from '@generated/scheduling.AppointmentReply.v1'
+import { AppointmentStatus } from '@generated/scheduling.AppointmentStatus'
 import type { EncounterReply } from '@generated/clinical.EncounterReply.v1'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
@@ -258,7 +259,7 @@ export function Schedule() {
       practitionerId: newPractitionerId.trim(),
       scheduledDate: submitted.date,
       slot: { start: newStart, end: newEnd },
-      status: 'requested',
+      status: AppointmentStatus.Requested,
     })
   }
 

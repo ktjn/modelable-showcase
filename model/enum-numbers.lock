@@ -1,0 +1,52 @@
+{
+  "billing.InvoiceStatus": {
+    "members": [
+      {
+        "name": "draft",
+        "number": 1
+      },
+      {
+        "name": "issued",
+        "number": 2
+      },
+      {
+        "name": "overdue",
+        "number": 3
+      },
+      {
+        "name": "paid",
+        "number": 4
+      },
+      {
+        "name": "void",
+        "number": 5
+      }
+    ],
+    "reservations": []
+  },
+  "scheduling.AppointmentStatus": {
+    "members": [
+      {
+        "name": "cancelled",
+        "number": 1
+      },
+      {
+        "name": "completed",
+        "number": 2
+      },
+      {
+        "name": "confirmed",
+        "number": 3
+      },
+      {
+        "name": "no_show",
+        "number": 4
+      },
+      {
+        "name": "requested",
+        "number": 5
+      }
+    ],
+    "reservations": []
+  }
+}

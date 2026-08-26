@@ -69,6 +69,8 @@ def test_invalid_fixture_fails_for_its_documented_reason(fixture: Path):
                 str(tmp_path / "registry.db"),
                 "--registry-ids",
                 str(tmp_path / "registry-ids.lock"),
+                "--enum-numbers",
+                str(tmp_path / "enum-numbers.lock"),
             )
     else:
         raise AssertionError(f"unknown command '{command}' in expected.yaml for {fixture.name}")

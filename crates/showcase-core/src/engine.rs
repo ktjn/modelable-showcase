@@ -3,17 +3,17 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
-use billing_core::billing::billing_invoice_db_v2::BillingInvoiceDbV2Status;
 use billing_core::billing::billing_invoice_reply_v2::BillingInvoiceReplyV2;
 use billing_core::billing::billing_invoice_request_v2::BillingInvoiceRequestV2;
 use billing_core::billing::billing_payment_received_v1::BillingPaymentReceivedV1;
+use billing_core::billing::invoice_status::InvoiceStatus;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use clinic_core::patient::patient_id::PatientId;
 use clinic_core::patient::patient_patient_reply_v2::PatientPatientReplyV2;
 use clinic_core::patient::patient_patient_request_v2::PatientPatientRequestV2;
 use clinic_core::scheduling::appointment_id::AppointmentId;
+use clinic_core::scheduling::appointment_status::AppointmentStatus;
 use clinic_core::scheduling::practitioner_id::PractitionerId;
-use clinic_core::scheduling::scheduling_appointment_db_v1::SchedulingAppointmentDbV1Status;
 use clinic_core::scheduling::scheduling_appointment_reply_v1::SchedulingAppointmentReplyV1;
 use clinic_core::scheduling::scheduling_appointment_request_v1::SchedulingAppointmentRequestV1;
 use clinic_core::scheduling::scheduling_time_range_v0::SchedulingTimeRangeV0;
@@ -199,7 +199,7 @@ impl ClinicEngine {
             .get(&id)
             .cloned()
             .ok_or_else(|| not_found("appointment", id.to_string()))?;
-        if current.status == SchedulingAppointmentDbV1Status::Cancelled {
+        if current.status == AppointmentStatus::Cancelled {
             return Err(conflict(
                 "appointment",
                 format!("appointment {} is cancelled", *id),
@@ -248,13 +248,13 @@ impl ClinicEngine {
             .appointments
             .get_mut(&id)
             .ok_or_else(|| not_found("appointment", id.to_string()))?;
-        if row.status == SchedulingAppointmentDbV1Status::Cancelled {
+        if row.status == AppointmentStatus::Cancelled {
             return Err(conflict(
                 "appointment",
                 format!("appointment {} is already cancelled", *id),
             ));
         }
-        row.status = SchedulingAppointmentDbV1Status::Cancelled;
+        row.status = AppointmentStatus::Cancelled;
         if reason.is_some() {
             row.reason = reason;
         }
@@ -513,7 +513,7 @@ impl ClinicEngine {
                 .filter(|invoice| {
                     matches!(
                         invoice.status,
-                        BillingInvoiceDbV2Status::Issued | BillingInvoiceDbV2Status::Overdue
+                        InvoiceStatus::Issued | InvoiceStatus::Overdue
                     )
                 })
                 .map(|invoice| ("invoice total", invoice.total.as_str())),
@@ -613,7 +613,7 @@ impl ClinicEngine {
         for appointment in self.state.appointments.values().filter(|appointment| {
             appointment.practitioner_id == practitioner_id
                 && appointment.scheduled_date == date
-                && appointment.status != SchedulingAppointmentDbV1Status::Cancelled
+                && appointment.status != AppointmentStatus::Cancelled
                 && exclude != Some(appointment.appointment_id)
         }) {
             if scheduling::slots_overlap(&appointment.slot, slot)? {
