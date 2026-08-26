@@ -365,6 +365,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          cache-python: true
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -372,6 +375,15 @@ jobs:
           cache-dependency-path: |
             apps/web/package-lock.json
             tests/e2e/package-lock.json
+      - name: make bootstrap
+        run: make bootstrap
+      # The wasm-chromium project's webServer runs a live `vite dev` against
+      # apps/web/src (see tests/e2e/playwright.config.ts), not the
+      # downloaded static build - so it needs generated/typescript/ on disk
+      # for real (non-type-only) imports, e.g. the nominal AppointmentStatus/
+      # InvoiceStatus enums Schedule.tsx/PatientDetail.tsx import as values.
+      - name: make generate
+        run: make generate
       - name: Download browser artifact
         uses: actions/download-artifact@v8
         with:

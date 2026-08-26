@@ -63,6 +63,7 @@
 | 47 | [`compile --target avro` never resolves any multi-field named-type reference (value or entity, same-domain or cross-domain) - it degrades to a lossy `string` fallback instead](#47-compile---target-avro-never-resolves-any-multi-field-named-type-reference-value-or-entity-same-domain-or-cross-domain---it-degrades-to-a-lossy-string-fallback-instead) | Invalid generated output | A | Open |
 | 48 | [`compile --target rust` enables UUID v4 randomness in every generated package that stores UUIDs, preventing `wasm32-unknown-unknown` compilation](#48-compile---target-rust-enables-uuid-v4-randomness-in-every-generated-package-that-stores-uuids-preventing-wasm32-unknown-unknown-compilation) | Crash (broken generated code) | A | Fixed in v1.10.1 (via [ktjn/modelable#441](https://github.com/ktjn/modelable/pull/441)) |
 | 49 | [`compile --target typescript` emits nominal `semantic ... : enum(...)` declarations as a real `enum`, which TypeScript's `erasableSyntaxOnly` rejects outright](#49-compile---target-typescript-emits-nominal-semantic--enum-declarations-as-a-real-enum-which-typescripts-erasablesyntaxonly-rejects-outright) | Invalid generated output | A | Open — showcase workaround: `apps/web` no longer sets `erasableSyntaxOnly` |
+| 50 | [`compile --target sql-clickhouse` renders `LowCardinality(String)` for an inline anonymous `enum(...)` field but plain `String` for a named `semantic ... : enum(...)` reference to the identical member set](#50-compile---target-sql-clickhouse-renders-lowcardinalitystring-for-an-inline-anonymous-enum-field-but-plain-string-for-a-named-semantic--enum-reference-to-the-identical-member-set) | Inconsistent behavior | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -2383,3 +2384,86 @@ compiler-option downgrade.
 real loss of strictness for the one property real `enum`s alone conflict
 with - `apps/web` is Vite/esbuild-bundled, not run via Node's native type
 stripping, so nothing else in the build depends on erasable syntax today.
+
+## 50. `compile --target sql-clickhouse` renders `LowCardinality(String)` for an inline anonymous `enum(...)` field but plain `String` for a named `semantic ... : enum(...)` reference to the identical member set
+
+**Status:** Open.
+
+**Discovered:** Re-pinning to 1.12.1 and extracting `billing.InvoiceStatus`
+out of `billing.Invoice@{1,2}.status` (see finding #49's context - same
+`extract-enum` adoption). CI's `databases` job caught a regenerated-schema
+drift: `reporting.OutstandingInvoices.v1`'s `status` column changed from
+`LowCardinality(String)` to `String` purely from the extraction, with no
+change to the field's actual member set.
+
+**Minimal reproduction:**
+
+```bash
+mkdir -p /tmp/modelable-ch-enum && cd /tmp/modelable-ch-enum
+cat > workspace.mdl <<'EOF'
+workspace "ch-enum" {
+  package "probe-core" { include: ["probe"] }
+}
+
+domain probe {
+  owner: "test"
+  semantic Status @ 1 (additive): enum(open, closed)
+
+  aggregate Thing @ 1 (additive) {
+    @key
+    thingId: uuid
+    inlineStatus: enum(open, closed)
+    namedStatus: Status @ 1
+  }
+
+  index Thing @ 1 {
+    primary thingId
+  }
+
+  auto projections Thing @ 1 {
+    db
+  }
+}
+EOF
+modelable compile . --target sql-clickhouse --out out \
+  --registry registry.db --registry-ids registry-ids.lock --enum-numbers enum-numbers.lock
+cat out/probe.ThingDb.v1.sql
+```
+
+**Observed:**
+
+```sql
+CREATE TABLE IF NOT EXISTS thing_db
+(
+    thing_id UUID,
+    inline_status LowCardinality(String),
+    named_status String
+) ENGINE = MergeTree()
+ORDER BY tuple();
+```
+
+`inlineStatus` and `namedStatus` share the exact same two-member set
+(`open`/`closed`) - the only difference is that one is written inline and the
+other through a named `semantic` declaration - yet only the inline field gets
+the `LowCardinality` optimization.
+
+**Root cause (not yet read from source - the sql-clickhouse emitter is not
+vendored into this repo):** the emitter's `LowCardinality(String)` selection
+appears to key off the field's own AST shape (an inline `EnumType` literal)
+rather than resolving the field's type - inline or a named reference to a
+`semantic` declaration whose underlying type is `enum(...)` - to the same
+underlying enum-ness before deciding the column type. This is the same class
+of gap FR-17/finding #49 hits for TypeScript: 1.10-1.12's new nominal enum
+support was layered on without updating every existing type-shape check that
+used to only ever see an inline `enum(...)` literal.
+
+**Expected:** `sql-clickhouse` should render `LowCardinality(String)` for
+*any* field whose resolved type is an enum, whether declared inline or
+through a named `semantic ... : enum(...)` reference - matching how other
+targets already resolve named types before deciding their representation
+(e.g. `resolve_model_ref` in `emitters/fhir.py`/`emitters/python.py`).
+
+**Showcase workaround:** None -
+`tests/integration/test_clickhouse_generated_schema.py::test_representative_reporting_columns_and_types`
+pins the current reality (`billing.Invoice`'s extracted `status` column is
+plain `String`, not `LowCardinality(String)`) as the flip test.
