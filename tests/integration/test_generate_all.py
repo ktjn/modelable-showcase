@@ -99,8 +99,6 @@ def test_validate_plan_protocol_rejects_non_object_json_without_crashing(tmp_pat
     generate_all = importlib.util.module_from_spec(script_spec)
     script_spec.loader.exec_module(generate_all)
 
-    plan_path = tmp_path / "malformed.plan.json"
-    plan_path.write_text("[]", encoding="utf-8")
     monkeypatch.setattr(generate_all, "PLAN_DIR", tmp_path)
     monkeypatch.setattr(
         generate_all,
@@ -108,7 +106,10 @@ def test_validate_plan_protocol_rejects_non_object_json_without_crashing(tmp_pat
         lambda *args: subprocess.CompletedProcess(args, 0, "", ""),
     )
 
-    assert generate_all.validate_plan_protocol() is False
+    for contents in ("[]", "{"):
+        plan_path = tmp_path / "malformed.plan.json"
+        plan_path.write_text(contents, encoding="utf-8")
+        assert generate_all.validate_plan_protocol() is False
 
 
 def test_manifest_file_hashes_are_real_sha256_of_generated_files(generate_result: subprocess.CompletedProcess[str]):
