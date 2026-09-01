@@ -74,6 +74,11 @@ def test_manifest_reports_every_currently_implemented_target(generate_result: su
     assert manifest["modelable_version"], manifest
 
 
+def test_generation_validates_stable_plan_v1_protocol(generate_result: subprocess.CompletedProcess[str]):
+    output = generate_result.stdout + generate_result.stderr
+    assert "validated 27 modelable.plan/v1 documents" in output
+
+
 def test_manifest_file_hashes_are_real_sha256_of_generated_files(generate_result: subprocess.CompletedProcess[str]):
     manifest = json.loads(MANIFEST_PATH.read_text())
     assert manifest["files"], "manifest reports zero generated files"

@@ -35,6 +35,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = REPO_ROOT / "model"
 GENERATED_DIR = REPO_ROOT / "generated"
 MANIFEST_PATH = GENERATED_DIR / "manifest.json"
+PLAN_DIR = REPO_ROOT / ".modelable" / "plans"
+PLAN_SCHEMA = "modelable.plan/v1"
 
 
 def run_modelable(*args: str) -> subprocess.CompletedProcess[str]:
@@ -69,6 +71,38 @@ def hash_generated_files(target_dir: Path) -> dict[str, str]:
             rel = path.relative_to(GENERATED_DIR).as_posix()
             hashes[rel] = digest
     return hashes
+
+
+def validate_plan_protocol() -> bool:
+    plan_paths = sorted(PLAN_DIR.glob("*.plan.json"))
+    if not plan_paths:
+        print(f"generate-all.py: no plans found under {PLAN_DIR}", file=sys.stderr)
+        return False
+
+    failures: list[str] = []
+    for plan_path in plan_paths:
+        try:
+            document = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            failures.append(f"{plan_path.name}: could not read JSON ({exc})")
+            continue
+
+        if document.get("$schema") != PLAN_SCHEMA:
+            failures.append(f"{plan_path.name}: expected {PLAN_SCHEMA}, got {document.get('$schema')!r}")
+            continue
+
+        result = run_modelable("plan", "validate", str(plan_path))
+        if result.returncode != 0:
+            failures.append(f"{plan_path.name}: modelable plan validate failed\n{result.stdout}{result.stderr}")
+
+    if failures:
+        print("generate-all.py: plan protocol validation failed:", file=sys.stderr)
+        for failure in failures:
+            print(f"  - {failure}", file=sys.stderr)
+        return False
+
+    print(f"generate-all.py: validated {len(plan_paths)} {PLAN_SCHEMA} documents", file=sys.stderr)
+    return True
 
 
 def main() -> int:
@@ -125,6 +159,9 @@ def main() -> int:
             f"{', '.join(failed)}",
             file=sys.stderr,
         )
+        return 1
+
+    if not validate_plan_protocol():
         return 1
 
     print(
