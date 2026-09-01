@@ -25,6 +25,33 @@
 # blocker.
 
 capabilities:
+  registry_capability:application-package-identity:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:consequence-graph-analysis:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:cross-application-consequence-analysis:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:local-registry-snapshot:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:offline-compiler-analysis:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:policy-evaluator-boundary:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:snapshot-aware-impact:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:snapshot-provenance:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
+  registry_capability:transitive-dependency-closure:
+    coverage: probe
+    test: tests/conformance/test_registry_ids.py
   model_kind:entity:
     coverage: product
     test: model/patient.mdl
