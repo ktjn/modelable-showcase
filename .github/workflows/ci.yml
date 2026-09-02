@@ -11,6 +11,13 @@ on:
   # string) on ordinary push/pull_request triggers, which is exactly
   # scripts/install-modelable.sh's own signal to install the pinned release
   # instead of canary mode - no separate branching needed here.
+  workflow_dispatch:
+    inputs:
+      modelable_ref:
+        description: "Modelable git ref to test instead of the pinned release"
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       modelable_ref:

@@ -157,6 +157,33 @@ capabilities:
   target:event-sink:
     coverage: probe
     test: tests/integration/test_generated_artifacts.py::test_event_sink_contract_declares_every_event_channel_with_a_schema_ref
+  registry_capability:application-package-identity:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:consequence-graph-analysis:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:cross-application-consequence-analysis:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:local-registry-snapshot:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:offline-compiler-analysis:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:policy-evaluator-boundary:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:snapshot-aware-impact:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:snapshot-provenance:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
+  registry_capability:transitive-dependency-closure:
+    coverage: probe
+    test: tests/conformance/test_capability_registry.py::test_registry_capabilities_are_reported_as_implemented
   annotation:latest_only:
     coverage: probe
     test: tests/conformance/test_valid_fixtures.py::test_join_temporal_modifiers_compile
