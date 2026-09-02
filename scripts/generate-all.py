@@ -87,6 +87,10 @@ def validate_plan_protocol() -> bool:
             failures.append(f"{plan_path.name}: could not read JSON ({exc})")
             continue
 
+        if not isinstance(document, dict):
+            failures.append(f"{plan_path.name}: expected a JSON object, got {type(document).__name__}")
+            continue
+
         if document.get("$schema") != PLAN_SCHEMA:
             failures.append(f"{plan_path.name}: expected {PLAN_SCHEMA}, got {document.get('$schema')!r}")
             continue
@@ -120,6 +124,9 @@ def main() -> int:
         return 1
 
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    PLAN_DIR.mkdir(parents=True, exist_ok=True)
+    for plan_path in PLAN_DIR.glob("*.plan.json"):
+        plan_path.unlink()
 
     succeeded: list[str] = []
     failed: list[str] = []

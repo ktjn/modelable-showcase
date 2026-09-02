@@ -427,7 +427,7 @@ def test_graph_export_focus_narrows_to_neighborhood():
 
         focus_node_ids = {n["id"] for n in focus_graph["nodes"]}
         assert "model_version:patient.Patient@2" in focus_node_ids
-        assert "field:patient.Patient@2.patientId" in focus_node_ids
+        assert "field:patient.Patient@2#patientId" in focus_node_ids
         # Unrelated domains must not appear in a narrowly-focused export.
         assert "domain:audit" not in focus_node_ids
 

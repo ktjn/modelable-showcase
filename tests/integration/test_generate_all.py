@@ -7,6 +7,7 @@ target, the same as `make generate` does."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -76,7 +77,39 @@ def test_manifest_reports_every_currently_implemented_target(generate_result: su
 
 def test_generation_validates_stable_plan_v1_protocol(generate_result: subprocess.CompletedProcess[str]):
     output = generate_result.stdout + generate_result.stderr
-    assert "validated 27 modelable.plan/v1 documents" in output
+    assert "validated 25 modelable.plan/v1 documents" in output
+
+
+def test_every_generated_plan_is_an_independently_valid_v1_document(
+    generate_result: subprocess.CompletedProcess[str],
+):
+    assert generate_result.returncode == 0, generate_result.stdout + generate_result.stderr
+    plan_paths = sorted((REPO_ROOT / ".modelable" / "plans").glob("*.plan.json"))
+    assert len(plan_paths) == 25
+    for plan_path in plan_paths:
+        document = json.loads(plan_path.read_text(encoding="utf-8"))
+        assert isinstance(document, dict), plan_path
+        assert document["$schema"] == "modelable.plan/v1", plan_path
+        assert document["fields"], plan_path
+
+
+def test_validate_plan_protocol_rejects_non_object_json_without_crashing(tmp_path, monkeypatch):
+    script_spec = importlib.util.spec_from_file_location("generate_all", SCRIPT_PATH)
+    assert script_spec and script_spec.loader
+    generate_all = importlib.util.module_from_spec(script_spec)
+    script_spec.loader.exec_module(generate_all)
+
+    monkeypatch.setattr(generate_all, "PLAN_DIR", tmp_path)
+    monkeypatch.setattr(
+        generate_all,
+        "run_modelable",
+        lambda *args: subprocess.CompletedProcess(args, 0, "", ""),
+    )
+
+    for contents in ("[]", "{"):
+        plan_path = tmp_path / "malformed.plan.json"
+        plan_path.write_text(contents, encoding="utf-8")
+        assert generate_all.validate_plan_protocol() is False
 
 
 def test_manifest_file_hashes_are_real_sha256_of_generated_files(generate_result: subprocess.CompletedProcess[str]):
