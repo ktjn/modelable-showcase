@@ -55,19 +55,15 @@ def test_decimal_fields_use_the_avro_decimal_logical_type():
     }
 
 
-def test_multi_field_named_type_references_are_lossy():
-    # UPSTREAM_FINDINGS.md #47 flip test: `_type_schema`'s NamedType branch
-    # only ever attempts semantic-type resolution, so any reference to a
-    # multi-field value type degrades to a lossy fallback - same-domain
-    # references included, not just cross-domain (PatientDb.v2's `contact`
-    # references PatientContactDetailsV0 within the same `patient` domain;
-    # PatientEvent.v2's `address` is likewise same-domain). Pinned here so
-    # this flips loudly (delete this test, strengthen the assertion above)
-    # the day upstream resolves it for avro too.
+def test_named_type_references_match_generated_avro_shape():
+    # Modelable 1.13.2 preserves the event's same-domain address record.
     event_schema = json.loads((AVRO_DIR / "patient" / "PatientEvent.v2.avsc").read_text(encoding="utf-8"))
     fastavro.parse_schema(event_schema)
     event_fields = {f["name"]: f for f in event_schema["fields"]}
-    assert event_fields["address"]["type"] == ["null", "string"]
+    address_type = event_fields["address"]["type"]
+    assert address_type[0] == "null"
+    assert address_type[1]["type"] == "record"
+    assert {field["name"] for field in address_type[1]["fields"]} == {"street", "city", "postalCode", "country"}
 
     patient_schema = json.loads((AVRO_DIR / "patient" / "Patient.v2.avsc").read_text(encoding="utf-8"))
     fastavro.parse_schema(patient_schema)
