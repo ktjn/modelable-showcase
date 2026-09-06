@@ -193,7 +193,7 @@ def test_dbt_yaml_files_all_parse_and_have_expected_shape():
 def test_dbt_yaml_records_lineage_in_column_meta():
     doc = load_yaml(GENERATED_DIR / "dbt-yaml" / "patient.PatientDb.v2.yml")
     columns = {c["name"]: c for c in doc["models"][0]["versions"][0]["columns"]}
-    assert columns["patientId"]["meta"]["modelable_lineage"] == ["patient.Patient@2.patientId"]
+    assert columns["patientId"]["meta"]["modelable_lineage"] == ["patient.Patient@2#patientId"]
 
 
 # --- FHIR profile ---------------------------------------------------------

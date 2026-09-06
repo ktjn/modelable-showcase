@@ -180,18 +180,18 @@ def test_patient_summary_name_traces_to_patient_model():
     result = run_modelable("lineage", "reporting.PatientSummary@1", "--path", str(MODEL_DIR))
     assert result.returncode == 0, result.stdout + result.stderr
     assert "legalName: direct" in result.stdout
-    assert "<- patient.Patient@2.legalName" in result.stdout
+    assert "<- patient.Patient@2#legalName" in result.stdout
 
 
 def test_patient_clinical_summary_traces_to_observation_source():
     result = run_modelable("lineage", "reporting.PatientClinicalSummary@1", "--path", str(MODEL_DIR))
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "<- clinical.Observation@1.observationId" in result.stdout
-    assert "<- clinical.Observation@1.temperatureCelsius" in result.stdout
+    assert "<- clinical.Observation@1#observationId" in result.stdout
+    assert "<- clinical.Observation@1#temperatureCelsius" in result.stdout
 
 
 def test_practitioner_revenue_traces_to_invoice_and_payment_source():
     result = run_modelable("lineage", "reporting.PractitionerRevenue@1", "--path", str(MODEL_DIR))
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "<- billing.Invoice@2.total" in result.stdout
-    assert "<- billing.PaymentReceived@1.amount" in result.stdout
+    assert "<- billing.Invoice@2#total" in result.stdout
+    assert "<- billing.PaymentReceived@1#amount" in result.stdout

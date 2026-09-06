@@ -326,7 +326,7 @@ mod tests {
         let (status, body) = call(app(stub_state(true, true)), "/api/runtime").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["runtime"], "Rust / Axum");
-        assert_eq!(body["modelableVersion"], "1.13.0");
+        assert_eq!(body["modelableVersion"], "1.13.2");
         assert!(body["schemaIdentity"].as_str().unwrap().contains("patient.PatientDb"));
         assert_eq!(body["storage"], "PostgreSQL + ClickHouse");
     }

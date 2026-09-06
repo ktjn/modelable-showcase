@@ -37,7 +37,7 @@ test.describe('Rust WASM clinic runtime', () => {
     await page.goto('/')
     const identity = page.getByRole('complementary', { name: 'Runtime identity' })
     await expect(identity).toContainText('Rust / WebAssembly')
-    await expect(identity).toContainText('1.13.0')
+    await expect(identity).toContainText('1.13.2')
     await expect(identity).toContainText('IndexedDB')
 
     await page.getByRole('button', { name: 'Seed demo data' }).click()

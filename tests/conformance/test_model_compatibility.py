@@ -85,7 +85,7 @@ def test_additive_projection_shows_source_version_change_and_lineage_growth():
     assert lineage_v1.returncode == 0 and lineage_v2.returncode == 0
     assert "preferredName" not in lineage_v1.stdout
     assert "preferredName" in lineage_v2.stdout
-    assert "<- compat.Patient@2.preferredName" in lineage_v2.stdout, lineage_v2.stdout
+    assert "<- compat.Patient@2#preferredName" in lineage_v2.stdout, lineage_v2.stdout
 
 
 # --- compat/breaking-v3: everything here must classify as breaking ---------
