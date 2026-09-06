@@ -77,7 +77,7 @@ def test_manifest_reports_every_currently_implemented_target(generate_result: su
 
 def test_generation_validates_stable_plan_v1_protocol(generate_result: subprocess.CompletedProcess[str]):
     output = generate_result.stdout + generate_result.stderr
-    assert "validated 27 modelable.plan/v1 documents" in output
+    assert "validated 25 modelable.plan/v1 documents" in output
 
 
 def test_every_generated_plan_is_an_independently_valid_v1_document(
@@ -85,7 +85,7 @@ def test_every_generated_plan_is_an_independently_valid_v1_document(
 ):
     assert generate_result.returncode == 0, generate_result.stdout + generate_result.stderr
     plan_paths = sorted((REPO_ROOT / ".modelable" / "plans").glob("*.plan.json"))
-    assert len(plan_paths) == 27
+    assert len(plan_paths) == 25
     for plan_path in plan_paths:
         document = json.loads(plan_path.read_text(encoding="utf-8"))
         assert isinstance(document, dict), plan_path

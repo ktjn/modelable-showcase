@@ -123,7 +123,7 @@ capabilities:
     test: apps/api/tests/openapi_contract.rs::create_patient_conforms_to_generated_openapi_contract
   deferred_feature:composite-keys:
     coverage: deferred
-    test: tests/conformance/deferred/composite-keys.mdl
+    test: tests/conformance/test_deferred_capabilities.py::test_composite_keys_validate_but_target_rollout_is_partial
   deferred_feature:workspace-registry:
     coverage: deferred
     test: tests/conformance/deferred/workspace-registry.mdl

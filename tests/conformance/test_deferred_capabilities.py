@@ -4,28 +4,39 @@ CLI-verified behavior for upstream-deferred capabilities so this showcase
 never accidentally depends on a capability upstream doesn't actually
 implement yet.
 
-Two shapes of deferred capability are covered here, per Task 3.3's own
-instruction not to pretend they all behave identically:
+One shape of deferred capability is covered here now: parseable-but-deferred
+syntax (the seven tests/conformance/deferred/*.mdl fixtures): the CLI parses
+the construct, emits an explicit "WARNING DEFERRED" diagnostic, and treats
+the file as valid (exit 0, including under --strict) - the declared
+configuration has no effect on compilation.
 
-- Parseable-but-deferred syntax (the seven tests/conformance/deferred/*.mdl
-  fixtures, except composite-keys.mdl): the CLI parses the construct,
-  emits an explicit "WARNING DEFERRED" diagnostic, and treats the file as
-  valid (exit 0, including under --strict) - the declared configuration
-  has no effect on compilation.
-- Grammar-level non-support (composite-keys.mdl): the CLI rejects the
-  construct outright with a hard SEM error, matching
-  tests/conformance/invalid/composite-key.mdl's negative case.
-
-The remaining three deferred capabilities are output semantics rather than
-source syntax, and are covered by direct CLI probes instead of fixtures:
-nominal semantic-type identity in targets other than Rust, model lifecycle
-status, and projection event-operation compatibility comparison. ClickHouse
+The remaining deferred capabilities are output semantics rather than source
+syntax, and are covered by direct CLI probes instead of fixtures: nominal
+semantic-type identity in targets other than Rust, model lifecycle status,
+and projection event-operation compatibility comparison. ClickHouse
 secondary index emission was a fourth such capability until Modelable 1.9.4:
 `test_clickhouse_secondary_indexes_are_now_emitted` below pins that it is no
 longer deferred (`modelable capabilities` no longer reports a
 `deferred_feature:clickhouse-secondary-indexes` entry at all, so its
 `tests/conformance/capability-coverage.yaml` row was removed rather than
 reclassified).
+
+Composite (multiple `@key`) identity moved from grammar-level non-support to
+a genuinely partial rollout: `modelable capabilities` still reports
+`deferred_feature:composite-keys` (deferred), but core semantic validation
+now accepts an ordered multiple-`@key` entity/aggregate outright instead of
+rejecting it with a hard SEM error, and several targets (protobuf,
+sql-postgres, sql-clickhouse, json-schema, openapi, grpc) already emit it
+correctly with primary-key field order preserved - while others (e.g. rust)
+correctly and explicitly refuse via capability negotiation rather than
+silently dropping key fields. `test_composite_keys_validate_but_target_rollout_is_partial`
+below pins this exact in-between state so this showcase does not
+accidentally assume either "still fully rejected" or "fully supported
+everywhere." The old grammar-level-non-support fixtures that asserted
+composite keys were rejected outright
+(`tests/conformance/deferred/composite-keys.mdl` and
+`tests/conformance/invalid/composite-key.mdl`) were removed because that
+premise is no longer true - core validation accepts the construct now.
 
 Per SPEC.md Sec 14, the deferred federated-registry CLI entry points
 (`registry init`, `registry peer add`, `registry graph`, `registry sync`,
@@ -39,6 +50,7 @@ REF argument, which fails cleanly because "verify" is not a valid
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import tempfile
@@ -71,10 +83,6 @@ def normalize(text: str) -> str:
 #   {"exit": 1, "contains": [...]}                      - hard failure
 #   {"exit": 0, "warnings": [...]}                       - deferred warning(s), file still valid
 FIXTURE_EXPECTATIONS: dict[str, dict] = {
-    "composite-keys.mdl": {
-        "exit": 1,
-        "contains": ["ERROR SEM", "entity must have exactly one @key field"],
-    },
     "workspace-registry.mdl": {
         "exit": 0,
         "warnings": [
@@ -134,8 +142,8 @@ def test_expected_fixtures_present():
     )
 
 
-def test_at_least_seven_deferred_fixtures_present():
-    assert len(FIXTURE_FILES) >= 7, FIXTURE_FILES
+def test_at_least_six_deferred_fixtures_present():
+    assert len(FIXTURE_FILES) >= 6, FIXTURE_FILES
 
 
 @pytest.mark.parametrize("fixture", FIXTURE_FILES, ids=lambda p: p.stem)
@@ -198,6 +206,60 @@ def test_clickhouse_secondary_indexes_are_now_emitted():
         assert "INDEX idx_by_name" in ch_sql, ch_sql
         assert "legal_name, date_of_birth" in ch_sql, ch_sql
         assert "ORDER BY tuple()" in ch_sql, ch_sql
+
+
+def test_composite_keys_validate_but_target_rollout_is_partial():
+    # deferred_feature: composite-keys. Formerly a hard grammar-level SEM
+    # rejection (tests/conformance/deferred/composite-keys.mdl and
+    # tests/conformance/invalid/composite-key.mdl both asserted an ordered
+    # multiple-@key entity was rejected outright). Core semantic validation
+    # now accepts it, and protobuf (checked here) already emits it correctly
+    # with primary-key field order preserved - but the capability rollout
+    # across targets is not complete: rust still explicitly refuses via
+    # capability negotiation, rather than silently dropping key fields.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        model = tmp_path / "model.mdl"
+        model.write_text(
+            "domain orders {\n"
+            '  owner: "orders-platform"\n'
+            "  entity OrderLine @ 1 (additive) {\n"
+            "    @key orderId: uuid\n"
+            "    @key lineNumber: int\n"
+            "    quantity: int\n"
+            "  }\n"
+            "  index OrderLine @ 1 {\n"
+            "    primary orderId, lineNumber\n"
+            "  }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        common_args = [
+            "--registry",
+            str(tmp_path / "registry.db"),
+            "--registry-ids",
+            str(tmp_path / "registry-ids.lock"),
+            "--enum-numbers",
+            str(tmp_path / "enum-numbers.lock"),
+        ]
+
+        validate_result = run_modelable("validate", str(model), "--strict")
+        assert validate_result.returncode == 0, validate_result.stdout + validate_result.stderr
+        assert "is valid" in normalize(validate_result.stdout + validate_result.stderr)
+
+        proto_out = tmp_path / "protobuf"
+        proto_result = run_modelable(
+            "compile", str(model), "--target", "protobuf", "--out", str(proto_out), *common_args
+        )
+        assert proto_result.returncode == 0, proto_result.stdout + proto_result.stderr
+        manifest_path = proto_out / "orders" / "OrderLine.v1" / "schema-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["schemas"][0]["indexes"]["primary"]["key_fields"] == ["orderId", "lineNumber"]
+
+        rust_out = tmp_path / "rust"
+        rust_result = run_modelable("compile", str(model), "--target", "rust", "--out", str(rust_out), *common_args)
+        assert rust_result.returncode != 0, rust_result.stdout + rust_result.stderr
+        assert "composite-keys" in normalize(rust_result.stdout + rust_result.stderr)
 
 
 def test_nominal_semantic_identity_lost_beyond_rust():
