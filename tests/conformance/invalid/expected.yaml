@@ -23,12 +23,7 @@
 missing-key.mdl:
   exit: 1
   code: SEM
-  contains: "entity must have exactly one @key field"
-
-composite-key.mdl:
-  exit: 1
-  code: SEM
-  contains: "entity must have exactly one @key field"
+  contains: "entity must have at least one @key field"
 
 key-on-event.mdl:
   exit: 1
