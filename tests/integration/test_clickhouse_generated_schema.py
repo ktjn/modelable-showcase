@@ -205,14 +205,13 @@ def test_representative_reporting_columns_and_types(client):
             "total": "Decimal(10, 2)",
             "currency": "Nullable(String)",
             "billing_period": "Nullable(String)",
-            # UPSTREAM_FINDINGS.md #50, fixed for this projection-selection
-            # code path: the sql-clickhouse emitter now resolves a named
-            # `semantic ... : enum(...)` reference (billing.Invoice.status
-            # is `InvoiceStatus`, extracted in 1.12.0) to its underlying
-            # enum-ness the same way it already did for an inline
-            # anonymous enum(...) field, and renders LowCardinality(String)
-            # for both.
-            "status": "LowCardinality(String)",
+            # UPSTREAM_FINDINGS.md #50: the sql-clickhouse emitter only
+            # renders LowCardinality(String) for an inline anonymous
+            # enum(...) field; billing.Invoice.status became a named
+            # `InvoiceStatus` semantic enum reference (1.12.0's
+            # extract-enum), which the emitter does not special-case, so it
+            # renders as plain String instead. Still true against 1.14.0.
+            "status": "String",
             "issued_at": "Nullable(DateTime64(9))",
             "due_date": "Nullable(Date)",
             "is_outstanding": "String",
