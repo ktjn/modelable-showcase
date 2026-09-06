@@ -63,7 +63,7 @@
 | 47 | [`compile --target avro` never resolves any multi-field named-type reference (value or entity, same-domain or cross-domain) - it degrades to a lossy `string` fallback instead](#47-compile---target-avro-never-resolves-any-multi-field-named-type-reference-value-or-entity-same-domain-or-cross-domain---it-degrades-to-a-lossy-string-fallback-instead) | Invalid generated output | A | Open |
 | 48 | [`compile --target rust` enables UUID v4 randomness in every generated package that stores UUIDs, preventing `wasm32-unknown-unknown` compilation](#48-compile---target-rust-enables-uuid-v4-randomness-in-every-generated-package-that-stores-uuids-preventing-wasm32-unknown-unknown-compilation) | Crash (broken generated code) | A | Fixed in v1.10.1 (via [ktjn/modelable#441](https://github.com/ktjn/modelable/pull/441)) |
 | 49 | [`compile --target typescript` emits nominal `semantic ... : enum(...)` declarations as a real `enum`, which TypeScript's `erasableSyntaxOnly` rejects outright](#49-compile---target-typescript-emits-nominal-semantic--enum-declarations-as-a-real-enum-which-typescripts-erasablesyntaxonly-rejects-outright) | Invalid generated output | A | Open — showcase workaround: `apps/web` no longer sets `erasableSyntaxOnly` |
-| 50 | [`compile --target sql-clickhouse` renders `LowCardinality(String)` for an inline anonymous `enum(...)` field but plain `String` for a named `semantic ... : enum(...)` reference to the identical member set](#50-compile---target-sql-clickhouse-renders-lowcardinalitystring-for-an-inline-anonymous-enum-field-but-plain-string-for-a-named-semantic--enum-reference-to-the-identical-member-set) | Inconsistent behavior | A | Fixed for explicit-projection field selection, verified on unreleased main ahead of the next release; auto-projection path unverified |
+| 50 | [`compile --target sql-clickhouse` renders `LowCardinality(String)` for an inline anonymous `enum(...)` field but plain `String` for a named `semantic ... : enum(...)` reference to the identical member set](#50-compile---target-sql-clickhouse-renders-lowcardinalitystring-for-an-inline-anonymous-enum-field-but-plain-string-for-a-named-semantic--enum-reference-to-the-identical-member-set) | Inconsistent behavior | A | Open |
 
 "Case" refers to `UPSTREAM_POLICY.md` §6's decision tree. All findings below are Case A ("Modelable is wrong or incomplete") except #8, which is Case C (an intentional-looking design whose documentation example is easy to misread) — kept here anyway because misreading it produces a real parse error, which is exactly the kind of thing this log exists to save the next person from re-discovering.
 
@@ -2387,25 +2387,22 @@ stripping, so nothing else in the build depends on erasable syntax today.
 
 ## 50. `compile --target sql-clickhouse` renders `LowCardinality(String)` for an inline anonymous `enum(...)` field but plain `String` for a named `semantic ... : enum(...)` reference to the identical member set
 
-**Status:** Fixed for the code path this showcase actually exercises,
-verified against an unreleased Modelable build ahead of the next release.
-`billing.Invoice.status` (a named `InvoiceStatus @ 1` semantic enum
-reference) now renders as `LowCardinality(String)` in
-`reporting.OutstandingInvoices`, generated through an explicit projection's
-`omit(...)`-based field selection - matching the inline-`enum(...)` case
-rather than falling back to plain `String`.
-`tests/integration/test_clickhouse_generated_schema.py::test_representative_reporting_columns_and_types`
-now pins `LowCardinality(String)` as the current (fixed) reality.
+**Status:** Open. Still reproduces against the real published Modelable
+1.14.0 - `billing.Invoice.status` renders as plain `String`, confirmed with
+a freshly recreated ClickHouse container in this repo's own `databases` CI
+job.
 
-Not independently re-verified: this finding's own minimal reproduction below
-uses an `auto projections Thing @ 1 { db }` auto-generated projection rather
-than an explicit `omit(...)`-selection projection; re-running it against the
-same unreleased build still showed `named_status String` (not
-`LowCardinality`), so the fix may be scoped to explicit-projection field
-selection rather than universal. Re-check the auto-projection path once the
-fix has shipped and this repro can be re-run for confirmation, and downgrade
-this status back to a narrower "Open" scope if the auto-projection path is
-still broken.
+Note for future investigators: an earlier draft of this entry briefly (and
+incorrectly) claimed this was fixed, based on a local `pytest` run against
+an unreleased Modelable build that returned `LowCardinality(String)`. That
+result was a false positive - the local ClickHouse container had been
+reused across several earlier test iterations without recreating the
+`outstanding_invoices` table, so the query was reading a stale schema left
+over from an earlier run, not the schema the then-current Modelable build
+actually produced. CI's `databases` job (which always starts from a fresh
+container) caught the discrepancy. Lesson: always verify a ClickHouse
+schema-shape finding against a freshly created container, never a reused
+one - `docker compose down -v` before re-testing.
 
 **Discovered:** Re-pinning to 1.12.1 and extracting `billing.InvoiceStatus`
 out of `billing.Invoice@{1,2}.status` (see finding #49's context - same
