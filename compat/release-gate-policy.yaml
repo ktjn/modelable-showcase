@@ -1,0 +1,7 @@
+profiles:
+  release-gate:
+    targets: [protobuf, json-schema]
+    requirement: backward
+    thresholds:
+      protobuf: review_required
+      json-schema: review_required
