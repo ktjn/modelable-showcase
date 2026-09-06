@@ -21,6 +21,12 @@ Every case SPEC.md Sec 11 requires of this task is covered:
   (compat/grpc-read-index-change): a secondary index's key field
   changes; the wire schema is untouched (protobuf: wire_compatible) but
   the read model is not (grpc: requires_read_rebuild).
+- Named compatibility profiles (`--policy`/`--profile`, compat/
+  release-gate-policy.yaml): a profile's `requirement` adds a semantic
+  backward-compatibility check on top of a target's own wire-level
+  classification, so a wire-safe protobuf reservation is not automatically
+  profile-safe (a reserved-but-removed field is still a source-level
+  removal) while a purely additive json-schema evolution passes both.
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPAT_DIR = REPO_ROOT / "compat"
+RELEASE_GATE_POLICY = COMPAT_DIR / "release-gate-policy.yaml"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("modelable") is None,
@@ -57,6 +64,22 @@ def validate_compat(scenario: str, target: str) -> subprocess.CompletedProcess[s
         f"compat/{scenario}/new",
         "--target",
         target,
+    )
+
+
+def validate_compat_with_profile(scenario: str, target: str) -> subprocess.CompletedProcess[str]:
+    return run_modelable(
+        "validate-compat",
+        "--from",
+        f"compat/{scenario}/old",
+        "--to",
+        f"compat/{scenario}/new",
+        "--target",
+        target,
+        "--policy",
+        str(RELEASE_GATE_POLICY),
+        "--profile",
+        "release-gate",
     )
 
 
@@ -131,3 +154,52 @@ def test_grpc_success_status_is_read_compatible_not_wire_compatible():
     result = validate_compat("protobuf-safe", "grpc")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "status: read_compatible" in result.stdout, result.stdout
+
+
+# --- Named compatibility profiles (--policy/--profile) -----------------------
+
+
+def test_release_gate_profile_passes_a_purely_additive_json_schema_change():
+    result = run_modelable(
+        "validate-compat",
+        "--from",
+        "compat/baseline-v1",
+        "--to",
+        "compat/additive-v2",
+        "--target",
+        "json-schema",
+        "--policy",
+        str(RELEASE_GATE_POLICY),
+        "--profile",
+        "release-gate",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    output = normalize(result.stdout)
+    assert "status: compatible" in output, output
+    assert "policy: threshold=review_required -> pass" in output, output
+
+
+def test_release_gate_profile_rejects_protobuf_field_number_reuse():
+    result = validate_compat_with_profile("protobuf-breaking", "protobuf")
+    assert result.returncode == 1, result.stdout + result.stderr
+    output = normalize(result.stdout)
+    assert "status: breaking" in output, output
+    assert "policy: threshold=review_required -> fail" in output, output
+    assert "blocking:breaking" in output, output
+
+
+def test_release_gate_profile_rejects_a_wire_safe_protobuf_field_removal():
+    # compat/protobuf-safe reserves the dropped field's number+name, so the
+    # *wire* classification alone (test_protobuf_safe_evolution_is_wire_
+    # compatible above) is "wire_compatible". A named profile's requirement
+    # adds the semantic/source comparison on top of that, and the field is
+    # still genuinely removed at the source level - so the same fixture
+    # that is wire-safe is NOT profile-safe. This is the concrete reason
+    # profiles exist: "does not break the wire format" and "safe to
+    # release under this policy" are different questions.
+    result = validate_compat_with_profile("protobuf-safe", "protobuf")
+    assert result.returncode == 1, result.stdout + result.stderr
+    output = normalize(result.stdout)
+    assert "status: breaking" in output, output
+    assert "removed_field" in output, output
+    assert "policy: threshold=review_required -> fail" in output, output

@@ -665,6 +665,7 @@ compat/breaking-v3/
 compat/protobuf-safe/
 compat/protobuf-breaking/
 compat/grpc-read-index-change/
+compat/release-gate-policy.yaml
 ```
 
 Tests MUST cover:
@@ -682,7 +683,8 @@ Tests MUST cover:
 - Protobuf field-number/name reuse rejection where supported;
 - Protobuf target compatibility command;
 - gRPC target compatibility command;
-- gRPC read-index change producing the upstream-defined non-wire-compatible/rebuild classification.
+- gRPC read-index change producing the upstream-defined non-wire-compatible/rebuild classification;
+- named compatibility profiles (`--policy`/`--profile`): a profile's `requirement` adds a semantic backward-compatibility check on top of a target's own wire-level classification, so a wire-safe-but-source-removed field (compat/protobuf-safe) fails a profile even though it passes plain `--target protobuf`, while a purely additive change (compat/baseline-v1 -> compat/additive-v2) passes both.
 
 Tests MUST assert exit status and stable machine-readable/category output where available. Avoid golden-testing complete human-readable prose.
 
